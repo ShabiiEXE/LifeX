@@ -1,7 +1,6 @@
 # Folders
 /app/
 /gradle/
-/twa-manifest/
 /.vscode/
 /.idea/
 /.git/
@@ -17,10 +16,11 @@ gradlew.bat
 android.keystore
 
 # Checksums
-manifest-checksums.txt
+manifest-checksum.txt
 
 # Node
 package-lock.json
+twa-manifest.json
 
 # Assets
 store_icon.png
