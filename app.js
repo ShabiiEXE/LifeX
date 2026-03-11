@@ -4024,6 +4024,12 @@ function formatHistoryDateTime(timestamp) {
   }).format(new Date(timestamp));
 }
 
+function getDisplayLabel(value) {
+  return `${value || ""}`
+    .replaceAll("Non-Combat Damage", "Spell")
+    .replaceAll("Non-combat", "Spell");
+}
+
 function buildMatchHistoryEntry(finalCauseLabel, finalMessage) {
   syncActivePlayerTimer();
   const endedAt = Date.now();
@@ -4102,12 +4108,12 @@ function renderHistoryEntryDetail(entry) {
             </div>
           `).join("")}
         </div>
-        <div class="history-final-line history-winreason-top">${escapeHtml(entry.finalMessage || "")}</div>
+        <div class="history-final-line history-winreason-top">${escapeHtml(getDisplayLabel(entry.finalMessage || ""))}</div>
         <div class="history-entry-body history-entry-body-static">
           <div class="history-overview-grid">
             <div><span>Total Time</span><strong>${escapeHtml(formatTime(entry.totalMatchSeconds || 0))}</strong></div>
             <div><span>Winner</span><strong>${escapeHtml(entry.winnerName || "No Winner")}</strong></div>
-            <div><span>Won By</span><strong>${escapeHtml(entry.winCause || "Unknown")}</strong></div>
+            <div><span>Won By</span><strong>${escapeHtml(getDisplayLabel(entry.winCause || "Unknown"))}</strong></div>
             <div><span>Turns</span><strong>${escapeHtml(String(entry.turnCount || 0))}</strong></div>
             <div><span>Mode</span><strong>${escapeHtml(modeLabel(entry.mode))}</strong></div>
             <div><span>Actions</span><strong>${escapeHtml(String(entry.actionCount || 0))}</strong></div>
@@ -4132,7 +4138,7 @@ function renderHistoryEntryDetail(entry) {
                   <div><span>Healing</span><strong>${escapeHtml(String(player.stats?.healingDone || 0))}</strong></div>
                   <div><span>Final Life</span><strong>${escapeHtml(String(player.finalLife || 0))}</strong></div>
                   <div><span>Died Turn</span><strong>${player.isWinner ? "-" : escapeHtml(player.eliminationTurn ? String(player.eliminationTurn) : "-")}</strong></div>
-                  <div><span>Died By</span><strong>${player.isWinner ? "-" : escapeHtml(player.eliminationCause || "-")}</strong></div>
+                  <div><span>Died By</span><strong>${player.isWinner ? "-" : escapeHtml(getDisplayLabel(player.eliminationCause || "-"))}</strong></div>
                 </div>
               </div>
             `).join("")}
@@ -4203,7 +4209,7 @@ function renderStartHistoryStep() {
           <div class="history-overview-grid">
             <div><span>Total Time</span><strong>${escapeHtml(formatTime(entry.totalMatchSeconds || 0))}</strong></div>
             <div><span>Winner</span><strong>${escapeHtml(entry.winnerName || "No Winner")}</strong></div>
-            <div><span>Won By</span><strong>${escapeHtml(entry.winCause || "Unknown")}</strong></div>
+            <div><span>Won By</span><strong>${escapeHtml(getDisplayLabel(entry.winCause || "Unknown"))}</strong></div>
             <div><span>Turns</span><strong>${escapeHtml(String(entry.turnCount || 0))}</strong></div>
             <div><span>Mode</span><strong>${escapeHtml(modeLabel(entry.mode))}</strong></div>
             <div><span>Actions</span><strong>${escapeHtml(String(entry.actionCount || 0))}</strong></div>
@@ -4460,7 +4466,7 @@ function openDamageMenu(targetIndex) {
           <div class="damage-types1">
             <button data-type="All">All</button>
             <button data-type="Others">Other</button>
-            <button data-type="Non-combat">Non-Combat</button>
+            <button data-type="Non-combat">Spell</button>
             ${gameMode === "magic" ? "" : '<button data-type="Commander">Commander</button>'}
             <button data-type="Wincon">Win</button>
             <button data-type="Monarch" aria-label="Monarch">${getIconMarkup("Monarch", "inline-icon")}</button>
@@ -4468,7 +4474,7 @@ function openDamageMenu(targetIndex) {
           <div class="damage-types2">
             <button data-type="Lifelink">Lifelink</button>
             <button data-type="Infect">Infect</button>
-            <button data-type="Healing">Healing</button>
+            <button data-type="Healing">Heal</button>
             <button data-type="Poison">Poison</button>
             <button data-type="Milled">Milled</button>
           </div>
@@ -5254,7 +5260,7 @@ function confirmDamage() {
   const logTargetLabel = targetIndices
     .map(i => getPlayerLogLabel(i))
     .join(", ");
-  const logTypeLabel = types.join(", ");
+  const logTypeLabel = getDisplayLabel(types.join(", "));
   let actionText = "";
 
   if (hasMonarch) {
@@ -5712,7 +5718,7 @@ function renderGameLogIntoList(listEl) {
           <span class="game-log-sep"> - </span>
           <span class="game-log-player">${entry.activePlayerName || "Unknown Player"}</span>
         </div>
-        <div class="game-log-text game-log-text-${entry.tone || "default"}">${entry.message}</div>
+        <div class="game-log-text game-log-text-${entry.tone || "default"}">${escapeHtml(getDisplayLabel(entry.message || ""))}</div>
       </div>
     `)
     .join("");
@@ -5880,10 +5886,11 @@ function finalizeEndGameSelection(actionType) {
   const orderedCauses = ENDGAME_PRIMARY_CAUSES.filter(cause => endGameSelectedCauses.includes(cause));
   const finalCauseLabel = orderedCauses.join(" + ");
   const causeSummary = finalCauseLabel || "Unspecified";
+  const displayCauseSummary = getDisplayLabel(causeSummary);
   const message = winnerName
-    ? `${winnerName} won by ${causeSummary}.`
+    ? `${winnerName} won by ${displayCauseSummary}.`
     : finalCauseLabel
-      ? `Game ended with no winner (${finalCauseLabel}).`
+      ? `Game ended with no winner (${displayCauseSummary}).`
       : "Game ended with no winner.";
 
   addGameLogEntry({
@@ -6417,7 +6424,7 @@ window.addEventListener("beforeunload", saveState);
 window.addEventListener("pagehide", saveState);
 
 
-window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
+//window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
 
 // Console helpers for quick troubleshooting:
 // start2(), start3(), start4(), start5(), start6(), startPlayers(n)

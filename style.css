@@ -474,13 +474,13 @@ button:active {
 .timer {
   font-size: 3vw;
   font-weight: bold;
-
   color: white;
-  width: 34%;
   margin-left: auto;
   margin-right: auto;
   padding-top: 1.3%;
   padding-bottom: 1%;
+  padding-left: 5%;
+  padding-right: 5%;
   border-radius: 100px;
   white-space: nowrap;
 }
@@ -514,7 +514,7 @@ button:active {
   align-items: center;
   justify-content: center;
   max-width: 100%;
-  font-size: clamp(36px, 9.8vmin, 92px);
+  font-size: clamp(36px, 9.8vmin, 2px);
   line-height: 0.82;
   letter-spacing: 0.08em;
   text-transform: uppercase;
@@ -2333,7 +2333,7 @@ body.setup-grid-mode #player-buttons {
 }
 
 .setup-center-back-side {
-    left: calc(50% - clamp(104px, 12vmin, 316px));
+    left: calc(50% - clamp(22%, 12vmin, 316px));
 }
 
 body[data-players="5"] .setup-center-play,
