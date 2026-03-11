@@ -1962,12 +1962,10 @@ body.setup-grid-mode #player-buttons {
   padding: 0;
   color: #fff;
   background: var(--main-color);
-  border: 1px solid color-mix(in srgb, var(--main-color) 70%, #fff);
 }
 
 .setup-minus-btn.active {
   background: var(--main-color);
-  border-color: var(--main-color);
 }
 
 .setup-borrow-btn {
@@ -1980,13 +1978,11 @@ body.setup-grid-mode #player-buttons {
   padding: 0 12px;
   color: #fff;
   background: var(--main-color);
-  border: 1px solid color-mix(in srgb, var(--main-color) 70%, #fff);
 }
 
 .setup-seat-back-btn {
   position: absolute;
   background: var(--main-color);
-  border: 1px solid color-mix(in srgb, var(--main-color) 70%, #fff);
   padding: 0;
   color: #fff;
   line-height: 0;
@@ -2006,8 +2002,8 @@ body.setup-grid-mode #player-buttons {
 }
 
 .setup-icon-circle-btn {
-  width: 28px;
-  height: 28px;
+  width: 40px;
+  height: 40px;
   border-radius: 999px;
   display: grid;
   place-items: center;
