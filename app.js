@@ -1233,6 +1233,63 @@ function encodeQrTransferPayload(bundle) {
   return `${QR_TRANSFER_PREFIX}${toBase64Utf8(JSON.stringify(bundle))}`;
 }
 
+function hasDeckImage(deck) {
+  const image = `${deck?.image || ""}`.trim();
+  return image.length > 0;
+}
+
+async function fetchCommanderArtByName(name) {
+  const cleanName = `${name || ""}`.trim();
+  if (!cleanName) return "";
+
+  const exactUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cleanName)}`;
+  const fuzzyUrl = `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cleanName)}`;
+  const urls = [exactUrl, fuzzyUrl];
+
+  for (const url of urls) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) continue;
+      const card = await response.json();
+      if (!isCommanderEligibleCard(card)) continue;
+      const art = getCardArtCrop(card);
+      if (art) return art;
+    } catch {
+      // Ignore fetch failures and try next fallback.
+    }
+  }
+  return "";
+}
+
+async function hydrateMissingDeckImages({ limit = 12 } = {}) {
+  if (navigator.onLine === false) return 0;
+  const candidates = deckLibrary.filter(deck =>
+    deck?.mode === "commander" &&
+    !hasDeckImage(deck) &&
+    `${deck?.cardName || deck?.deckName || ""}`.trim()
+  ).slice(0, Math.max(1, limit));
+
+  if (!candidates.length) return 0;
+
+  let updatedCount = 0;
+  const warmedUrls = [];
+
+  for (const deck of candidates) {
+    const art = await fetchCommanderArtByName(deck.cardName || deck.deckName);
+    if (!art) continue;
+    deck.image = art;
+    warmedUrls.push(art);
+    updatedCount += 1;
+  }
+
+  if (updatedCount > 0) {
+    saveDeckLibrary();
+    void warmCommanderImageCacheUrls(warmedUrls);
+  }
+
+  return updatedCount;
+}
+
 function buildLocalQrDataUrl(payload, size = 360) {
   const raw = `${payload || ""}`.trim();
   if (!raw || typeof window.qrcode !== "function") return "";
@@ -1285,6 +1342,22 @@ function mergeImportedTransferData(payload) {
   let addedProfiles = 0;
   let addedDecks = 0;
   let addedGames = 0;
+  const ensureProfileIdByName = (name) => {
+    const cleanName = `${name || ""}`.trim();
+    if (!cleanName) return "";
+    const normalized = normalizeLibraryName(cleanName);
+    let profile = profileLibrary.find(item => normalizeLibraryName(item.name) === normalized);
+    if (!profile) {
+      profile = {
+        id: createLocalId(),
+        name: cleanName,
+        lastUsedAt: 0
+      };
+      profileLibrary.push(profile);
+      addedProfiles += 1;
+    }
+    return profile.id;
+  };
 
   importedProfiles.forEach((incoming) => {
     const incomingName = typeof incoming === "string"
@@ -1321,8 +1394,7 @@ function mergeImportedTransferData(payload) {
     if (!ownerProfileId) {
       const ownerName = `${incomingDeck?.ownerProfileName || ""}`.trim();
       if (ownerName) {
-        const owner = profileLibrary.find(profile => normalizeLibraryName(profile.name) === normalizeLibraryName(ownerName));
-        if (owner) ownerProfileId = owner.id;
+        ownerProfileId = ensureProfileIdByName(ownerName);
       }
     }
     if (!ownerProfileId) return;
@@ -1353,10 +1425,47 @@ function mergeImportedTransferData(payload) {
 
     const playerNames = Array.isArray(incomingGame?.playerNames) ? incomingGame.playerNames : [];
     const commanderNames = Array.isArray(incomingGame?.commanderNames) ? incomingGame.commanderNames : [];
+    const playerDeckImages = [];
+
+    playerNames.forEach((playerName, index) => {
+      const profileId = ensureProfileIdByName(playerName);
+      if (!profileId) {
+        playerDeckImages[index] = "";
+        return;
+      }
+      const commanderName = `${commanderNames[index] || ""}`.trim();
+      if (!commanderName) {
+        playerDeckImages[index] = "";
+        return;
+      }
+
+      const existingDeck = deckLibrary.find(deck =>
+        deck.ownerProfileId === profileId &&
+        normalizeLibraryName(deck.cardName || deck.deckName) === normalizeLibraryName(commanderName)
+      );
+
+      if (existingDeck) {
+        playerDeckImages[index] = `${existingDeck.image || ""}`.trim();
+        return;
+      }
+
+      deckLibrary.push({
+        id: createLocalId(),
+        mode: "commander",
+        ownerProfileId: profileId,
+        deckName: commanderName,
+        cardName: commanderName,
+        image: "",
+        lastUsedAt: 0
+      });
+      playerDeckImages[index] = "";
+      addedDecks += 1;
+    });
+
     const playersSummary = playerNames.map((name, index) => ({
       name: `${name || ""}`.trim() || `Player ${index + 1}`,
       commander: `${commanderNames[index] || ""}`.trim(),
-      image: getDefaultPlayerBackground(index, "commander"),
+      image: playerDeckImages[index] || getDefaultPlayerBackground(index, "commander"),
       totalTime: 0,
       finalLife: 0,
       finalPoison: 0,
@@ -1396,6 +1505,7 @@ function mergeImportedTransferData(payload) {
   saveDeckLibrary();
   saveMatchHistory();
   void warmCommanderImageCache();
+  void hydrateMissingDeckImages();
 
   return { addedProfiles, addedDecks, addedGames };
 }
