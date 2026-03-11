@@ -174,7 +174,7 @@ button {
   cursor: pointer;
   background: var(--main-color);
   color: #000000;
-  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease, opacity 0.2s ease;
+  transition: all 0.2s ease;
 }
 
 .icon-mask {
@@ -228,9 +228,6 @@ button {
   filter: none;
 }
 
-button:active {
-  transform: none;
-}
 
 #undo-btn:disabled {
   opacity: 0.45;
