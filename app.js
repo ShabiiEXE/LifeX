@@ -967,6 +967,9 @@ function renderStartConfigStep(state) {
   return `
     <div class="setup-panel setup-panel-start">
       <img class="setup-start-logo" src="./icons/favicon.png" alt="Life Tracker logo">
+      <!-- Reset Button -->
+      <button class="setup-debug-cache-btn" data-action="debug-clear-cache" aria-label="Clear app cache">Clear Cache</button>
+      <!-- -------------------------------------------------------------------------------------------------------------------------- -->
       <div class="setup-group" style="margin-top: 20%;">
         <h3>Select Mode</h3>
         <div class="chip-row">${modeOptions}</div>
@@ -1570,6 +1573,42 @@ async function searchScryfallCards(query, { commanderOnly = false } = {}) {
   }
 }
 
+async function clearPwaCacheForDebug() {
+  const keepKeys = new Set([
+    PROFILE_STORAGE_KEY,
+    DECK_STORAGE_KEY,
+    MATCH_HISTORY_STORAGE_KEY
+  ]);
+
+  try {
+    const keysToRemove = [];
+    for (let i = 0; i < localStorage.length; i += 1) {
+      const key = localStorage.key(i);
+      if (!key) continue;
+      if (!keepKeys.has(key)) keysToRemove.push(key);
+    }
+    keysToRemove.forEach((key) => localStorage.removeItem(key));
+  } catch {
+    // Ignore storage cleanup errors during debug purge.
+  }
+
+  try {
+    sessionStorage.clear();
+  } catch {
+    // Ignore session storage cleanup errors during debug purge.
+  }
+
+  if ("caches" in window) {
+    const cacheKeys = await caches.keys();
+    await Promise.all(cacheKeys.map((key) => caches.delete(key)));
+  }
+
+  if ("serviceWorker" in navigator) {
+    const registrations = await navigator.serviceWorker.getRegistrations();
+    await Promise.all(registrations.map((registration) => registration.unregister()));
+  }
+}
+
 function renderSearchResults(seatIndex, cards) {
   const resultsEl = document.getElementById(`search-results-${seatIndex}`);
   if (!resultsEl) return;
@@ -1642,6 +1681,15 @@ function setupStartScreen() {
     if (action === "set-life") {
       state.startingLife = Number(btn.dataset.life) || 40;
       renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "debug-clear-cache") {
+      btn.disabled = true;
+      btn.textContent = "Clearing...";
+      void clearPwaCacheForDebug().finally(() => {
+        window.location.reload();
+      });
       return;
     }
 
@@ -5221,7 +5269,7 @@ window.addEventListener("beforeunload", saveState);
 window.addEventListener("pagehide", saveState);
 
 
-window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
+//window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
 
 // Console helpers for quick troubleshooting:
 // start2(), start3(), start4(), start5(), start6(), startPlayers(n)
