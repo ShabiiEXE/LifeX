@@ -1,4 +1,4 @@
-const APP_SHELL_CACHE = "life-tracker-app-shell-v10";
+const APP_SHELL_CACHE = "life-tracker-app-shell-v11";
 const COMMANDER_IMAGE_CACHE = "life-tracker-commander-images-v1";
 const MAX_CACHED_IMAGES = 180;
 
@@ -42,11 +42,55 @@ const CRITICAL_APP_SHELL_ASSETS = [
 const APP_SHELL_ASSETS = [
 ];
 
+function getCacheKeysForUrl(input) {
+  const url = new URL(typeof input === "string" ? input : input.url, self.location.origin);
+  const pathname = url.pathname || "/";
+  const keys = new Set([
+    pathname,
+    `.${pathname}`
+  ]);
+
+  if (pathname === "/" || pathname === "/index.html") {
+    keys.add("./");
+    keys.add("./index.html");
+    keys.add("/");
+    keys.add("/index.html");
+  }
+
+  return Array.from(keys);
+}
+
+async function putAppShellResponse(cache, requestOrUrl, response) {
+  const keys = getCacheKeysForUrl(requestOrUrl);
+  await Promise.all(keys.map((key) => cache.put(key, response.clone())));
+}
+
+async function matchAppShellRequest(cache, requestOrUrl) {
+  const keys = getCacheKeysForUrl(requestOrUrl);
+  for (const key of keys) {
+    const cached = await cache.match(key, { ignoreSearch: true });
+    if (cached) return cached;
+  }
+  return null;
+}
+
+async function cacheAssetList(cache, assets) {
+  await Promise.all(assets.map(async (asset) => {
+    try {
+      const response = await fetch(asset, { cache: "no-cache" });
+      if (!response || !response.ok) return;
+      await putAppShellResponse(cache, asset, response);
+    } catch {
+      // Keep installing the worker even if one asset is unavailable.
+    }
+  }));
+}
+
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(APP_SHELL_CACHE);
-    await cache.addAll(CRITICAL_APP_SHELL_ASSETS);
-    await cache.addAll(APP_SHELL_ASSETS);
+    await cacheAssetList(cache, CRITICAL_APP_SHELL_ASSETS);
+    await cacheAssetList(cache, APP_SHELL_ASSETS);
   })());
   self.skipWaiting();
 });
@@ -101,24 +145,31 @@ async function handleAppShellRequest(request) {
     try {
       const fresh = await fetch(request);
       if (fresh && fresh.ok) {
-        await cache.put("./index.html", fresh.clone());
+        await putAppShellResponse(cache, request, fresh.clone());
       }
       return fresh;
     } catch {
-      const offlinePage = await cache.match("./index.html");
+      const offlinePage = await matchAppShellRequest(cache, request)
+        || await matchAppShellRequest(cache, "./index.html");
       if (offlinePage) return offlinePage;
       throw new Error("Offline and no cached app shell");
     }
   }
 
-  const cached = await cache.match(request);
+  const cached = await matchAppShellRequest(cache, request);
   if (cached) return cached;
 
-  const fresh = await fetch(request);
-  if (fresh && fresh.ok && new URL(request.url).origin === self.location.origin) {
-    await cache.put(request, fresh.clone());
+  try {
+    const fresh = await fetch(request);
+    if (fresh && fresh.ok && new URL(request.url).origin === self.location.origin) {
+      await putAppShellResponse(cache, request, fresh.clone());
+    }
+    return fresh;
+  } catch {
+    const fallback = await matchAppShellRequest(cache, request);
+    if (fallback) return fallback;
+    throw new Error("Offline and no cached asset");
   }
-  return fresh;
 }
 
 self.addEventListener("fetch", (event) => {

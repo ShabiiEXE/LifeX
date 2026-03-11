@@ -174,7 +174,7 @@ button {
   cursor: pointer;
   background: var(--main-color);
   color: #000000;
-  transition: all 0.2s ease;
+  transition: background-color 0.2s ease, color 0.2s ease, box-shadow 0.2s ease, filter 0.2s ease, opacity 0.2s ease;
 }
 
 .icon-mask {
@@ -229,17 +229,7 @@ button {
 }
 
 button:active {
-  transform: scale(1.1);
-}
-
-#pause-btn:active,
-.pause-side-btn:active,
-#pause-actions button:active {
-  transform: translate(-50%, -50%) scale(1.03);
-}
-
-#pause-actions button:active {
-  transform: scale(1.02);
+  transform: none;
 }
 
 #undo-btn:disabled {
