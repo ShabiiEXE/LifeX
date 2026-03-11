@@ -1130,7 +1130,7 @@ function renderQrPanel(state) {
   return `
     <div class="qr-overlay ${showBackdrop ? "qr-overlay-active" : ""}">
       <div class="qr-modal">
-        <button class="setup-icon-circle-btn qr-close-btn" data-action="close-qr" aria-label="Close">${getIconMarkup("Cancel", "setup-inline-icon")}</button>
+        ${isMenu ? `<button class="setup-icon-circle-btn qr-close-btn" data-action="close-qr" aria-label="Close">${getIconMarkup("Cancel", "setup-inline-icon")}</button>` : ""}
         <h3>Transfer Data</h3>
         ${statusMarkup}
         ${isMenu ? `
@@ -1143,20 +1143,20 @@ function renderQrPanel(state) {
           <div class="qr-share-body">
             ${state.qrImageUrl ? `<img class="qr-image" src="${state.qrImageUrl}" alt="Transfer QR">` : `<div class="qr-placeholder">QR too large, use copy/share payload.</div>`}
             <textarea class="qr-payload" readonly>${escapeHtml(state.qrSharePayload || "")}</textarea>
-            <div class="setup-footer qr-menu-actions">
+            <div class="setup-footer qr-menu-actions qr-menu-actions-inline">
               <button data-action="copy-qr-payload">Copy</button>
               <button data-action="native-share-qr">Share</button>
-              <button data-action="back-qr-menu">Back</button>
+              <button class="setup-icon-circle-btn qr-back-btn" data-action="back-qr-menu" aria-label="Back">${getIconMarkup("Back", "setup-inline-icon")}</button>
             </div>
           </div>
         ` : ""}
         ${isScan ? `
           <div class="qr-scan-body">
             <video id="qr-scan-video" class="qr-scan-video" playsinline muted></video>
-            <textarea class="qr-payload" data-qr-input="scan-payload" placeholder="Paste transfer payload here if camera scan is unavailable.">${escapeHtml(state.qrInput || "")}</textarea>
-            <div class="setup-footer qr-menu-actions">
+            <textarea class="qr-payload" data-qr-input="scan-payload" placeholder="Paste your Code here if camera is unavailable.">${escapeHtml(state.qrInput || "")}</textarea>
+            <div class="setup-footer qr-menu-actions qr-menu-actions-inline">
               <button data-action="import-qr-payload">Import</button>
-              <button data-action="back-qr-menu">Back</button>
+              <button class="setup-icon-circle-btn qr-back-btn" data-action="back-qr-menu" aria-label="Back">${getIconMarkup("Back", "setup-inline-icon")}</button>
             </div>
           </div>
         ` : ""}
@@ -1551,7 +1551,7 @@ async function startQrScanner() {
   if (!videoEl) return;
 
   if (!("BarcodeDetector" in window)) {
-    state.qrStatus = "Camera scan is not supported here. Paste payload below.";
+    state.qrStatus = "Camera scan is not supported here. Paste Code below.";
     renderStartSetupScreen();
     return;
   }
@@ -2442,8 +2442,8 @@ function setupStartScreen() {
       state.qrDisplayPayload = qrPayload;
       state.qrImageUrl = qrDataUrl;
       state.qrStatus = hasQrImage
-        ? "QR shares compact data (profiles + decks). Use Copy/Share for full payload."
-        : "Data is too large for a single QR image. Use Copy/Share payload.";
+        ? "Share your Profiles and Decks with a QR code. Alternatively use the text code."
+        : "Data is too large for a single QR code. Use Copy/Share.";
       renderStartSetupScreen();
       return;
     }
@@ -2453,9 +2453,9 @@ function setupStartScreen() {
       if (!payload) return;
       try {
         await navigator.clipboard.writeText(payload);
-        state.qrStatus = "Payload copied.";
+        state.qrStatus = "Data copied.";
       } catch {
-        state.qrStatus = "Copy failed on this device.";
+        state.qrStatus = "Copy failed.";
       }
       renderStartSetupScreen();
       return;
@@ -2493,13 +2493,13 @@ function setupStartScreen() {
     if (action === "import-qr-payload") {
       const payload = `${state.qrInput || ""}`.trim();
       if (!payload) {
-        state.qrStatus = "Paste payload first.";
+        state.qrStatus = "Paste Data first.";
         renderStartSetupScreen();
         return;
       }
       const parsed = parseQrTransferPayload(payload);
       if (!parsed) {
-        state.qrStatus = "Invalid payload.";
+        state.qrStatus = "Invalid Data.";
         renderStartSetupScreen();
         return;
       }

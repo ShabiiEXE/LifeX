@@ -1013,7 +1013,7 @@ body.setup-grid-mode #player-buttons {
 }
 
 .qr-overlay {
-  position: absolute;
+  position: fixed;
   inset: 0;
   z-index: 9999;
   background: rgba(0, 0, 0, 0.12);
@@ -1021,7 +1021,9 @@ body.setup-grid-mode #player-buttons {
   -webkit-backdrop-filter: blur(7px);
   display: grid;
   place-items: center;
-  border-radius: inherit;
+  width: 100vw;
+  height: 100dvh;
+  border-radius: 0;
 }
 
 .qr-overlay.qr-overlay-active {
@@ -1030,7 +1032,7 @@ body.setup-grid-mode #player-buttons {
 
 .qr-modal {
   position: absolute;
-  width: min(92%, 420px);
+  width: min(87%, 420px);
   background: rgba(12, 12, 12, 0.96);
   border: 1px solid rgba(255, 255, 255, 0.22);
   border-radius: 14px;
@@ -1056,6 +1058,28 @@ body.setup-grid-mode #player-buttons {
 }
 
 .qr-menu-actions button {
+  min-height: 42px;
+}
+
+.qr-menu-actions-inline {
+  align-items: center;
+}
+
+.qr-share-body .qr-menu-actions-inline {
+  flex-wrap: nowrap;
+}
+
+.qr-share-body .qr-menu-actions-inline > button:not(.qr-back-btn) {
+  flex: 1 1 0;
+  min-width: 0;
+}
+
+.qr-menu-actions-inline .qr-back-btn {
+  position: static;
+  flex: 0 0 42px;
+  width: 42px;
+  min-width: 42px;
+  height: 42px;
   min-height: 42px;
 }
 
