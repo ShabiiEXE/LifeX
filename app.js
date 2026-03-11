@@ -1215,7 +1215,7 @@ function renderQrPanel(state) {
         ` : ""}
         ${isScan ? `
           <div class="qr-scan-body">
-            <video id="qr-scan-video" class="qr-scan-video" playsinline muted></video>
+            <video id="qr-scan-video" class="qr-scan-video" autoplay playsinline muted></video>
             <textarea class="qr-payload" data-qr-input="scan-payload" placeholder="Paste your Code here if camera is unavailable.">${escapeHtml(state.qrInput || "")}</textarea>
             <div class="setup-footer qr-menu-actions qr-menu-actions-inline">
               <button data-action="import-qr-payload">Import</button>
@@ -1255,18 +1255,12 @@ function buildQrTransferBundle(includeGames = true) {
     exportedAt: Date.now(),
     sourceDeviceId: deviceId,
     profiles: profileLibrary.map(profile => ({
-      id: profile.id,
-      name: profile.name,
-      lastUsedAt: Number.isFinite(profile.lastUsedAt) ? profile.lastUsedAt : 0
+      name: profile.name
     })),
     decks: deckLibrary.map(deck => ({
-      id: deck.id,
-      ownerProfileId: deck.ownerProfileId || "",
       ownerProfileName: profileNameById.get(deck.ownerProfileId) || "",
       deckName: deck.deckName || deck.cardName || "",
-      cardName: deck.cardName || deck.deckName || "",
-      image: deck.image || "",
-      lastUsedAt: Number.isFinite(deck.lastUsedAt) ? deck.lastUsedAt : 0
+      cardName: deck.cardName || deck.deckName || ""
     })),
     games: sharedGames
   };
@@ -1281,8 +1275,7 @@ function buildCompactQrTransferBundle() {
   const compactDecks = deckLibrary
     .map((deck) => ({
       ownerProfileName: `${profileById.get(deck.ownerProfileId) || ""}`.trim(),
-      cardName: `${deck?.cardName || deck?.deckName || ""}`.trim(),
-      image: `${deck?.image || ""}`.trim()
+      cardName: `${deck?.cardName || deck?.deckName || ""}`.trim()
     }))
     .filter(deck => deck.ownerProfileName && deck.cardName);
 
@@ -1372,6 +1365,26 @@ function buildLocalQrDataUrl(payload, size = 360) {
   } catch {
     return "";
   }
+}
+
+function updateActiveQrStatus(message) {
+  const state = ensureSetupState();
+  state.qrStatus = `${message || ""}`.trim();
+  const statusEl = document.querySelector(".qr-status");
+  if (statusEl) {
+    statusEl.textContent = state.qrStatus;
+  }
+}
+
+function formatQrImportStatus(merged) {
+  const profileCount = Number.isFinite(merged?.addedProfiles) ? merged.addedProfiles : 0;
+  const deckCount = Number.isFinite(merged?.addedDecks) ? merged.addedDecks : 0;
+  const gameCount = Number.isFinite(merged?.addedGames) ? merged.addedGames : 0;
+  const segments = [`Imported ${profileCount} profiles`, `${deckCount} decks`];
+  if (gameCount > 0) {
+    segments.push(`${gameCount} games`);
+  }
+  return `${segments.join(", ")}.`;
 }
 
 function parseQrTransferPayload(rawPayload) {
@@ -1613,36 +1626,52 @@ async function startQrScanner() {
   const videoEl = document.getElementById("qr-scan-video");
   if (!videoEl) return;
 
-  if (!("BarcodeDetector" in window)) {
-    state.qrStatus = "Camera scan is not supported here. Paste Code below.";
-    renderStartSetupScreen();
-    return;
-  }
-
-  try {
-    qrScannerDetector = new window.BarcodeDetector({ formats: ["qr_code"] });
-  } catch {
-    state.qrStatus = "QR detector is not available. Paste payload below.";
-    renderStartSetupScreen();
-    return;
-  }
-
   try {
     if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
       throw new Error("media-unavailable");
     }
-    qrScannerStream = await navigator.mediaDevices.getUserMedia({
-      video: { facingMode: "environment" },
-      audio: false
-    });
+    const constraints = [
+      { video: { facingMode: { ideal: "environment" } }, audio: false },
+      { video: true, audio: false }
+    ];
+    let lastError = null;
+    for (const constraint of constraints) {
+      try {
+        qrScannerStream = await navigator.mediaDevices.getUserMedia(constraint);
+        break;
+      } catch (error) {
+        lastError = error;
+      }
+    }
+    if (!qrScannerStream) {
+      throw lastError || new Error("camera-unavailable");
+    }
   } catch {
     state.qrStatus = "Unable to access camera. Paste payload below.";
     renderStartSetupScreen();
     return;
   }
 
+  videoEl.setAttribute("autoplay", "");
+  videoEl.setAttribute("muted", "");
+  videoEl.setAttribute("playsinline", "");
+  videoEl.autoplay = true;
+  videoEl.muted = true;
+  videoEl.playsInline = true;
   videoEl.srcObject = qrScannerStream;
   await videoEl.play().catch(() => {});
+
+  if (!("BarcodeDetector" in window)) {
+    updateActiveQrStatus("Camera preview is on, but live QR decoding is unavailable here. Paste Code below.");
+    return;
+  }
+
+  try {
+    qrScannerDetector = new window.BarcodeDetector({ formats: ["qr_code"] });
+  } catch {
+    updateActiveQrStatus("Camera preview is on, but QR decoding is unavailable here. Paste payload below.");
+    return;
+  }
 
   const loop = async () => {
     const current = ensureSetupState();
@@ -1666,7 +1695,7 @@ async function startQrScanner() {
 
         const merged = mergeImportedTransferData(parsed);
         current.qrView = "menu";
-        current.qrStatus = `Imported ${merged.addedProfiles} profiles, ${merged.addedDecks} decks, ${merged.addedGames} games.`;
+        current.qrStatus = formatQrImportStatus(merged);
         current.qrInput = "";
         renderStartSetupScreen();
         stopQrScanner();
@@ -2517,20 +2546,19 @@ function setupStartScreen() {
     }
 
     if (action === "open-qr-share") {
-      const fullBundle = buildQrTransferBundle(true);
-      const fullPayload = encodeQrTransferPayload(fullBundle);
-      const compactPayload = encodeQrTransferPayload(buildCompactQrTransferBundle());
-      const qrPayload = compactPayload;
+      const transferBundle = buildQrTransferBundle(true);
+      const transferPayload = encodeQrTransferPayload(transferBundle);
+      const qrPayload = encodeQrTransferPayload(buildCompactQrTransferBundle());
       const qrDataUrl = buildLocalQrDataUrl(qrPayload);
       const hasQrImage = !!qrDataUrl;
 
       state.qrOpen = true;
       state.qrView = "share";
-      state.qrSharePayload = fullPayload;
+      state.qrSharePayload = transferPayload;
       state.qrDisplayPayload = qrPayload;
       state.qrImageUrl = qrDataUrl;
       state.qrStatus = hasQrImage
-        ? "Share your Profiles and Decks with a QR code. Alternatively use the text code."
+        ? "Share player and deck names with a QR code. Alternatively use the text code."
         : "Data is too large for a single QR code. Use Copy/Share.";
       renderStartSetupScreen();
       return;
@@ -2593,7 +2621,7 @@ function setupStartScreen() {
       }
       const merged = mergeImportedTransferData(parsed);
       state.qrView = "menu";
-      state.qrStatus = `Imported ${merged.addedProfiles} profiles, ${merged.addedDecks} decks, ${merged.addedGames} games.`;
+      state.qrStatus = formatQrImportStatus(merged);
       state.qrInput = "";
       stopQrScanner();
       renderStartSetupScreen();
