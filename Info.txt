@@ -1,0 +1,13 @@
+For APK Generation:
+app
+gradle
+android.keystore
+build.gradle
+gradle.properties
+gradlew
+gradlew.bat
+manifest-checksums.txt
+package-lock.json
+settings.gradle
+store_icon.png
+twa-manifest

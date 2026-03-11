@@ -78,6 +78,60 @@ let allowExitAfterConfirm = false;
 let qrScannerStream = null;
 let qrScannerLoopId = null;
 let qrScannerDetector = null;
+let duelSeries = createDefaultDuelSeriesState();
+
+function normalizeDuelMatchLength(value) {
+  return [1, 3, 5].includes(Number(value)) ? Number(value) : 1;
+}
+
+function createDefaultDuelSeriesState(matchLength = 1) {
+  return {
+    matchLength: normalizeDuelMatchLength(matchLength),
+    currentGame: 1,
+    wins: [0, 0],
+    winners: []
+  };
+}
+
+function normalizeDuelSeriesState(state) {
+  const matchLength = normalizeDuelMatchLength(state?.matchLength);
+  const winners = Array.isArray(state?.winners)
+    ? state.winners
+        .map(value => Number.isInteger(value) && value >= 0 && value <= 1 ? value : null)
+        .slice(0, matchLength)
+    : [];
+  const wins = [0, 0];
+  winners.forEach(index => {
+    if (!Number.isInteger(index)) return;
+    wins[index] += 1;
+  });
+  return {
+    matchLength,
+    currentGame: Math.min(matchLength, Math.max(1, Number(state?.currentGame) || (winners.length + 1))),
+    wins,
+    winners
+  };
+}
+
+function isDuelMode(mode = gameMode) {
+  return mode === "magic";
+}
+
+function getCompletedDuelGamesCount() {
+  return Array.isArray(duelSeries?.winners) ? duelSeries.winners.length : 0;
+}
+
+function isDuelSeriesComplete() {
+  return isDuelMode() && getCompletedDuelGamesCount() >= duelSeries.matchLength;
+}
+
+function isCurrentDuelGameFinal() {
+  return isDuelMode() && (getCompletedDuelGamesCount() + 1) >= duelSeries.matchLength;
+}
+
+function resetDuelSeriesState(matchLength = 1) {
+  duelSeries = createDefaultDuelSeriesState(matchLength);
+}
 
 function getIconMarkup(iconName, extraClass = "btn-icon") {
   return `<img src="./icons/${iconName}.svg" class="${extraClass} icon-img" alt="">`;
@@ -523,6 +577,7 @@ function createDefaultSetupState() {
     step: "config",
     mode: "commander",
     playerCount: 4,
+    matchLength: 1,
     startingLife: 40,
     startingPlayerIndex: 0,
     showStarterPicker: false,
@@ -551,7 +606,7 @@ function ensureSetupState() {
 }
 
 function modeLabel(mode) {
-  return mode === "magic" ? "Magic" : "Commander";
+  return mode === "magic" ? "Duel" : "Commander";
 }
 
 function normalizeLibraryName(value) {
@@ -755,6 +810,7 @@ function saveState() {
   const state = {
     hasStartedGame,
     gameMode,
+    duelSeries,
     starting_life,
     selectedPlayerCount,
     activePlayerIndex,
@@ -807,6 +863,7 @@ function loadState() {
   hasStartedGame = true;
 
   gameMode = state.gameMode === "magic" ? "magic" : "commander";
+  duelSeries = normalizeDuelSeriesState(state.duelSeries);
   starting_life = Number.isFinite(state.starting_life) ? state.starting_life : 40;
   selectedPlayerCount = Math.min(6, Math.max(2, state.selectedPlayerCount || 4));
   activePlayerIndex = Math.min(selectedPlayerCount - 1, Math.max(0, state.activePlayerIndex || 0));
@@ -878,6 +935,7 @@ function getCurrentStateSnapshot() {
   return {
     hasStartedGame,
     gameMode,
+    duelSeries,
     starting_life,
     selectedPlayerCount,
     activePlayerIndex,
@@ -911,6 +969,7 @@ function applyStateSnapshot(snapshot, { forcePaused = false } = {}) {
   hasStartedGame = !!snapshot.hasStartedGame;
   selectedPlayerCount = Math.min(6, Math.max(2, snapshot.selectedPlayerCount || 4));
   gameMode = snapshot.gameMode === "magic" ? "magic" : "commander";
+  duelSeries = normalizeDuelSeriesState(snapshot.duelSeries);
   starting_life = Number.isFinite(snapshot.starting_life) ? snapshot.starting_life : starting_life;
   activePlayerIndex = Math.min(selectedPlayerCount - 1, Math.max(0, snapshot.activePlayerIndex || 0));
   isPaused = !!snapshot.isPaused;
@@ -1065,6 +1124,10 @@ function renderStartConfigStep(state) {
     <button class="${state.playerCount === count ? "active" : ""}" data-action="set-player-count" data-player-count="${count}" ${state.mode === "magic" ? "disabled" : ""}>${count}</button>
   `).join("");
 
+  const duelMatchOptions = [1, 3, 5].map(count => `
+    <button class="${state.matchLength === count ? "active" : ""}" data-action="set-match-length" data-match-length="${count}">Bo${count}</button>
+  `).join("");
+
   const lifeOptions = [20, 30, 40, 50, 60].map(life => `
     <button class="${state.startingLife === life ? "active" : ""}" data-action="set-life" data-life="${life}">${life}</button>
   `).join("");
@@ -1100,14 +1163,14 @@ function renderStartConfigStep(state) {
         <div class="chip-row">${modeOptions}</div>
       </div>
       <div class="setup-group">
-        <h3>Amount of Players</h3>
-        <div class="chip-row">${playersOptions}</div>
+        <h3>${state.mode === "magic" ? "Matches" : "Amount of Players"}</h3>
+        <div class="chip-row">${state.mode === "magic" ? duelMatchOptions : playersOptions}</div>
       </div>
       <div class="setup-group">
         <h3>Starting Life</h3>
         <div class="chip-row">${lifeOptions}</div>
       </div>
-      <div class="setup-footer">
+      <div class="setup-footer" style="margin-top: 5%;">
         <button data-action="continue-from-config">Continue</button>
         <button class="setup-start-logs-btn" data-action="open-start-logs" aria-label="Game Logs">${getIconMarkup("GameLog", "setup-inline-icon")}</button>
       </div>
@@ -1676,6 +1739,7 @@ function buildRematchSetupState() {
     step: "seats",
     mode,
     playerCount: mode === "magic" ? 2 : playerCount,
+    matchLength: duelSeries.matchLength,
     startingLife: starting_life,
     startingPlayerIndex: 0,
     showStarterPicker: false,
@@ -2210,6 +2274,22 @@ function renderStartSetupScreen() {
   updateScrollableFadeState(container);
 }
 
+function renderDuelSeriesOverlay(playerIndex) {
+  if (!isDuelMode() || selectedPlayerCount !== 2) return "";
+  const winsNeeded = Math.ceil(normalizeDuelMatchLength(duelSeries.matchLength) / 2);
+  const wins = duelSeries.wins?.[playerIndex] || 0;
+  const tokenMarkup = Array.from({ length: winsNeeded }, (_, index) => `
+    <span class="duel-series-token ${index < wins ? "is-won" : ""}">
+      <img src="./icons/buttonshape.svg" alt="">
+    </span>
+  `).join("");
+  return `
+    <div class="duel-series-overlay" aria-label="Series wins">
+      <div class="duel-series-track">${tokenMarkup}</div>
+    </div>
+  `;
+}
+
 async function searchScryfallCards(query, { commanderOnly = false } = {}) {
   const clean = (query || "").trim();
   if (clean.length < 2) return [];
@@ -2370,6 +2450,7 @@ function setupStartScreen() {
       state.mode = btn.dataset.mode === "magic" ? "magic" : "commander";
       if (state.mode === "magic") {
         state.playerCount = 2;
+        state.matchLength = normalizeDuelMatchLength(state.matchLength);
         state.startingLife = 20;
         if (state.startingPlayerIndex > 1) state.startingPlayerIndex = 0;
       } else if (state.startingLife === 20) {
@@ -2383,6 +2464,13 @@ function setupStartScreen() {
       if (state.mode === "magic") return;
       state.playerCount = Math.min(6, Math.max(2, Number(btn.dataset.playerCount) || 4));
       state.startingPlayerIndex = Math.min(state.startingPlayerIndex, state.playerCount - 1);
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "set-match-length") {
+      if (state.mode !== "magic") return;
+      state.matchLength = normalizeDuelMatchLength(btn.dataset.matchLength);
       renderStartSetupScreen();
       return;
     }
@@ -3009,6 +3097,7 @@ function setupStartScreen() {
       });
       quickStartGame(playerCount, {
         mode: state.mode,
+        matchLength: state.matchLength,
         startingLife: state.startingLife,
         startingPlayerIndex: state.startingPlayerIndex,
         seats: state.seats
@@ -3072,11 +3161,15 @@ function quickStartGame(playerCount, options = {}) {
   stopQrScanner();
   const normalizedCount = Math.min(6, Math.max(2, Number(playerCount) || 4));
   const mode = options.mode === "magic" ? "magic" : "commander";
+  const matchLength = normalizeDuelMatchLength(options.matchLength);
   const configuredLife = Number(options.startingLife) || 40;
   const configuredStart = Math.min(normalizedCount - 1, Math.max(0, Number(options.startingPlayerIndex) || 0));
   const seats = Array.isArray(options.seats) ? options.seats : [];
 
   gameMode = mode;
+  duelSeries = options.preserveDuelSeries
+    ? normalizeDuelSeriesState(options.duelSeries)
+    : createDefaultDuelSeriesState(matchLength);
   starting_life = configuredLife;
   hasStartedGame = true;
 
@@ -3086,7 +3179,17 @@ function quickStartGame(playerCount, options = {}) {
   selectedPlayerCount = normalizedCount;
   activePlayerIndex = configuredStart;
   turnNumber = 1;
-  gameLog = [];
+  gameLog = options.preserveDuelSeries && Array.isArray(options.gameLog)
+    ? options.gameLog
+        .map(entry => ({
+          game: Number.isFinite(entry?.game) && entry.game > 0 ? entry.game : 1,
+          turn: Number.isFinite(entry?.turn) && entry.turn > 0 ? entry.turn : 1,
+          activePlayerName: entry?.activePlayerName || "",
+          tone: entry?.tone || "default",
+          message: entry?.message || ""
+        }))
+        .filter(entry => entry.message)
+    : [];
   lastEliminationCause = null;
   lastEliminationSelections = [];
   endGameSelectedCauses = [];
@@ -3245,6 +3348,7 @@ svg.innerHTML = "";
       </div>
 
       <div class="info_container">
+        ${renderDuelSeriesOverlay(index)}
         <div class="info_containter_center">
           ${shouldUseBoardStarterSelection() ? "" : `<div class="timer" id="timer-${index}">${getTimerLabel(index, player, isActive)}</div>`}
           <div class="life">${getDisplayLifeMarkup(player, index)}</div>
@@ -3953,6 +4057,7 @@ function buildMatchHistoryEntry(finalCauseLabel, finalMessage) {
     actionCount: gameLog.length,
     players: playersSummary,
     gameLog: gameLog.map(entry => ({
+      game: Number.isFinite(entry.game) && entry.game > 0 ? entry.game : 1,
       turn: entry.turn,
       activePlayerName: entry.activePlayerName || "",
       tone: entry.tone || "default",
@@ -4205,6 +4310,9 @@ function addGameLogEntry(entry) {
   if (!entry || !entry.message) return;
 
   gameLog.unshift({
+    game: Number.isFinite(entry.game) && entry.game > 0
+      ? entry.game
+      : (isDuelMode() ? Math.max(1, duelSeries.currentGame) : 1),
     turn: Number.isFinite(entry.turn) && entry.turn > 0 ? entry.turn : turnNumber,
     activePlayerName: entry.activePlayerName || getPlayerNameForLog(players[activePlayerIndex], activePlayerIndex),
     tone: entry.tone || "default",
@@ -5600,7 +5708,7 @@ function renderGameLogIntoList(listEl) {
     .map(entry => `
       <div class="game-log-entry">
         <div class="game-log-meta">
-          <span class="game-log-turn">Turn ${entry.turn}</span>
+          <span class="game-log-turn">${isDuelMode() ? `Game ${entry.game || 1} - ` : ""}Turn ${entry.turn}</span>
           <span class="game-log-sep"> - </span>
           <span class="game-log-player">${entry.activePlayerName || "Unknown Player"}</span>
         </div>
@@ -5680,6 +5788,9 @@ function ensureValidEndGameCause({ allowEmpty = canAllowEmptyEndGameSelection() 
   }
 
   endGameSelectedCauses = normalizeEndGameSelections(endGameSelectedCauses);
+  if (isDuelMode()) {
+    endGameSelectedCauses = endGameSelectedCauses.filter(cause => cause !== "Commander");
+  }
   if (!allowEmpty && endGameSelectedCauses.length === 0) {
     endGameSelectedCauses = requiredFallback;
   }
@@ -5693,9 +5804,31 @@ function updateEndCauseButtonUI() {
 
   endCauseButtons.querySelectorAll("button").forEach((btn) => {
     const cause = btn.dataset.cause;
+    const shouldHide = isDuelMode() && cause === "Commander";
+    btn.classList.toggle("hidden", shouldHide);
     btn.classList.toggle("active", selectedSet.has(cause));
-    btn.disabled = disabledSet.has(cause) && !selectedSet.has(cause);
+    btn.disabled = shouldHide || (disabledSet.has(cause) && !selectedSet.has(cause));
   });
+}
+
+function updateEndScreenActions() {
+  const primaryBtn = document.getElementById("new-game-btn");
+  const menuBtn = document.getElementById("back-menu-btn");
+  if (!primaryBtn || !menuBtn) return;
+
+  if (isDuelMode()) {
+    const isFinalScheduledGame = isCurrentDuelGameFinal();
+    primaryBtn.textContent = "Next Game";
+    primaryBtn.classList.toggle("hidden", isFinalScheduledGame);
+    menuBtn.textContent = "Back to Menu";
+    menuBtn.classList.toggle("hidden", !isFinalScheduledGame);
+    return;
+  }
+
+  primaryBtn.textContent = "New Game";
+  primaryBtn.classList.remove("hidden");
+  menuBtn.textContent = "Back to Menu";
+  menuBtn.classList.remove("hidden");
 }
 
 function getEndCauseTone(causeLabel) {
@@ -5760,15 +5893,51 @@ function finalizeEndGameSelection(actionType) {
     message
   });
 
+  if (isDuelMode()) {
+    duelSeries = normalizeDuelSeriesState({
+      ...duelSeries,
+      currentGame: Math.min(duelSeries.matchLength, duelSeries.currentGame),
+      winners: [...duelSeries.winners, winnerIndex !== null && winnerIndex >= 0 ? winnerIndex : null]
+        .slice(0, duelSeries.matchLength)
+    });
+  }
+
   archiveCompletedGame(finalCauseLabel, message);
   saveState();
   clearResumeSessions();
 
-  if (actionType === "menu") {
+  if (actionType === "next") {
+    startNextDuelGame();
+  } else if (actionType === "menu") {
     backToMenuFromEnd();
   } else {
     openRematchSetupFromEnd();
   }
+}
+
+function buildDuelContinuationSeats() {
+  return Array.from({ length: 6 }, (_, index) => ({
+    ...getDefaultSeatState(index),
+    profileName: (players[index]?.name || `Player ${index + 1}`).trim() || `Player ${index + 1}`
+  }));
+}
+
+function startNextDuelGame() {
+  if (!isDuelMode()) return;
+  const nextSeries = normalizeDuelSeriesState({
+    ...duelSeries,
+    currentGame: getCompletedDuelGamesCount() + 1
+  });
+  quickStartGame(2, {
+    mode: "magic",
+    matchLength: nextSeries.matchLength,
+    startingLife: starting_life,
+    startingPlayerIndex: Math.min(1, Math.max(0, Number(setupState?.startingPlayerIndex) || 0)),
+    seats: buildDuelContinuationSeats(),
+    preserveDuelSeries: true,
+    duelSeries: nextSeries,
+    gameLog
+  });
 }
 
 function endGameFromPause() {
@@ -5788,6 +5957,7 @@ function openRematchSetupFromEnd() {
   hasStartedGame = false;
   selectedPlayerCount = 0;
   gameMode = rematchState.mode;
+  resetDuelSeriesState(rematchState.matchLength);
   starting_life = rematchState.startingLife;
   isGameOver = false;
   isPaused = true;
@@ -5849,6 +6019,7 @@ function backToMenuFromEnd() {
   hasStartedGame = false;
   selectedPlayerCount = 0;
   gameMode = "commander";
+  resetDuelSeriesState();
   starting_life = 40;
   isGameOver = false;
   isPaused = true;
@@ -6003,6 +6174,7 @@ function openEndMenu(winnerIndex) {
   ensureValidEndGameCause({ allowEmpty: !hasWinner });
   setupEndCauseButtons();
   updateEndCauseButtonUI();
+  updateEndScreenActions();
   renderEndGameLogPanel();
   updateUndoButtonState();
 }
@@ -6228,7 +6400,13 @@ function initExitConfirmGuard() {
 
 document.getElementById("pause-btn").addEventListener("click", togglePause);
 document.getElementById("game").addEventListener("click", openStartMenuWhenNoGame);
-document.getElementById("new-game-btn")?.addEventListener("click", () => finalizeEndGameSelection("new"));
+document.getElementById("new-game-btn")?.addEventListener("click", () => {
+  if (isDuelMode()) {
+    finalizeEndGameSelection(isCurrentDuelGameFinal() ? "menu" : "next");
+    return;
+  }
+  finalizeEndGameSelection("new");
+});
 document.getElementById("back-menu-btn")?.addEventListener("click", () => finalizeEndGameSelection("menu"));
 document.getElementById("end-undo-btn")?.addEventListener("click", undoLastMoveFromEndScreen);
 window.addEventListener("resize", updateGridLayout);

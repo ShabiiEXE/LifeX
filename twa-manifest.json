@@ -1,0 +1,50 @@
+{
+  "packageId": "com.shabii.lifex",
+  "host": "lifex.shabiimitjans.workers.dev/",
+  "name": "LifeX",
+  "launcherName": "LifeX",
+  "display": "fullscreen",
+  "themeColor": "#E0591A",
+  "themeColorDark": "#000000",
+  "navigationColor": "#000000",
+  "navigationColorDark": "#000000",
+  "navigationDividerColor": "#000000",
+  "navigationDividerColorDark": "#000000",
+  "backgroundColor": "#E0591A",
+  "enableNotifications": true,
+  "startUrl": "https://lifex.shabiimitjans.workers.dev/",
+  "iconUrl": "https://raw.githubusercontent.com/ShabiiEXE/LifeX/refs/heads/main/icons/app-Icon.png",
+  "maskableIconUrl": "https://raw.githubusercontent.com/ShabiiEXE/LifeX/refs/heads/main/icons/app-Icon.png",
+  "splashScreenFadeOutDuration": 300,
+  "signingKey": {
+    "path": "E:\\Drive\\Work\\life-counter\\android.keystore",
+    "alias": "android"
+  },
+  "appVersionName": "1",
+  "appVersionCode": 1,
+  "shortcuts": [],
+  "generatorApp": "bubblewrap-cli",
+  "webManifestUrl": "https://raw.githubusercontent.com/ShabiiEXE/LifeX/refs/heads/main/manifest.webmanifest",
+  "fallbackType": "customtabs",
+  "features": {},
+  "alphaDependencies": {
+    "enabled": false
+  },
+  "enableSiteSettingsShortcut": true,
+  "isChromeOSOnly": false,
+  "isMetaQuest": false,
+  "fullScopeUrl": "https://raw.githubusercontent.com/ShabiiEXE/LifeX/refs/heads/main/",
+  "minSdkVersion": 21,
+  "orientation": "portrait",
+  "fingerprints": [],
+  "additionalTrustedOrigins": [],
+  "retainedBundles": [],
+  "protocolHandlers": [],
+  "fileHandlers": [],
+  "launchHandlerClientMode": "",
+  "displayOverride": [
+    "fullscreen",
+    "standalone"
+  ],
+  "appVersion": "1"
+}
