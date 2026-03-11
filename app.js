@@ -1482,7 +1482,7 @@ function updateScrollableFadeState(root = document) {
 
 function bindSetupSeatBodyDrag(playerEl, seatIndex) {
   const scrollers = playerEl
-    ? Array.from(playerEl.querySelectorAll(".setup-seat-body, .setup-search-results, .setup-profile-list, .setup-deck-grid"))
+    ? Array.from(playerEl.querySelectorAll(".setup-seat-body, .setup-search-results, .setup-profile-list, .setup-deck-grid, .setup-search-art-grid"))
     : [];
   if (!scrollers.length) return;
 

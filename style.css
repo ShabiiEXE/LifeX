@@ -77,6 +77,7 @@ body {
 .setup-seat-body,
 .setup-profile-list,
 .setup-search-results,
+.setup-search-art-grid,
 .history-list,
 .history-detail-shell,
 .game-log-list {
@@ -87,6 +88,7 @@ body {
 .setup-seat-body::-webkit-scrollbar,
 .setup-profile-list::-webkit-scrollbar,
 .setup-search-results::-webkit-scrollbar,
+.setup-search-art-grid::-webkit-scrollbar,
 .history-list::-webkit-scrollbar,
 .history-detail-shell::-webkit-scrollbar,
 .game-log-list::-webkit-scrollbar {
@@ -97,6 +99,7 @@ body {
 .setup-seat-body::-webkit-scrollbar-track,
 .setup-profile-list::-webkit-scrollbar-track,
 .setup-search-results::-webkit-scrollbar-track,
+.setup-search-art-grid::-webkit-scrollbar-track,
 .history-list::-webkit-scrollbar-track,
 .history-detail-shell::-webkit-scrollbar-track,
 .game-log-list::-webkit-scrollbar-track {
@@ -106,6 +109,7 @@ body {
 .setup-seat-body::-webkit-scrollbar-thumb,
 .setup-profile-list::-webkit-scrollbar-thumb,
 .setup-search-results::-webkit-scrollbar-thumb,
+.setup-search-art-grid::-webkit-scrollbar-thumb,
 .history-list::-webkit-scrollbar-thumb,
 .history-detail-shell::-webkit-scrollbar-thumb,
 .game-log-list::-webkit-scrollbar-thumb {
