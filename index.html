@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <meta name="theme-color" content="#000000" />
+  <meta name="apple-mobile-web-app-capable" content="yes" />
+  <meta name="mobile-web-app-capable" content="yes" />
+  <title>LifeX</title>
+  <link rel="icon" type="image/png" href="./icons/favicon.png" />
+  <link rel="manifest" href="./manifest.webmanifest" />
+  <link rel="stylesheet" href="style.css" />
+</head>
+<body>
+  <div class="portrait-lock-overlay" aria-live="polite">
+    <div class="portrait-lock-card">
+      <h2>Portrait Only</h2>
+      <p>Rotate the device back to portrait to use Life Tracker.</p>
+    </div>
+  </div>
+  <div id="start-screen" class="hidden">
+    <div id="start-screen-bg" class="start-screen-bg hidden" aria-hidden="true"></div>
+    <div id="player-buttons"></div>
+  </div>
+  
+  <div id="end-screen" class="hidden">
+    <div id="end-screen-bg"></div>
+    <div id="end-screen-overlay">
+      <h1>Winner</h1>
+      <h2 id="winner-text"></h2>
+
+      <div id="end-cause-buttons" class="end-cause-buttons">
+        <button data-cause="Combat Damage">Combat Damage</button>
+        <button data-cause="Non-Combat Damage">Non-Combat Damage</button>
+        <button data-cause="Commander">Commander</button>
+        <button data-cause="Milled">Milled</button>
+        <button data-cause="Wincon">Wincon</button>
+        <button data-cause="Poison">Poison</button>
+        <button data-cause="Combo" data-is-combo="1">Combo</button>
+      </div>
+
+      <div id="end-log-panel" class="end-log-panel">
+        <div class="game-log-header">
+          <h3>Game Log</h3>
+        </div>
+        <div id="end-log-list" class="game-log-list"></div>
+      </div>
+
+      <div class="end-actions">
+        <button id="end-undo-btn" class="end-round-btn" aria-label="Go Back"><img src="./icons/Back.svg" class="btn-icon icon-img" alt=""></button>
+        <button id="new-game-btn">New Game</button>
+        <button id="back-menu-btn">Back to Menu</button>
+      </div>
+    </div>
+  </div>
+
+  <div id="game-screen">
+    <button id="undo-btn" class="pause-side-btn hidden" aria-label="Go Back"><img src="./icons/Back.svg" class="btn-icon icon-img" alt=""></button>
+    <button id="pause-btn"><img src="./icons/Pause.svg" class="btn-icon icon-img" alt=""></button>
+    <button id="gamelog-btn" class="pause-side-btn hidden" aria-label="Show Game Log"><img src="./icons/GameLog.svg" class="btn-icon icon-img" alt=""></button>
+    <div id="game">
+      <svg id="damage-arrow-layer"></svg>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+</body>
+</html>
