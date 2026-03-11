@@ -1125,9 +1125,10 @@ function renderQrPanel(state) {
   const isMenu = state.qrView === "menu";
   const isShare = state.qrView === "share";
   const isScan = state.qrView === "scan";
+  const showBackdrop = isShare && !!state.qrImageUrl;
 
   return `
-    <div class="qr-overlay">
+    <div class="qr-overlay ${showBackdrop ? "qr-overlay-active" : ""}">
       <div class="qr-modal">
         <button class="setup-icon-circle-btn qr-close-btn" data-action="close-qr" aria-label="Close">${getIconMarkup("Cancel", "setup-inline-icon")}</button>
         <h3>Transfer Data</h3>
@@ -1179,6 +1180,9 @@ function buildQrTransferBundle(includeGames = true) {
       playerNames: Array.isArray(entry.players) ? entry.players.map(player => player?.name || "").filter(Boolean) : [],
       commanderNames: Array.isArray(entry.players)
         ? entry.players.map(player => player?.commander || "").filter(Boolean)
+        : [],
+      commanderImages: Array.isArray(entry.players)
+        ? entry.players.map(player => `${player?.image || ""}`.trim())
         : []
     }))
     : [];
@@ -1214,7 +1218,8 @@ function buildCompactQrTransferBundle() {
   const compactDecks = deckLibrary
     .map((deck) => ({
       ownerProfileName: `${profileById.get(deck.ownerProfileId) || ""}`.trim(),
-      cardName: `${deck?.cardName || deck?.deckName || ""}`.trim()
+      cardName: `${deck?.cardName || deck?.deckName || ""}`.trim(),
+      image: `${deck?.image || ""}`.trim()
     }))
     .filter(deck => deck.ownerProfileName && deck.cardName);
 
@@ -1389,17 +1394,27 @@ function mergeImportedTransferData(payload) {
   importedDecks.forEach((incomingDeck) => {
     const commanderName = `${incomingDeck?.cardName || incomingDeck?.deckName || ""}`.trim();
     if (!commanderName) return;
+    const incomingImage = `${incomingDeck?.image || ""}`.trim();
 
-    let ownerProfileId = profileMapByIncomingId.get(`${incomingDeck?.ownerProfileId || ""}`) || "";
+    // Owner name is authoritative for cross-device merging.
+    let ownerProfileId = "";
+    const ownerName = `${incomingDeck?.ownerProfileName || ""}`.trim();
+    if (ownerName) {
+      ownerProfileId = ensureProfileIdByName(ownerName);
+    }
     if (!ownerProfileId) {
-      const ownerName = `${incomingDeck?.ownerProfileName || ""}`.trim();
-      if (ownerName) {
-        ownerProfileId = ensureProfileIdByName(ownerName);
-      }
+      ownerProfileId = profileMapByIncomingId.get(`${incomingDeck?.ownerProfileId || ""}`) || "";
     }
     if (!ownerProfileId) return;
 
-    if (profileAlreadyHasDeck(ownerProfileId, commanderName)) {
+    const existingDeck = deckLibrary.find(deck =>
+      deck.ownerProfileId === ownerProfileId &&
+      normalizeLibraryName(deck.cardName || deck.deckName) === normalizeLibraryName(commanderName)
+    );
+    if (existingDeck) {
+      if (!hasDeckImage(existingDeck) && incomingImage) {
+        existingDeck.image = incomingImage;
+      }
       return;
     }
 
@@ -1409,7 +1424,7 @@ function mergeImportedTransferData(payload) {
       ownerProfileId,
       deckName: `${incomingDeck?.deckName || commanderName}`.trim() || commanderName,
       cardName: commanderName,
-      image: `${incomingDeck?.image || ""}`.trim(),
+      image: incomingImage,
       lastUsedAt: Number.isFinite(incomingDeck?.lastUsedAt) ? incomingDeck.lastUsedAt : 0
     });
     addedDecks += 1;
@@ -1425,6 +1440,7 @@ function mergeImportedTransferData(payload) {
 
     const playerNames = Array.isArray(incomingGame?.playerNames) ? incomingGame.playerNames : [];
     const commanderNames = Array.isArray(incomingGame?.commanderNames) ? incomingGame.commanderNames : [];
+    const commanderImages = Array.isArray(incomingGame?.commanderImages) ? incomingGame.commanderImages : [];
     const playerDeckImages = [];
 
     playerNames.forEach((playerName, index) => {
@@ -1434,6 +1450,7 @@ function mergeImportedTransferData(payload) {
         return;
       }
       const commanderName = `${commanderNames[index] || ""}`.trim();
+      const commanderImage = `${commanderImages[index] || ""}`.trim();
       if (!commanderName) {
         playerDeckImages[index] = "";
         return;
@@ -1445,6 +1462,9 @@ function mergeImportedTransferData(payload) {
       );
 
       if (existingDeck) {
+        if (!hasDeckImage(existingDeck) && commanderImage) {
+          existingDeck.image = commanderImage;
+        }
         playerDeckImages[index] = `${existingDeck.image || ""}`.trim();
         return;
       }
@@ -1455,10 +1475,10 @@ function mergeImportedTransferData(payload) {
         ownerProfileId: profileId,
         deckName: commanderName,
         cardName: commanderName,
-        image: "",
+        image: commanderImage,
         lastUsedAt: 0
       });
-      playerDeckImages[index] = "";
+      playerDeckImages[index] = commanderImage;
       addedDecks += 1;
     });
 

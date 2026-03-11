@@ -979,7 +979,7 @@ body.setup-grid-mode #player-buttons {
   height: auto;
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.38));
   pointer-events: none;
-  z-index: 2;
+  z-index: 999;
 }
 
 .setup-debug-cache-btn {
@@ -1015,11 +1015,17 @@ body.setup-grid-mode #player-buttons {
 .qr-overlay {
   position: absolute;
   inset: 0;
-  z-index: 30;
-  background: rgba(0, 0, 0, 0.62);
+  z-index: 9999;
+  background: rgba(0, 0, 0, 0.12);
+  backdrop-filter: blur(7px);
+  -webkit-backdrop-filter: blur(7px);
   display: grid;
   place-items: center;
   border-radius: inherit;
+}
+
+.qr-overlay.qr-overlay-active {
+  background: rgba(0, 0, 0, 0.62);
 }
 
 .qr-modal {
