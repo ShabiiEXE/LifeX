@@ -5302,7 +5302,7 @@ window.addEventListener("beforeunload", saveState);
 window.addEventListener("pagehide", saveState);
 
 
-//window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
+window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
 
 // Console helpers for quick troubleshooting:
 // start2(), start3(), start4(), start5(), start6(), startPlayers(n)
