@@ -9,14 +9,14 @@
   "theme_color": "#000000",
   "icons": [
     {
-      "src": "./icons/app-Icon.png",
-      "sizes": "2555x2555",
+      "src": "./store_icon.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "any"
     },
     {
-      "src": "./icons/app-Icon.png",
-      "sizes": "2555x2555",
+      "src": "./store_icon.png",
+      "sizes": "512x512",
       "type": "image/png",
       "purpose": "maskable"
     }
