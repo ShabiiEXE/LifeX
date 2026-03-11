@@ -3375,10 +3375,10 @@ function openDamageMenu(targetIndex) {
         <div class="damage-types">
           <div class="damage-types1">
             <button data-type="All">All</button>
-            <button data-type="Others">Others</button>
+            <button data-type="Others">Other</button>
             <button data-type="Non-combat">Non-Combat</button>
             ${gameMode === "magic" ? "" : '<button data-type="Commander">Commander</button>'}
-            <button data-type="Wincon">Wincon</button>
+            <button data-type="Wincon">Win</button>
             <button data-type="Monarch" aria-label="Monarch">${getIconMarkup("Monarch", "inline-icon")}</button>
           </div>
           <div class="damage-types2">
