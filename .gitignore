@@ -6,6 +6,8 @@
 /.vscode/
 /.idea/
 /.git/
+/node_modules/
+/dist/
 
 # Gradle files
 build.gradle
