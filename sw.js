@@ -1,4 +1,4 @@
-const APP_SHELL_CACHE = "life-tracker-app-shell-v6";
+const APP_SHELL_CACHE = "life-tracker-app-shell-v7";
 const COMMANDER_IMAGE_CACHE = "life-tracker-commander-images-v1";
 const MAX_CACHED_IMAGES = 180;
 
@@ -10,7 +10,6 @@ const APP_SHELL_ASSETS = [
   "./vendor/qrcode.min.js",
   "./scripts/build-static.mjs",
   "./manifest.webmanifest",
-  "./store_icon.png",
   "./icons/app-Icon.png",
   "./icons/favicon.png",
   "./icons/buttonshape.svg",

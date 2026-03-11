@@ -12,7 +12,6 @@ const entriesToCopy = [
   "style.css",
   "sw.js",
   "manifest.webmanifest",
-  "store_icon.png",
   "scripts",
   "icons",
   "img",
