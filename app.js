@@ -286,12 +286,22 @@ async function ensureServiceWorkerReady() {
 async function warmCommanderImageCache() {
   const urls = getCommanderImageUrlsToCache();
   if (!urls.length || !("serviceWorker" in navigator)) return;
+  await warmCommanderImageCacheUrls(urls);
+}
+
+async function warmCommanderImageCacheUrls(urls) {
+  const normalizedUrls = Array.from(new Set(
+    (Array.isArray(urls) ? urls : [])
+      .map(url => `${url || ""}`.trim())
+      .filter(isCacheableCommanderImageUrl)
+  ));
+  if (!normalizedUrls.length || !("serviceWorker" in navigator)) return;
   const registration = await ensureServiceWorkerReady();
   const target = registration?.active || registration?.waiting || registration?.installing || navigator.serviceWorker.controller;
   if (!target) return;
   target.postMessage({
     type: "CACHE_IMAGES",
-    urls
+    urls: normalizedUrls
   });
 }
 
@@ -437,7 +447,10 @@ function getDefaultSeatState(index) {
     isDeletingDeck: false,
     isBorrowingDeck: false,
     borrowProfileId: "",
-    searchResults: []
+    searchResults: [],
+    pendingSearchCard: null,
+    searchArtOptions: [],
+    isLoadingArtOptions: false
   };
 }
 
@@ -532,6 +545,9 @@ function clearSeatDeckSelection(seat) {
   seat.isBorrowingDeck = false;
   seat.borrowProfileId = "";
   seat.searchResults = [];
+  seat.pendingSearchCard = null;
+  seat.searchArtOptions = [];
+  seat.isLoadingArtOptions = false;
 }
 
 function getSeatDeckLabel(seat) {
@@ -589,7 +605,42 @@ function deleteProfileById(profileId) {
 
 function isCommanderEligibleCard(card) {
   if (!card) return false;
-  return `${card.legalities?.commander || ""}`.toLowerCase() === "legal";
+  const isCommanderLegal = `${card.legalities?.commander || ""}`.toLowerCase() === "legal";
+  if (!isCommanderLegal) return false;
+
+  const cardTypeLine = `${card.type_line || ""}`.toLowerCase();
+  const cardOracle = `${card.oracle_text || ""}`.toLowerCase();
+
+  const hasLegendaryCreatureType =
+    cardTypeLine.includes("legendary") &&
+    cardTypeLine.includes("creature");
+  const hasLegendarySpacecraftType =
+    cardTypeLine.includes("legendary") &&
+    cardTypeLine.includes("spacecraft");
+
+  const hasCanBeCommanderText = cardOracle.includes("can be your commander");
+
+  const faceData = Array.isArray(card.card_faces) ? card.card_faces : [];
+  const hasFaceLegendaryCreatureType = faceData.some((face) => {
+    const typeLine = `${face?.type_line || ""}`.toLowerCase();
+    return typeLine.includes("legendary") && typeLine.includes("creature");
+  });
+  const hasFaceLegendarySpacecraftType = faceData.some((face) => {
+    const typeLine = `${face?.type_line || ""}`.toLowerCase();
+    return typeLine.includes("legendary") && typeLine.includes("spacecraft");
+  });
+  const hasFaceCommanderText = faceData.some((face) =>
+    `${face?.oracle_text || ""}`.toLowerCase().includes("can be your commander")
+  );
+
+  return (
+    hasLegendaryCreatureType ||
+    hasLegendarySpacecraftType ||
+    hasCanBeCommanderText ||
+    hasFaceLegendaryCreatureType ||
+    hasFaceLegendarySpacecraftType ||
+    hasFaceCommanderText
+  );
 }
 
 function getCardArtCrop(card) {
@@ -1208,8 +1259,35 @@ function renderCommanderSeatOverlay(state, playerIndex) {
   const addPanel = seat.isAddingDeck
     ? `
       <div class="setup-add-deck-panel">
-        <input type="text" data-seat-deck-search="${playerIndex}" placeholder="Search commander">
-        <div class="setup-search-results" id="search-results-${playerIndex}"></div>
+        ${seat.pendingSearchCard
+          ? `
+            <div class="setup-art-choice-header">
+              <div class="setup-meta">Choose art for ${escapeHtml(seat.pendingSearchCard.name || "")}</div>
+            </div>
+            ${seat.isLoadingArtOptions
+              ? `<div class="setup-meta">Loading print arts...</div>`
+              : `
+                ${(seat.searchArtOptions || []).length
+                  ? `
+                    <div class="setup-search-art-grid">
+                      ${(seat.searchArtOptions || []).map((option) => `
+                        <button class="setup-search-art-thumb" data-action="select-search-art" data-seat="${playerIndex}" data-art-id="${escapeHtml(option.id)}">
+                          <img src="${option.art}" alt="${escapeHtml(seat.pendingSearchCard.name || "Commander art")}">
+                          <span>${escapeHtml(option.setLabel || "Print")}</span>
+                        </button>
+                      `).join("")}
+                    </div>
+                  `
+                  : `<div class="setup-meta">No print arts found. Try another search.</div>`
+                }
+              `
+            }
+          `
+          : `
+            <input type="text" data-seat-deck-search="${playerIndex}" placeholder="Search commander">
+            <div class="setup-search-results" id="search-results-${playerIndex}"></div>
+          `
+        }
       </div>
     `
     : "";
@@ -1554,9 +1632,7 @@ function renderStartSetupScreen() {
 async function searchScryfallCards(query, { commanderOnly = false } = {}) {
   const clean = (query || "").trim();
   if (clean.length < 2) return [];
-  const q = commanderOnly
-    ? `${clean} game:paper legal:commander`
-    : `${clean} game:paper`;
+  const q = `${clean} game:paper legal:commander is:commander`;
   const url = `https://api.scryfall.com/cards/search?unique=cards&order=name&dir=asc&q=${encodeURIComponent(q)}`;
   try {
     const response = await fetch(url);
@@ -1564,19 +1640,64 @@ async function searchScryfallCards(query, { commanderOnly = false } = {}) {
     const payload = await response.json();
     const cards = Array.isArray(payload.data) ? payload.data : [];
     return cards
-      .filter(card => !commanderOnly || isCommanderEligibleCard(card))
+      .filter(card => isCommanderEligibleCard(card))
       .sort((a, b) => scoreCommanderSearchResult(clean, b) - scoreCommanderSearchResult(clean, a))
       .slice(0, 8)
       .map(card => ({
         id: card.id,
         name: card.name || "",
         art: getCardArtCrop(card),
+        printsUri: card.prints_search_uri || "",
         typeLine: card.type_line || "",
         exact: `${card.name || ""}`.trim().toLowerCase() === clean.toLowerCase()
       }))
       .filter(card => card.art);
   } catch {
     return [];
+  }
+}
+
+async function fetchCommanderPrintArts(card) {
+  if (!card?.name) return [];
+  const fallback = card.art
+    ? [{
+      id: `${card.id || card.name}-base`,
+      art: card.art,
+      setLabel: "Default"
+    }]
+    : [];
+
+  const cleanName = `${card.name || ""}`.trim();
+  const printsUrl = `${card.printsUri || ""}`.trim();
+  const requestUrl = printsUrl || `https://api.scryfall.com/cards/search?unique=prints&order=released&q=${encodeURIComponent(`!"${cleanName}" game:paper legal:commander is:commander`)}`;
+
+  try {
+    const response = await fetch(requestUrl);
+    if (!response.ok) return fallback;
+    const payload = await response.json();
+    const cards = Array.isArray(payload.data) ? payload.data : [];
+
+    const seen = new Set();
+    const options = cards
+      .filter(isCommanderEligibleCard)
+      .map((printCard) => {
+        const art = getCardArtCrop(printCard);
+        if (!art || seen.has(art)) return null;
+        seen.add(art);
+        const setCode = `${printCard?.set || ""}`.toUpperCase();
+        const collector = `${printCard?.collector_number || ""}`.trim();
+        return {
+          id: printCard.id || `${setCode}-${collector}-${art}`,
+          art,
+          setLabel: [setCode, collector].filter(Boolean).join(" ")
+        };
+      })
+      .filter(Boolean);
+
+    if (!options.length) return fallback;
+    return options;
+  } catch {
+    return fallback;
   }
 }
 
@@ -1657,7 +1778,7 @@ function setupStartScreen() {
   if (container.dataset.bound === "1") return;
   container.dataset.bound = "1";
 
-  function handleSetupActionFromEvent(event, root) {
+  async function handleSetupActionFromEvent(event, root) {
     const btn = event.target.closest("button[data-action]");
     if (!btn) return;
     const state = ensureSetupState();
@@ -1941,6 +2062,9 @@ function setupStartScreen() {
       state.seats[seat].isBorrowingDeck = false;
       state.seats[seat].borrowProfileId = "";
       state.seats[seat].searchResults = [];
+      state.seats[seat].pendingSearchCard = null;
+      state.seats[seat].searchArtOptions = [];
+      state.seats[seat].isLoadingArtOptions = false;
       state.forceDeckSelection = false;
       if (!refreshSetupSeatOverlay(seat)) {
         renderStartSetupScreen();
@@ -1982,6 +2106,9 @@ function setupStartScreen() {
       state.seats[seat].isDeletingDeck = false;
       state.seats[seat].isBorrowingDeck = false;
       state.seats[seat].borrowProfileId = "";
+      state.seats[seat].pendingSearchCard = null;
+      state.seats[seat].searchArtOptions = [];
+      state.seats[seat].isLoadingArtOptions = false;
       state.forceDeckSelection = true;
       renderStartSetupScreen();
       return;
@@ -1993,6 +2120,9 @@ function setupStartScreen() {
       state.seats[seat].isBorrowingDeck = false;
       state.seats[seat].borrowProfileId = "";
       state.seats[seat].searchResults = [];
+      state.seats[seat].pendingSearchCard = null;
+      state.seats[seat].searchArtOptions = [];
+      state.seats[seat].isLoadingArtOptions = false;
       state.forceDeckSelection = true;
       renderStartSetupScreen();
       return;
@@ -2007,15 +2137,54 @@ function setupStartScreen() {
       if (profileAlreadyHasDeck(seatState.profileId, match.name)) {
         return;
       }
+      seatState.pendingSearchCard = {
+        id: match.id,
+        name: match.name,
+        art: match.art,
+        printsUri: match.printsUri || ""
+      };
+      seatState.searchArtOptions = [];
+      seatState.isLoadingArtOptions = true;
+      renderStartSetupScreen();
+      const selectedCardId = seatState.pendingSearchCard.id;
+      const artOptions = await fetchCommanderPrintArts(seatState.pendingSearchCard);
+      if (!seatState.isAddingDeck) return;
+      if (!seatState.pendingSearchCard || seatState.pendingSearchCard.id !== selectedCardId) return;
+      seatState.searchArtOptions = artOptions;
+      seatState.isLoadingArtOptions = false;
+      void warmCommanderImageCacheUrls(artOptions.map(option => option.art));
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "back-to-search-results" && Number.isInteger(seat)) {
+      const seatState = state.seats[seat];
+      seatState.pendingSearchCard = null;
+      seatState.searchArtOptions = [];
+      seatState.isLoadingArtOptions = false;
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "select-search-art" && Number.isInteger(seat)) {
+      const seatState = state.seats[seat];
+      if (!seatState.profileId || !seatState.isAddingDeck || !seatState.pendingSearchCard) return;
+      if (profileAlreadyHasDeck(seatState.profileId, seatState.pendingSearchCard.name)) {
+        return;
+      }
+      const artId = btn.dataset.artId || "";
+      const selectedArt = (seatState.searchArtOptions || []).find(option => option.id === artId);
+      const fallbackArt = seatState.pendingSearchCard.art || "";
       const deck = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
         mode: "commander",
         ownerProfileId: seatState.profileId,
-        deckName: match.name,
-        cardName: match.name,
-        image: match.art,
+        deckName: seatState.pendingSearchCard.name,
+        cardName: seatState.pendingSearchCard.name,
+        image: selectedArt?.art || fallbackArt,
         lastUsedAt: Date.now()
       };
+      void warmCommanderImageCacheUrls([deck.image]);
       deckLibrary.unshift(deck);
       saveDeckLibrary();
       seatState.deckId = deck.id;
@@ -2029,6 +2198,9 @@ function setupStartScreen() {
       seatState.isBorrowingDeck = false;
       seatState.borrowProfileId = "";
       seatState.searchResults = [];
+      seatState.pendingSearchCard = null;
+      seatState.searchArtOptions = [];
+      seatState.isLoadingArtOptions = false;
       state.forceDeckSelection = false;
       renderStartSetupScreen();
       return;
@@ -2050,6 +2222,9 @@ function setupStartScreen() {
       seatState.isAddingDeck = false;
       seatState.isDeletingDeck = false;
       seatState.searchResults = [];
+      seatState.pendingSearchCard = null;
+      seatState.searchArtOptions = [];
+      seatState.isLoadingArtOptions = false;
       state.forceDeckSelection = true;
       renderStartSetupScreen();
       return;
@@ -2147,6 +2322,9 @@ function setupStartScreen() {
       const seat = Number(searchInput.dataset.seatDeckSearch);
       if (!Number.isInteger(seat)) return;
       const query = searchInput.value || "";
+      state.seats[seat].pendingSearchCard = null;
+      state.seats[seat].searchArtOptions = [];
+      state.seats[seat].isLoadingArtOptions = false;
       const token = ++scryfallSearchToken;
       const cards = await searchScryfallCards(query, { commanderOnly: true });
       if (token !== scryfallSearchToken) return;
@@ -5302,7 +5480,7 @@ window.addEventListener("beforeunload", saveState);
 window.addEventListener("pagehide", saveState);
 
 
-window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
+//window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
 
 // Console helpers for quick troubleshooting:
 // start2(), start3(), start4(), start5(), start6(), startPlayers(n)
