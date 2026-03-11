@@ -255,6 +255,10 @@ button:active {
   touch-action: none;
 }
 
+#start-screen.setup-open ~ #game-screen #game {
+  touch-action: pan-y;
+}
+
 .damage-mode-active .player {
   pointer-events: none;
 }
@@ -2225,7 +2229,7 @@ body[data-players="6"] .setup-center-back {
   padding-right: 2px;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  touch-action: none;
+  touch-action: pan-y !important;
   scrollbar-width: thin;
   scrollbar-color: var(--main-color) transparent;
   mask-image: linear-gradient(to bottom, transparent 0, black 22px, black 100%);
@@ -2463,6 +2467,11 @@ body[data-players="6"] .setup-center-back {
 
 .end-log-panel .game-log-list {
   max-height: min(30vh, 268px);
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: pan-y !important;
+  overscroll-behavior: contain;
 }
 
 .end-actions {
