@@ -56,8 +56,6 @@ const RESUME_SESSIONS_STORAGE_KEY = "lifeTrackerResumeSessionsV1";
 const START_MENU_BACKDROP_STORAGE_KEY = "lifeTrackerStartMenuBackdropV1";
 const DEVICE_ID_STORAGE_KEY = "lifeXDeviceIdV1";
 const QR_TRANSFER_PREFIX = "LIFEX1:";
-const MAX_QR_PAYLOAD_CHARS = 2400;
-const MAX_QR_IMAGE_PAYLOAD_CHARS = 1400;
 const DEFAULT_PLAYER_BACKGROUND = "./img/default_back0.png";
 const DEFAULT_MAGIC_PLAYER_BACKGROUNDS = [
   "./img/default_back0.png",
@@ -2304,10 +2302,8 @@ function setupStartScreen() {
       const fullBundle = buildQrTransferBundle(true);
       const fullPayload = encodeQrTransferPayload(fullBundle);
       const compactPayload = encodeQrTransferPayload(buildCompactQrTransferBundle());
-      const qrPayload = compactPayload.length <= MAX_QR_PAYLOAD_CHARS ? compactPayload : "";
-      const qrDataUrl = qrPayload.length <= MAX_QR_IMAGE_PAYLOAD_CHARS
-        ? buildLocalQrDataUrl(qrPayload)
-        : "";
+      const qrPayload = compactPayload;
+      const qrDataUrl = buildLocalQrDataUrl(qrPayload);
       const hasQrImage = !!qrDataUrl;
 
       state.qrOpen = true;
