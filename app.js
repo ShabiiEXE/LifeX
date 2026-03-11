@@ -1020,6 +1020,7 @@ function renderStartConfigStep(state) {
   return `
     <div class="setup-panel setup-panel-start">
       <img class="setup-start-logo" src="./icons/favicon.png" alt="Life Tracker logo">
+      <button class="setup-qr-btn setup-icon-circle-btn" data-action="open-qr" aria-label="QR">${getIconMarkup("QR", "setup-inline-icon")}</button>
       <!-- Reset Button -->
       <button class="setup-debug-cache-btn" data-action="debug-clear-cache" aria-label="Clear app cache">Clear Cache</button>
       <!-- -------------------------------------------------------------------------------------------------------------------------- -->
@@ -2150,6 +2151,38 @@ function setupStartScreen() {
       const artOptions = await fetchCommanderPrintArts(seatState.pendingSearchCard);
       if (!seatState.isAddingDeck) return;
       if (!seatState.pendingSearchCard || seatState.pendingSearchCard.id !== selectedCardId) return;
+      if ((artOptions || []).length <= 1) {
+        const chosenArt = artOptions?.[0]?.art || seatState.pendingSearchCard.art || "";
+        const deck = {
+          id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+          mode: "commander",
+          ownerProfileId: seatState.profileId,
+          deckName: seatState.pendingSearchCard.name,
+          cardName: seatState.pendingSearchCard.name,
+          image: chosenArt,
+          lastUsedAt: Date.now()
+        };
+        void warmCommanderImageCacheUrls([deck.image]);
+        deckLibrary.unshift(deck);
+        saveDeckLibrary();
+        seatState.deckId = deck.id;
+        seatState.deckName = deck.deckName;
+        seatState.cardName = deck.cardName;
+        seatState.borrowedFromProfileId = "";
+        seatState.borrowedFromProfileName = "";
+        seatState.image = deck.image;
+        seatState.isAddingDeck = false;
+        seatState.isDeletingDeck = false;
+        seatState.isBorrowingDeck = false;
+        seatState.borrowProfileId = "";
+        seatState.searchResults = [];
+        seatState.pendingSearchCard = null;
+        seatState.searchArtOptions = [];
+        seatState.isLoadingArtOptions = false;
+        state.forceDeckSelection = false;
+        renderStartSetupScreen();
+        return;
+      }
       seatState.searchArtOptions = artOptions;
       seatState.isLoadingArtOptions = false;
       void warmCommanderImageCacheUrls(artOptions.map(option => option.art));
@@ -3441,6 +3474,15 @@ function setMonarchHolder(playerIndex) {
   });
 }
 
+function getNextAlivePlayerIndex(fromIndex) {
+  if (!selectedPlayerCount) return -1;
+  for (let step = 1; step <= selectedPlayerCount; step++) {
+    const idx = (fromIndex + step) % selectedPlayerCount;
+    if (players[idx] && players[idx].life > 0) return idx;
+  }
+  return -1;
+}
+
 function getCommanderNameForLog(player) {
   const commanderName = (player?.commander || "").trim();
   return commanderName || "Unknown Commander";
@@ -4369,8 +4411,27 @@ function confirmDamage() {
     console.log(`Target ${ti} final life: ${target.life}, poison: ${target.poison}, lifeDamage: ${lifeDamage}`);
   });
 
+  const monarchDiedThisResolution =
+    previousMonarchIndex >= 0 &&
+    oldStates[previousMonarchIndex]?.life > 0 &&
+    players[previousMonarchIndex]?.life === 0;
+
   if (monarchTransferTo !== null) {
     setMonarchHolder(monarchTransferTo);
+  } else if (!hasMonarch && monarchDiedThisResolution) {
+    let replacementMonarch = -1;
+
+    // Edge case: if the monarch dies during their own turn, monarch passes
+    // to the next alive player in turn order.
+    if (previousMonarchIndex === activePlayerIndex) {
+      replacementMonarch = getNextAlivePlayerIndex(activePlayerIndex);
+    } else if (players[activePlayerIndex]?.life > 0) {
+      replacementMonarch = activePlayerIndex;
+    } else {
+      replacementMonarch = getNextAlivePlayerIndex(activePlayerIndex);
+    }
+
+    setMonarchHolder(replacementMonarch);
   }
 
   // -------------------------
