@@ -1442,13 +1442,9 @@ function bindDragScroll(scroller, { usesSidewaysDrag = false, seatRotation = 0, 
     if (!dragging) return;
 
     if (usesSidewaysDrag) {
-      // Convert screen drag to scroller's local vertical axis for +/-90deg seats.
-      const localVerticalDelta = seatRotation === 90
-        ? -deltaX
-        : seatRotation === -90
-          ? deltaX
-          : -deltaY;
-      scroller.scrollTop = startScrollTop - localVerticalDelta;
+      // Side-drag mode for rotated seats: horizontal finger movement drives list scroll.
+      // Keep direction consistent across both +90 and -90 seats.
+      scroller.scrollTop = startScrollTop - deltaX;
     } else {
       scroller.scrollTop = startScrollTop - deltaY;
     }
@@ -3417,6 +3413,9 @@ function openDamageMenu(targetIndex) {
   const actionsBelowControls =
     selectedPlayerCount === 2 ||
     (selectedPlayerCount === 3 && targetIndex === 2);
+  const shouldCompactDamageFooter =
+    selectedPlayerCount === 6 ||
+    (selectedPlayerCount === 5 && targetIndex !== 4);
   const confirmButtonLabel = actionsBelowControls
     ? "Confirm"
     : getIconMarkup("Ok", "inline-icon");
@@ -3443,7 +3442,7 @@ function openDamageMenu(targetIndex) {
           </div>
       </div>
 
-      <div class="damage-footer">
+      <div class="damage-footer ${shouldCompactDamageFooter ? "damage-footer-compact" : ""}">
         <div class="damage-controls">
           <button class="sign-element" onclick="changeDamage(-1)">-</button>
           <span id="damage-value">0</span>
@@ -5274,7 +5273,7 @@ window.addEventListener("beforeunload", saveState);
 window.addEventListener("pagehide", saveState);
 
 
-//window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
+window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
 
 // Console helpers for quick troubleshooting:
 // start2(), start3(), start4(), start5(), start6(), startPlayers(n)

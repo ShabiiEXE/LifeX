@@ -257,7 +257,7 @@ button:active {
 }
 
 #start-screen.setup-open ~ #game-screen #game {
-  touch-action: pan-y;
+  touch-action: none;
 }
 
 .damage-mode-active .player {
@@ -2891,6 +2891,11 @@ body[data-players="6"] #game-log-panel {
   align-items: center;
   justify-content: center;
   gap: 3.4vmin;
+}
+
+.damage-footer.damage-footer-compact {
+  transform: scale(0.8);
+  transform-origin: center;
 }
 
 .damage-menu.actions-below .damage-footer {
