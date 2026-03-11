@@ -2270,7 +2270,7 @@ body.setup-grid-mode #player-buttons {
 }
 
 .setup-center-play {
-  position: absolute;
+  position: fixed;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
@@ -2298,7 +2298,7 @@ body.setup-grid-mode #player-buttons {
 }
 
 .setup-center-back {
-  position: absolute;
+  position: fixed;
   left: 50%;
   top: 50%;
   transform: translate(-50%, -50%);
