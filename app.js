@@ -4739,6 +4739,7 @@ function renderEndGameLogPanel() {
   const list = document.getElementById("end-log-list");
   if (!list) return;
   renderGameLogIntoList(list);
+  bindDragScroll(list);
 }
 
 function finalizeEndGameSelection(actionType) {

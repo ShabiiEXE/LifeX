@@ -1149,6 +1149,7 @@ body.setup-grid-mode #player-buttons {
   color: var(--arrow-color);
   font-size: clamp(14px, 2.1vmin, 18px);
   font-weight: 700;
+  text-align: left;
 }
 
 .history-summary-date {
@@ -1267,7 +1268,9 @@ body.setup-grid-mode #player-buttons {
   display: flex;
   gap: 10px;
   align-items: center;
+  text-align: left;
 }
+
 
 .history-player-art {
   width: 58px;
@@ -2229,7 +2232,7 @@ body[data-players="6"] .setup-center-back {
   padding-right: 2px;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
-  touch-action: pan-y !important;
+  touch-action: none !important;
   scrollbar-width: thin;
   scrollbar-color: var(--main-color) transparent;
   mask-image: linear-gradient(to bottom, transparent 0, black 22px, black 100%);
@@ -2470,7 +2473,7 @@ body[data-players="6"] .setup-center-back {
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
-  touch-action: pan-y !important;
+  touch-action: none !important;
   overscroll-behavior: contain;
 }
 
