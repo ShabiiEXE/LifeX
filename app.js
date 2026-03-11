@@ -368,7 +368,10 @@ async function ensureServiceWorkerReady() {
   if (!("serviceWorker" in navigator)) return null;
   if (!serviceWorkerReadyPromise) {
     serviceWorkerReadyPromise = navigator.serviceWorker.register("./sw.js")
-      .then(() => navigator.serviceWorker.ready)
+      .then(async (registration) => {
+        await registration.update().catch(() => {});
+        return navigator.serviceWorker.ready;
+      })
       .catch(() => null);
   }
   return serviceWorkerReadyPromise;
