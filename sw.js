@@ -1,4 +1,4 @@
-const APP_SHELL_CACHE = "life-tracker-app-shell-v11";
+const APP_SHELL_CACHE = "life-tracker-app-shell-v12";
 const COMMANDER_IMAGE_CACHE = "life-tracker-commander-images-v1";
 const MAX_CACHED_IMAGES = 180;
 
@@ -61,8 +61,9 @@ function getCacheKeysForUrl(input) {
 }
 
 async function putAppShellResponse(cache, requestOrUrl, response) {
+  const safeResponse = await toCacheSafeResponse(response);
   const keys = getCacheKeysForUrl(requestOrUrl);
-  await Promise.all(keys.map((key) => cache.put(key, response.clone())));
+  await Promise.all(keys.map((key) => cache.put(key, safeResponse.clone())));
 }
 
 async function matchAppShellRequest(cache, requestOrUrl) {
@@ -84,6 +85,27 @@ async function cacheAssetList(cache, assets) {
       // Keep installing the worker even if one asset is unavailable.
     }
   }));
+}
+
+function cloneHeaders(headers) {
+  const copied = new Headers();
+  headers.forEach((value, key) => {
+    copied.set(key, value);
+  });
+  return copied;
+}
+
+async function toCacheSafeResponse(response) {
+  if (!response) return response;
+  if (!response.redirected) return response;
+
+  const headers = cloneHeaders(response.headers);
+  const body = await response.clone().blob();
+  return new Response(body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers
+  });
 }
 
 self.addEventListener("install", (event) => {
@@ -140,6 +162,7 @@ self.addEventListener("message", (event) => {
 
 async function handleAppShellRequest(request) {
   const cache = await caches.open(APP_SHELL_CACHE);
+  const cachedShell = await matchAppShellRequest(cache, "./index.html");
 
   if (request.mode === "navigate") {
     try {
@@ -147,11 +170,9 @@ async function handleAppShellRequest(request) {
       if (fresh && fresh.ok) {
         await putAppShellResponse(cache, request, fresh.clone());
       }
-      return fresh;
+      return await toCacheSafeResponse(fresh);
     } catch {
-      const offlinePage = await matchAppShellRequest(cache, request)
-        || await matchAppShellRequest(cache, "./index.html");
-      if (offlinePage) return offlinePage;
+      if (cachedShell) return cachedShell;
       throw new Error("Offline and no cached app shell");
     }
   }
