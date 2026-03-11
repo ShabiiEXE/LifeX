@@ -71,6 +71,8 @@ let scryfallSearchToken = 0;
 let setupGridPreviewActive = false;
 let hasStartedGame = false;
 let serviceWorkerReadyPromise = null;
+let exitConfirmGuardInitialized = false;
+let allowExitAfterConfirm = false;
 
 function getIconMarkup(iconName, extraClass = "btn-icon") {
   return `<img src="./icons/${iconName}.svg" class="${extraClass} icon-img" alt="">`;
@@ -1401,12 +1403,16 @@ function updateScrollableFadeState(root = document) {
 }
 
 function bindSetupSeatBodyDrag(playerEl, seatIndex) {
-  const scroller = playerEl?.querySelector(".setup-seat-body, .setup-search-results");
-  if (!scroller || scroller.dataset.dragBound === "1") return;
+  const scrollers = playerEl
+    ? Array.from(playerEl.querySelectorAll(".setup-seat-body, .setup-search-results, .setup-profile-list, .setup-deck-grid"))
+    : [];
+  if (!scrollers.length) return;
 
   const seatRotation = getSeatRotation(selectedPlayerCount, seatIndex);
   const usesSidewaysDrag = Math.abs(seatRotation) === 90;
-  bindDragScroll(scroller, { usesSidewaysDrag, seatRotation, ignoreSelectors: "input, select" });
+  scrollers.forEach((scroller) => {
+    bindDragScroll(scroller, { usesSidewaysDrag, seatRotation, ignoreSelectors: "input, select" });
+  });
 }
 
 function bindDragScroll(scroller, { usesSidewaysDrag = false, seatRotation = 0, ignoreSelectors = "" } = {}) {
@@ -1444,7 +1450,7 @@ function bindDragScroll(scroller, { usesSidewaysDrag = false, seatRotation = 0, 
     if (usesSidewaysDrag) {
       // Side-drag mode for rotated seats: horizontal finger movement drives list scroll.
       // Keep direction consistent across both +90 and -90 seats.
-      scroller.scrollTop = startScrollTop - deltaX;
+      scroller.scrollTop = startScrollTop + deltaX;
     } else {
       scroller.scrollTop = startScrollTop - deltaY;
     }
@@ -5258,6 +5264,29 @@ function cleanupDamageArrow() {
      .forEach(el => el.remove());
 }
 
+function initExitConfirmGuard() {
+  if (exitConfirmGuardInitialized) return;
+  if (!window.history || typeof window.history.pushState !== "function") return;
+  exitConfirmGuardInitialized = true;
+
+  // Add one synthetic history entry so system back can be intercepted once.
+  window.history.pushState({ lifexExitGuard: true }, "", window.location.href);
+
+  window.addEventListener("popstate", () => {
+    if (allowExitAfterConfirm) return;
+
+    const shouldExit = window.confirm("Leave LifeX?");
+    if (shouldExit) {
+      allowExitAfterConfirm = true;
+      window.history.back();
+      return;
+    }
+
+    // Re-arm guard if user cancels.
+    window.history.pushState({ lifexExitGuard: true }, "", window.location.href);
+  });
+}
+
 
 
 document.getElementById("pause-btn").addEventListener("click", togglePause);
@@ -5273,7 +5302,7 @@ window.addEventListener("beforeunload", saveState);
 window.addEventListener("pagehide", saveState);
 
 
-window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
+//window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
 
 // Console helpers for quick troubleshooting:
 // start2(), start3(), start4(), start5(), start6(), startPlayers(n)
@@ -5289,6 +5318,7 @@ render();
 setupStartScreen();
 setupEndCauseButtons();
 applyLoadedUiState();
+initExitConfirmGuard();
 setPauseButtonIcon(isPaused);
 updateOrientationLock();
 

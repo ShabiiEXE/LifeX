@@ -67,6 +67,11 @@ body {
   -webkit-touch-callout: none;
   -webkit-user-select: none;
   user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+
+* {
+  -webkit-tap-highlight-color: transparent;
 }
 
 .setup-seat-body,
@@ -438,7 +443,7 @@ button:active {
 #game[data-players="5"] .timer,
 #game[data-players="6"] .timer {
   font-size: clamp(11px, 1.9vmin, 20px);
-  width: 40%;
+  width: 50%;
   position: relative;
   top: -0.9vmin;
 }
@@ -1452,6 +1457,10 @@ body.setup-grid-mode #player-buttons {
   width: calc(100% - 88px);
   max-width: calc(100% - 88px);
   align-content: start;
+  overflow-y: auto;
+  overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: none;
 }
 
 .setup-deck-grid-full {
@@ -1632,6 +1641,8 @@ body.setup-grid-mode #player-buttons {
   margin-top: 10px;
   overflow-y: auto;
   overflow-x: hidden;
+  -webkit-overflow-scrolling: touch;
+  touch-action: none;
   padding-right: 4px;
   scrollbar-width: thin;
   scrollbar-color: var(--main-color) transparent;
@@ -2829,6 +2840,7 @@ body[data-players="6"] #game-log-panel {
   margin-bottom: 0.8vmin;
   flex-direction: column;
   width: 100%;
+  scale: 0.97;
 }
 
 .damage-types1,
