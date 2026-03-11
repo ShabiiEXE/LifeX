@@ -133,10 +133,13 @@ function resetDuelSeriesState(matchLength = 1) {
   duelSeries = createDefaultDuelSeriesState(matchLength);
 }
 
+const BUTTON_SHAPE_DATA_URL = "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyBpZD0iTGF5ZXJfMiIgZGF0YS1uYW1lPSJMYXllciAyIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB2aWV3Qm94PSIwIDAgMTc1Ny44MyAxOTY4LjEiPgogIDxkZWZzPgogICAgPHN0eWxlPgogICAgICAuY2xzLTEgewogICAgICAgIGZpbGw6IHVybCgjcmFkaWFsLWdyYWRpZW50KTsKICAgICAgfQoKICAgICAgLmNscy0yIHsKICAgICAgICBmaWxsOiB1cmwoI3JhZGlhbC1ncmFkaWVudC0yKTsKICAgICAgfQogICAgPC9zdHlsZT4KICAgIDxyYWRpYWxHcmFkaWVudCBpZD0icmFkaWFsLWdyYWRpZW50IiBjeD0iLTI2Ny4wMiIgY3k9IjI3ODQuOTMiIGZ4PSItMjY3LjAyIiBmeT0iMjc4NC45MyIgcj0iOTMyLjk2IiBncmFkaWVudFRyYW5zZm9ybT0idHJhbnNsYXRlKC0yODIuMjkgLTE1NjEuMjgpIHJvdGF0ZSgtMzApIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2M5MzgxNCIvPgogICAgICA8c3RvcCBvZmZzZXQ9Ii4yNSIgc3RvcC1jb2xvcj0iI2NmNDExNiIvPgogICAgICA8c3RvcCBvZmZzZXQ9Ii42NyIgc3RvcC1jb2xvcj0iI2UxNWIxYiIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiNmMzc1MjEiLz4KICAgIDwvcmFkaWFsR3JhZGllbnQ+CiAgICA8cmFkaWFsR3JhZGllbnQgaWQ9InJhZGlhbC1ncmFkaWVudC0yIiBjeD0iLTI2Ny4wMiIgY3k9IjI3ODQuOTMiIGZ4PSItMjY3LjAyIiBmeT0iMjc4NC45MyIgcj0iNzkyLjE1IiB4bGluazpocmVmPSIjcmFkaWFsLWdyYWRpZW50Ii8+CiAgPC9kZWZzPgogIDxnIGlkPSJMYXllcl8yLTIiIGRhdGEtbmFtZT0iTGF5ZXIgMiI+CiAgICA8Zz4KICAgICAgPHBhdGggY2xhc3M9ImNscy0xIiBkPSJNNzc5LjI2LDI2LjdMOTkuNjYsNDE5LjA3QzM3Ljk5LDQ1NC42NywwLDUyMC40NywwLDU5MS42OHY3ODQuNzNjMCw3MS4yMSwzNy45OSwxMzcuMDEsOTkuNjYsMTcyLjYxbDY3OS42LDM5Mi4zN2M2MS42NywzNS42LDEzNy42NSwzNS42LDE5OS4zMiwwbDY3OS42LTM5Mi4zN2M2MS42Ny0zNS42LDk5LjY2LTEwMS40LDk5LjY2LTE3Mi42MXYtNzg0LjczYzAtNzEuMjEtMzcuOTktMTM3LjAxLTk5LjY2LTE3Mi42MUw5NzguNTgsMjYuN2MtNjEuNjctMzUuNi0xMzcuNjUtMzUuNi0xOTkuMzIsMFoiLz4KICAgICAgPHBhdGggY2xhc3M9ImNscy0yIiBkPSJNNzc5LjI2LDE3Ny4yNkwyMzAuMDUsNDk0LjM1Yy02MS42NywzNS42LTk5LjY2LDEwMS40LTk5LjY2LDE3Mi42MXY2MzQuMThjMCw3MS4yMSwzNy45OSwxMzcuMDEsOTkuNjYsMTcyLjYxbDU0OS4yMSwzMTcuMDljNjEuNjcsMzUuNiwxMzcuNjUsMzUuNiwxOTkuMzIsMGw1NDkuMjEtMzE3LjA5YzYxLjY3LTM1LjYsOTkuNjYtMTAxLjQsOTkuNjYtMTcyLjYxdi02MzQuMThjMC03MS4yMS0zNy45OS0xMzcuMDEtOTkuNjYtMTcyLjYxTDk3OC41OCwxNzcuMjZjLTYxLjY3LTM1LjYtMTM3LjY1LTM1LjYtMTk5LjMyLDBaIi8+CiAgICA8L2c+CiAgPC9nPgo8L3N2Zz4=";
 const INLINE_ICON_MARKUP = {
   Cancel: `<svg viewBox="0 0 1735.39 1735.4" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1689.28,1466.63c61.48,61.48,61.48,161.17,0,222.65-30.75,30.75-71.04,46.12-111.33,46.12s-80.58-15.37-111.32-46.12l-598.93-598.93-598.94,598.93c-61.48,61.49-161.17,61.49-222.65,0-30.74-30.74-46.11-71.03-46.11-111.33s15.37-80.58,46.11-111.32l598.93-598.93L46.11,268.77c-61.48-61.49-61.48-161.17,0-222.66C76.85,15.37,117.14,0,157.43,0s80.59,15.37,111.33,46.11l598.94,598.94L1466.63,46.11c61.48-61.48,161.16-61.48,222.65,0,30.74,30.74,46.11,71.04,46.11,111.33s-15.37,80.59-46.11,111.33l-598.93,598.93,598.93,598.93Z"/></svg>`,
   Monarch: `<svg viewBox="0 0 2446.54 1706.11" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M281.15,1503.98h1884.24c37.94,0,66.57,34.43,59.66,71.73l-10.49,56.6c-7.92,42.77-45.23,73.8-88.73,73.8H320.7c-43.5,0-80.8-31.03-88.73-73.8l-10.49-56.6c-6.91-37.3,21.72-71.73,59.66-71.73Z"/><path fill="currentColor" d="M2445.24,387.11l-159.32,860.02c-8.29,44.73-47.3,77.18-92.79,77.18H253.41c-45.49,0-84.5-32.45-92.79-77.18L1.3,387.11c-12.65-68.27,70.07-112.27,119.61-63.63l469.86,461.29c49.72,48.82,132.26,36.95,166.22-23.9L1161.24,36.42c27.1-48.56,96.96-48.56,124.06,0l404.25,724.45c33.96,60.85,116.5,72.72,166.22,23.9l469.86-461.29c49.54-48.64,132.26-4.64,119.61,63.63Z"/></svg>`,
-  Ok: `<svg viewBox="0 0 2029.21 2029.21" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1014.6,0C454.25,0,0,454.25,0,1014.6s454.25,1014.61,1014.6,1014.61,1014.61-454.26,1014.61-1014.61S1574.95,0,1014.6,0ZM1014.6,1664.59c-358.97,0-649.98-291.01-649.98-649.99S655.63,364.62,1014.6,364.62s649.98,291.01,649.98,649.98-291,649.99-649.98,649.99Z"/></svg>`
+  Ok: `<svg viewBox="0 0 2029.21 2029.21" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1014.6,0C454.25,0,0,454.25,0,1014.6s454.25,1014.61,1014.6,1014.61,1014.61-454.26,1014.61-1014.61S1574.95,0,1014.6,0ZM1014.6,1664.59c-358.97,0-649.98-291.01-649.98-649.99S655.63,364.62,1014.6,364.62s649.98,291.01,649.98,649.98-291,649.99-649.98,649.99Z"/></svg>`,
+  Play: `<svg viewBox="0 0 1481.73 1698.19" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1389.8,1011.15L285.67,1671.15C159.83,1746.38,0,1655.71,0,1509.1V189.09C0,42.48,159.83-48.19,285.67,27.04l1104.13,660c122.57,73.27,122.57,250.84,0,324.11Z"/></svg>`,
+  QR: `<svg viewBox="0 0 2663.47 2659.05" class="icon-img" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M597.62 1739.56H322.83C144.8 1739.56.48 1883.88.48 2061.91v274.79c0 178.03 144.32 322.35 322.35 322.35h274.79c178.03 0 322.35-144.32 322.35-322.35v-274.79c0-178.03-144.32-322.35-322.35-322.35Zm73.98 546.94c0 68.58-55.6 124.18-124.18 124.18H373.03c-68.58 0-124.18-55.6-124.18-124.18v-174.39c0-68.58 55.6-124.18 124.18-124.18h174.39c68.58 0 124.18 55.6 124.18 124.18v174.39Z"/><rect x="1700.26" y="1693.28" width="1601.58" height="319.35" rx="159.68" ry="159.68" transform="rotate(-90 2501.05 1852.955)"/><rect x="0" y="1126.53" width="2088.83" height="319.35" rx="159.68" ry="159.68"/><rect x="1219.55" y="2339.3" width="865.55" height="319.35" rx="159.68" ry="159.68"/><rect x="1219.55" y="1747.45" width="865.55" height="319.35" rx="159.68" ry="159.68"/><rect x="897.2" y="273.1" width="865.55" height="319.35" rx="159.68" ry="159.68" transform="rotate(-90 1329.975 432.775)"/><path d="M597.34 4.94H322.55C144.52 4.94.2 149.26.2 327.29v274.79c0 178.03 144.32 322.35 322.35 322.35h274.79c178.03 0 322.35-144.32 322.35-322.35V327.29c0-178.03-144.32-322.35-322.35-322.35Zm73.98 546.94c0 68.58-55.6 124.18-124.18 124.18H372.75c-68.58 0-124.18-55.6-124.18-124.18V377.49c0-68.58 55.6-124.18 124.18-124.18h174.39c68.58 0 124.18 55.6 124.18 124.18v174.39Z"/><path d="M2341.12 4.94h-274.79c-178.03 0-322.35 144.32-322.35 322.35v274.79c0 178.03 144.32 322.35 322.35 322.35h274.79c178.03 0 322.35-144.32 322.35-322.35V327.29c0-178.03-144.32-322.35-322.35-322.35Zm73.98 546.94c0 68.58-55.6 124.18-124.18 124.18h-174.39c-68.58 0-124.18-55.6-124.18-124.18V377.49c0-68.58 55.6-124.18 124.18-124.18h174.39c68.58 0 124.18 55.6 124.18 124.18v174.39Z"/></g></svg>`
 };
 
 function getIconMarkup(iconName, extraClass = "btn-icon") {
@@ -1217,7 +1220,7 @@ function renderQrPanel(state) {
         ` : ""}
         ${isShare ? `
           <div class="qr-share-body">
-            ${state.qrImageUrl ? `<img class="qr-image" src="${state.qrImageUrl}" alt="Transfer QR">` : `<div class="qr-placeholder">QR too large, use copy/share payload.</div>`}
+            ${state.qrImageUrl ? `<img class="qr-image" src="${state.qrImageUrl}" alt="Transfer QR">` : `<div class="qr-placeholder">QR too large, use copy/share Code.</div>`}
             <textarea class="qr-payload" readonly>${escapeHtml(state.qrSharePayload || "")}</textarea>
             <div class="setup-footer qr-menu-actions qr-menu-actions-inline">
               <button data-action="copy-qr-payload">Copy</button>
@@ -2029,6 +2032,7 @@ function exitSetupGridPreview() {
   if (!setupGridPreviewActive) return;
   setupGridPreviewActive = false;
   document.body.classList.remove("setup-grid-mode");
+  document.body.dataset.players = "0";
   if (selectedPlayerCount === 0) {
     game.innerHTML = '<svg id="damage-arrow-layer"></svg>';
     game.dataset.players = "0";
@@ -2322,7 +2326,7 @@ function renderDuelSeriesOverlay(playerIndex) {
   const wins = duelSeries.wins?.[playerIndex] || 0;
   const tokenMarkup = Array.from({ length: winsNeeded }, (_, index) => `
     <span class="duel-series-token ${index < wins ? "is-won" : ""}">
-      <img src="./icons/buttonshape.svg" alt="">
+      <img src="${BUTTON_SHAPE_DATA_URL}" alt="">
     </span>
   `).join("");
   return `

@@ -39,6 +39,7 @@
 }
 
 :root {
+  --buttonshape-image: url("data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyBpZD0iTGF5ZXJfMiIgZGF0YS1uYW1lPSJMYXllciAyIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB2aWV3Qm94PSIwIDAgMTc1Ny44MyAxOTY4LjEiPgogIDxkZWZzPgogICAgPHN0eWxlPgogICAgICAuY2xzLTEgewogICAgICAgIGZpbGw6IHVybCgjcmFkaWFsLWdyYWRpZW50KTsKICAgICAgfQoKICAgICAgLmNscy0yIHsKICAgICAgICBmaWxsOiB1cmwoI3JhZGlhbC1ncmFkaWVudC0yKTsKICAgICAgfQogICAgPC9zdHlsZT4KICAgIDxyYWRpYWxHcmFkaWVudCBpZD0icmFkaWFsLWdyYWRpZW50IiBjeD0iLTI2Ny4wMiIgY3k9IjI3ODQuOTMiIGZ4PSItMjY3LjAyIiBmeT0iMjc4NC45MyIgcj0iOTMyLjk2IiBncmFkaWVudFRyYW5zZm9ybT0idHJhbnNsYXRlKC0yODIuMjkgLTE1NjEuMjgpIHJvdGF0ZSgtMzApIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2M5MzgxNCIvPgogICAgICA8c3RvcCBvZmZzZXQ9Ii4yNSIgc3RvcC1jb2xvcj0iI2NmNDExNiIvPgogICAgICA8c3RvcCBvZmZzZXQ9Ii42NyIgc3RvcC1jb2xvcj0iI2UxNWIxYiIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiNmMzc1MjEiLz4KICAgIDwvcmFkaWFsR3JhZGllbnQ+CiAgICA8cmFkaWFsR3JhZGllbnQgaWQ9InJhZGlhbC1ncmFkaWVudC0yIiBjeD0iLTI2Ny4wMiIgY3k9IjI3ODQuOTMiIGZ4PSItMjY3LjAyIiBmeT0iMjc4NC45MyIgcj0iNzkyLjE1IiB4bGluazpocmVmPSIjcmFkaWFsLWdyYWRpZW50Ii8+CiAgPC9kZWZzPgogIDxnIGlkPSJMYXllcl8yLTIiIGRhdGEtbmFtZT0iTGF5ZXIgMiI+CiAgICA8Zz4KICAgICAgPHBhdGggY2xhc3M9ImNscy0xIiBkPSJNNzc5LjI2LDI2LjdMOTkuNjYsNDE5LjA3QzM3Ljk5LDQ1NC42NywwLDUyMC40NywwLDU5MS42OHY3ODQuNzNjMCw3MS4yMSwzNy45OSwxMzcuMDEsOTkuNjYsMTcyLjYxbDY3OS42LDM5Mi4zN2M2MS42NywzNS42LDEzNy42NSwzNS42LDE5OS4zMiwwbDY3OS42LTM5Mi4zN2M2MS42Ny0zNS42LDk5LjY2LTEwMS40LDk5LjY2LTE3Mi42MXYtNzg0LjczYzAtNzEuMjEtMzcuOTktMTM3LjAxLTk5LjY2LTE3Mi42MUw5NzguNTgsMjYuN2MtNjEuNjctMzUuNi0xMzcuNjUtMzUuNi0xOTkuMzIsMFoiLz4KICAgICAgPHBhdGggY2xhc3M9ImNscy0yIiBkPSJNNzc5LjI2LDE3Ny4yNkwyMzAuMDUsNDk0LjM1Yy02MS42NywzNS42LTk5LjY2LDEwMS40LTk5LjY2LDE3Mi42MXY2MzQuMThjMCw3MS4yMSwzNy45OSwxMzcuMDEsOTkuNjYsMTcyLjYxbDU0OS4yMSwzMTcuMDljNjEuNjcsMzUuNiwxMzcuNjUsMzUuNiwxOTkuMzIsMGw1NDkuMjEtMzE3LjA5YzYxLjY3LTM1LjYsOTkuNjYtMTAxLjQsOTkuNjYtMTcyLjYxdi02MzQuMThjMC03MS4yMS0zNy45OS0xMzcuMDEtOTkuNjYtMTcyLjYxTDk3OC41OCwxNzcuMjZjLTYxLjY3LTM1LjYtMTM3LjY1LTM1LjYtMTk5LjMyLDBaIi8+CiAgICA8L2c+CiAgPC9nPgo8L3N2Zz4=");
   --default-main-color: var(--main-color);
   --main-color: #e0591a;
   --main-color-alt: #df620f;
@@ -2294,7 +2295,7 @@ body.setup-grid-mode #player-buttons {
   max-height: 140px;
   border-radius: 0;
   background-color: transparent;
-  background-image: url("./icons/buttonshape.svg");
+  background-image: var(--buttonshape-image);
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
@@ -2336,10 +2337,10 @@ body.setup-grid-mode #player-buttons {
     left: calc(50% - clamp(22%, 12vmin, 316px));
 }
 
-body[data-players="5"] .setup-center-play,
-body[data-players="6"] .setup-center-play,
-body[data-players="5"] .setup-center-back,
-body[data-players="6"] .setup-center-back {
+#game[data-players="5"] .setup-center-play,
+#game[data-players="6"] .setup-center-play,
+#game[data-players="5"] .setup-center-back,
+#game[data-players="6"] .setup-center-back {
   top: 34%;
 }
 
@@ -2796,7 +2797,7 @@ body[data-players="6"] .setup-center-back {
   padding: 0;
 
   background-color: transparent;
-  background-image: url("./icons/buttonshape.svg");
+  background-image: var(--buttonshape-image);
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
@@ -2846,7 +2847,7 @@ body[data-players="6"] .setup-center-back {
 /* Hover */
 #pause-btn.active {
   background-color: transparent;
-  background-image: url("./icons/buttonshape.svg");
+  background-image: var(--buttonshape-image);
   background-repeat: no-repeat;
   background-position: center;
   background-size: contain;
@@ -2882,7 +2883,7 @@ body[data-players="6"] #pause-btn.active {
 #pause-actions button {
   font-size: clamp(14px, 2.4vmin, 28px);
   padding: 0.55em 1em;
-  border-radius: 14px;
+  border-radius: 99px;
   color: white;
   min-width: 8.5em;
 }

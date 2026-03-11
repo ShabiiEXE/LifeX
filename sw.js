@@ -1,8 +1,8 @@
-const APP_SHELL_CACHE = "life-tracker-app-shell-v7";
+const APP_SHELL_CACHE = "life-tracker-app-shell-v10";
 const COMMANDER_IMAGE_CACHE = "life-tracker-commander-images-v1";
 const MAX_CACHED_IMAGES = 180;
 
-const APP_SHELL_ASSETS = [
+const CRITICAL_APP_SHELL_ASSETS = [
   "./",
   "./index.html",
   "./style.css",
@@ -10,21 +10,17 @@ const APP_SHELL_ASSETS = [
   "./vendor/qrcode.min.js",
   "./scripts/build-static.mjs",
   "./manifest.webmanifest",
-  "./icons/app-Icon.png",
   "./icons/favicon.png",
-  "./icons/buttonshape.svg",
+  "./icons/app-Icon.png",
   "./icons/Back.svg",
   "./icons/Cancel.svg",
   "./icons/GameLog.svg",
-  "./icons/QR.svg",
   "./icons/JudyArrowHead.png",
   "./icons/Monarch.svg",
   "./icons/Ok.svg",
   "./icons/Pause.svg",
   "./icons/Play.svg",
   "./icons/Poison.svg",
-  "./img/default_back0.png",
-  "./img/default_back1.png",
   "./fonts/GoogleSansCode-Bold.woff",
   "./fonts/GoogleSansCode-BoldItalic.woff",
   "./fonts/GoogleSansCode-ExtraBold.woff",
@@ -36,12 +32,20 @@ const APP_SHELL_ASSETS = [
   "./fonts/GoogleSansCode-MediumItalic.woff",
   "./fonts/GoogleSansCode-Regular.woff",
   "./fonts/GoogleSansCode-SemiBold.woff",
-  "./fonts/GoogleSansCode-SemiBoldItalic.woff"
+  "./fonts/GoogleSansCode-SemiBoldItalic.woff",
+  "./img/default_back0.png",
+  "./img/default_back1.png",
+  "./icons/QR.svg",
+  "./icons/buttonshape.svg"
+];
+
+const APP_SHELL_ASSETS = [
 ];
 
 self.addEventListener("install", (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(APP_SHELL_CACHE);
+    await cache.addAll(CRITICAL_APP_SHELL_ASSETS);
     await cache.addAll(APP_SHELL_ASSETS);
   })());
   self.skipWaiting();
