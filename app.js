@@ -1406,10 +1406,10 @@ function bindSetupSeatBodyDrag(playerEl, seatIndex) {
 
   const seatRotation = getSeatRotation(selectedPlayerCount, seatIndex);
   const usesSidewaysDrag = Math.abs(seatRotation) === 90;
-  bindDragScroll(scroller, { usesSidewaysDrag, ignoreSelectors: "input, select" });
+  bindDragScroll(scroller, { usesSidewaysDrag, seatRotation, ignoreSelectors: "input, select" });
 }
 
-function bindDragScroll(scroller, { usesSidewaysDrag = false, ignoreSelectors = "" } = {}) {
+function bindDragScroll(scroller, { usesSidewaysDrag = false, seatRotation = 0, ignoreSelectors = "" } = {}) {
   if (!scroller || scroller.dataset.dragBound === "1") return;
   let startX = 0;
   let startY = 0;
@@ -1442,8 +1442,13 @@ function bindDragScroll(scroller, { usesSidewaysDrag = false, ignoreSelectors = 
     if (!dragging) return;
 
     if (usesSidewaysDrag) {
-      const direction = seatRotation === 90 ? -1 : 1;
-      scroller.scrollTop = startScrollTop + (deltaX * direction);
+      // Convert screen drag to scroller's local vertical axis for +/-90deg seats.
+      const localVerticalDelta = seatRotation === 90
+        ? -deltaX
+        : seatRotation === -90
+          ? deltaX
+          : -deltaY;
+      scroller.scrollTop = startScrollTop - localVerticalDelta;
     } else {
       scroller.scrollTop = startScrollTop - deltaY;
     }
