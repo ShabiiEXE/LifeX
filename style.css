@@ -157,6 +157,7 @@ body.portrait-locked-landscape .portrait-lock-overlay {
 
 button {
   font-size: 3vw;
+  font-family: "Google Sans Code", monospace;
   font-weight: bold;
   border: none;
   border-radius: 100px;
@@ -1729,7 +1730,7 @@ body.setup-grid-mode #player-buttons {
 .setup-seat-title {
   color: #fff;
   font-weight: 700;
-  font-size: clamp(12px, 1.8vmin, 16px);
+  font-size: clamp(14px, 1.8vmin, 16px);
 }
 
 .setup-seat-title-selected {
