@@ -22,7 +22,7 @@ let winnerIndex = null;
 let undoStack = [];
 const MAX_UNDO_STATES = 40;
 const MAX_GAME_LOG_ENTRIES = 300;
-const MAX_MATCH_HISTORY_ENTRIES = 40;
+const MAX_COMMANDER_HISTORY_ENTRIES = 100;
 let turnNumber = 1;
 let gameLog = [];
 let lastEliminationCause = null;
@@ -54,6 +54,10 @@ const DECK_STORAGE_KEY = "lifeTrackerDecksV1";
 const MATCH_HISTORY_STORAGE_KEY = "lifeTrackerMatchHistoryV1";
 const RESUME_SESSIONS_STORAGE_KEY = "lifeTrackerResumeSessionsV1";
 const START_MENU_BACKDROP_STORAGE_KEY = "lifeTrackerStartMenuBackdropV1";
+const DEVICE_ID_STORAGE_KEY = "lifeXDeviceIdV1";
+const QR_TRANSFER_PREFIX = "LIFEX1:";
+const MAX_QR_PAYLOAD_CHARS = 2400;
+const MAX_QR_IMAGE_PAYLOAD_CHARS = 1400;
 const DEFAULT_PLAYER_BACKGROUND = "./img/default_back0.png";
 const DEFAULT_MAGIC_PLAYER_BACKGROUNDS = [
   "./img/default_back0.png",
@@ -73,6 +77,9 @@ let hasStartedGame = false;
 let serviceWorkerReadyPromise = null;
 let exitConfirmGuardInitialized = false;
 let allowExitAfterConfirm = false;
+let qrScannerStream = null;
+let qrScannerLoopId = null;
+let qrScannerDetector = null;
 
 function getIconMarkup(iconName, extraClass = "btn-icon") {
   return `<img src="./icons/${iconName}.svg" class="${extraClass} icon-img" alt="">`;
@@ -187,6 +194,36 @@ function safeJsonParse(raw, fallback) {
   }
 }
 
+function createLocalId() {
+  return `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`;
+}
+
+function getOrCreateDeviceId() {
+  const stored = `${localStorage.getItem(DEVICE_ID_STORAGE_KEY) || ""}`.trim();
+  if (stored) return stored;
+  const nextId = (window.crypto && typeof window.crypto.randomUUID === "function")
+    ? window.crypto.randomUUID()
+    : `lifex-${createLocalId()}-${Math.random().toString(16).slice(2, 10)}`;
+  localStorage.setItem(DEVICE_ID_STORAGE_KEY, nextId);
+  return nextId;
+}
+
+function toBase64Utf8(value) {
+  const bytes = new TextEncoder().encode(`${value || ""}`);
+  let binary = "";
+  bytes.forEach(byte => {
+    binary += String.fromCharCode(byte);
+  });
+  return btoa(binary);
+}
+
+function fromBase64Utf8(value) {
+  const normalized = `${value || ""}`.trim();
+  const binary = atob(normalized);
+  const bytes = Uint8Array.from(binary, ch => ch.charCodeAt(0));
+  return new TextDecoder().decode(bytes);
+}
+
 function createDefaultMatchStat() {
   return {
     damageDealt: 0,
@@ -216,6 +253,8 @@ function resetMatchStats() {
     cause: ""
   }));
 }
+
+const deviceId = getOrCreateDeviceId();
 
 function loadProfileLibrary() {
   const parsed = safeJsonParse(localStorage.getItem(PROFILE_STORAGE_KEY), []);
@@ -305,16 +344,43 @@ async function warmCommanderImageCacheUrls(urls) {
   });
 }
 
+function trimMatchHistoryByCommanderCap(entries) {
+  const source = Array.isArray(entries) ? entries : [];
+  let commanderCount = 0;
+  return source.filter((entry) => {
+    if ((entry?.mode || "commander") !== "commander") return true;
+    commanderCount += 1;
+    return commanderCount <= MAX_COMMANDER_HISTORY_ENTRIES;
+  });
+}
+
+function normalizeMatchHistoryEntry(entry) {
+  if (!entry || typeof entry !== "object") return null;
+  if (!Array.isArray(entry.players)) return null;
+  const sourceEntryId = typeof entry.sourceEntryId === "string" && entry.sourceEntryId.trim()
+    ? entry.sourceEntryId.trim()
+    : (typeof entry.id === "string" ? entry.id : createLocalId());
+  const createdByDeviceId = typeof entry.createdByDeviceId === "string" && entry.createdByDeviceId.trim()
+    ? entry.createdByDeviceId.trim()
+    : (typeof entry.sourceDeviceId === "string" ? entry.sourceDeviceId.trim() : "");
+
+  return {
+    ...entry,
+    id: typeof entry.id === "string" && entry.id.trim() ? entry.id : createLocalId(),
+    sourceEntryId,
+    createdByDeviceId
+  };
+}
+
 function loadMatchHistory() {
   const parsed = safeJsonParse(localStorage.getItem(MATCH_HISTORY_STORAGE_KEY), []);
   if (!Array.isArray(parsed)) return [];
-  return parsed
-    .filter(entry => entry && typeof entry.id === "string" && Array.isArray(entry.players))
-    .slice(0, MAX_MATCH_HISTORY_ENTRIES);
+  return trimMatchHistoryByCommanderCap(parsed.map(normalizeMatchHistoryEntry).filter(Boolean));
 }
 
 function saveMatchHistory() {
-  localStorage.setItem(MATCH_HISTORY_STORAGE_KEY, JSON.stringify(matchHistory.slice(0, MAX_MATCH_HISTORY_ENTRIES)));
+  matchHistory = trimMatchHistoryByCommanderCap(matchHistory);
+  localStorage.setItem(MATCH_HISTORY_STORAGE_KEY, JSON.stringify(matchHistory));
 }
 
 function loadResumeSessions() {
@@ -466,6 +532,13 @@ function createDefaultSetupState() {
     historyView: "list",
     historyEntryId: "",
     historyDeleteMode: false,
+    qrOpen: false,
+    qrView: "menu",
+    qrStatus: "",
+    qrInput: "",
+    qrDisplayPayload: "",
+    qrSharePayload: "",
+    qrImageUrl: "",
     seats: Array.from({ length: 6 }, (_, index) => getDefaultSeatState(index))
   };
 }
@@ -1041,8 +1114,381 @@ function renderStartConfigStep(state) {
         <button class="setup-start-logs-btn" data-action="open-start-logs" aria-label="Game Logs">${getIconMarkup("GameLog", "setup-inline-icon")}</button>
       </div>
       ${jumpBackMarkup}
+      ${renderQrPanel(state)}
     </div>
   `;
+}
+
+function renderQrPanel(state) {
+  if (!state?.qrOpen) return "";
+
+  const status = (state.qrStatus || "").trim();
+  const statusMarkup = status ? `<div class="qr-status">${escapeHtml(status)}</div>` : "";
+  const isMenu = state.qrView === "menu";
+  const isShare = state.qrView === "share";
+  const isScan = state.qrView === "scan";
+
+  return `
+    <div class="qr-overlay">
+      <div class="qr-modal">
+        <button class="setup-icon-circle-btn qr-close-btn" data-action="close-qr" aria-label="Close">${getIconMarkup("Cancel", "setup-inline-icon")}</button>
+        <h3>Transfer Data</h3>
+        ${statusMarkup}
+        ${isMenu ? `
+          <div class="setup-footer qr-menu-actions">
+            <button data-action="open-qr-scan">Scan</button>
+            <button data-action="open-qr-share">Share</button>
+          </div>
+        ` : ""}
+        ${isShare ? `
+          <div class="qr-share-body">
+            ${state.qrImageUrl ? `<img class="qr-image" src="${state.qrImageUrl}" alt="Transfer QR">` : `<div class="qr-placeholder">QR too large, use copy/share payload.</div>`}
+            <textarea class="qr-payload" readonly>${escapeHtml(state.qrSharePayload || "")}</textarea>
+            <div class="setup-footer qr-menu-actions">
+              <button data-action="copy-qr-payload">Copy</button>
+              <button data-action="native-share-qr">Share</button>
+              <button data-action="back-qr-menu">Back</button>
+            </div>
+          </div>
+        ` : ""}
+        ${isScan ? `
+          <div class="qr-scan-body">
+            <video id="qr-scan-video" class="qr-scan-video" playsinline muted></video>
+            <textarea class="qr-payload" data-qr-input="scan-payload" placeholder="Paste transfer payload here if camera scan is unavailable.">${escapeHtml(state.qrInput || "")}</textarea>
+            <div class="setup-footer qr-menu-actions">
+              <button data-action="import-qr-payload">Import</button>
+              <button data-action="back-qr-menu">Back</button>
+            </div>
+          </div>
+        ` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function buildQrTransferBundle(includeGames = true) {
+  const profileNameById = new Map(profileLibrary.map(profile => [profile.id, profile.name]));
+  const commanderGames = trimMatchHistoryByCommanderCap(matchHistory.filter(entry => (entry?.mode || "commander") === "commander"));
+  const sharedGames = includeGames
+    ? commanderGames.map(entry => ({
+      sourceEntryId: entry.sourceEntryId || entry.id || createLocalId(),
+      sourceDeviceId: entry.createdByDeviceId || "",
+      endedAt: Number.isFinite(entry.endedAt) ? entry.endedAt : Date.now(),
+      mode: entry.mode || "commander",
+      playerCount: Number.isFinite(entry.playerCount) ? entry.playerCount : (entry.players?.length || 0),
+      winnerName: entry.winnerName || "",
+      winCause: entry.winCause || "",
+      playerNames: Array.isArray(entry.players) ? entry.players.map(player => player?.name || "").filter(Boolean) : [],
+      commanderNames: Array.isArray(entry.players)
+        ? entry.players.map(player => player?.commander || "").filter(Boolean)
+        : []
+    }))
+    : [];
+
+  return {
+    version: 1,
+    exportedAt: Date.now(),
+    sourceDeviceId: deviceId,
+    profiles: profileLibrary.map(profile => ({
+      id: profile.id,
+      name: profile.name,
+      lastUsedAt: Number.isFinite(profile.lastUsedAt) ? profile.lastUsedAt : 0
+    })),
+    decks: deckLibrary.map(deck => ({
+      id: deck.id,
+      ownerProfileId: deck.ownerProfileId || "",
+      ownerProfileName: profileNameById.get(deck.ownerProfileId) || "",
+      deckName: deck.deckName || deck.cardName || "",
+      cardName: deck.cardName || deck.deckName || "",
+      image: deck.image || "",
+      lastUsedAt: Number.isFinite(deck.lastUsedAt) ? deck.lastUsedAt : 0
+    })),
+    games: sharedGames
+  };
+}
+
+function buildCompactQrTransferBundle() {
+  const profileById = new Map(profileLibrary.map(profile => [profile.id, profile.name]));
+  const compactProfiles = profileLibrary
+    .map(profile => `${profile?.name || ""}`.trim())
+    .filter(Boolean);
+
+  const compactDecks = deckLibrary
+    .map((deck) => ({
+      ownerProfileName: `${profileById.get(deck.ownerProfileId) || ""}`.trim(),
+      cardName: `${deck?.cardName || deck?.deckName || ""}`.trim()
+    }))
+    .filter(deck => deck.ownerProfileName && deck.cardName);
+
+  return {
+    version: 1,
+    compact: true,
+    exportedAt: Date.now(),
+    sourceDeviceId: deviceId,
+    profiles: compactProfiles.map(name => ({ name })),
+    decks: compactDecks,
+    games: []
+  };
+}
+
+function encodeQrTransferPayload(bundle) {
+  return `${QR_TRANSFER_PREFIX}${toBase64Utf8(JSON.stringify(bundle))}`;
+}
+
+function buildLocalQrDataUrl(payload, size = 360) {
+  const raw = `${payload || ""}`.trim();
+  if (!raw || typeof window.qrcode !== "function") return "";
+  try {
+    // typeNumber=0 lets the library auto-pick the smallest QR version.
+    const qr = window.qrcode(0, "M");
+    qr.addData(raw);
+    qr.make();
+    const moduleCount = qr.getModuleCount();
+    const preferredCellSize = Math.max(2, Math.floor(size / Math.max(1, moduleCount + 8)));
+    return qr.createDataURL(preferredCellSize, 4);
+  } catch {
+    return "";
+  }
+}
+
+function parseQrTransferPayload(rawPayload) {
+  const raw = `${rawPayload || ""}`.trim();
+  if (!raw) return null;
+
+  if (raw.startsWith(QR_TRANSFER_PREFIX)) {
+    try {
+      const payload = raw.slice(QR_TRANSFER_PREFIX.length);
+      return safeJsonParse(fromBase64Utf8(payload), null);
+    } catch {
+      return null;
+    }
+  }
+
+  return safeJsonParse(raw, null);
+}
+
+function getHistoryShareKey(entry) {
+  const sourceEntryId = `${entry?.sourceEntryId || entry?.id || ""}`.trim();
+  const sourceDeviceId = `${entry?.createdByDeviceId || entry?.sourceDeviceId || ""}`.trim();
+  if (!sourceEntryId) return "";
+  return sourceDeviceId ? `${sourceDeviceId}::${sourceEntryId}` : sourceEntryId;
+}
+
+function mergeImportedTransferData(payload) {
+  if (!payload || typeof payload !== "object") {
+    return { addedProfiles: 0, addedDecks: 0, addedGames: 0 };
+  }
+
+  const importedProfiles = Array.isArray(payload.profiles) ? payload.profiles : [];
+  const importedDecks = Array.isArray(payload.decks) ? payload.decks : [];
+  const importedGames = Array.isArray(payload.games) ? payload.games : [];
+
+  const profileMapByIncomingId = new Map();
+  let addedProfiles = 0;
+  let addedDecks = 0;
+  let addedGames = 0;
+
+  importedProfiles.forEach((incoming) => {
+    const incomingName = typeof incoming === "string"
+      ? incoming.trim()
+      : `${incoming?.name || ""}`.trim();
+    if (!incomingName) return;
+    const normalized = normalizeLibraryName(incomingName);
+    const existing = profileLibrary.find(profile => normalizeLibraryName(profile.name) === normalized);
+
+    if (existing) {
+      if (incoming && typeof incoming === "object") {
+        profileMapByIncomingId.set(`${incoming.id || ""}`, existing.id);
+      }
+      return;
+    }
+
+    const created = {
+      id: createLocalId(),
+      name: incomingName,
+      lastUsedAt: Number.isFinite(incoming?.lastUsedAt) ? incoming.lastUsedAt : 0
+    };
+    profileLibrary.push(created);
+    if (incoming && typeof incoming === "object") {
+      profileMapByIncomingId.set(`${incoming.id || ""}`, created.id);
+    }
+    addedProfiles += 1;
+  });
+
+  importedDecks.forEach((incomingDeck) => {
+    const commanderName = `${incomingDeck?.cardName || incomingDeck?.deckName || ""}`.trim();
+    if (!commanderName) return;
+
+    let ownerProfileId = profileMapByIncomingId.get(`${incomingDeck?.ownerProfileId || ""}`) || "";
+    if (!ownerProfileId) {
+      const ownerName = `${incomingDeck?.ownerProfileName || ""}`.trim();
+      if (ownerName) {
+        const owner = profileLibrary.find(profile => normalizeLibraryName(profile.name) === normalizeLibraryName(ownerName));
+        if (owner) ownerProfileId = owner.id;
+      }
+    }
+    if (!ownerProfileId) return;
+
+    if (profileAlreadyHasDeck(ownerProfileId, commanderName)) {
+      return;
+    }
+
+    deckLibrary.push({
+      id: createLocalId(),
+      mode: "commander",
+      ownerProfileId,
+      deckName: `${incomingDeck?.deckName || commanderName}`.trim() || commanderName,
+      cardName: commanderName,
+      image: `${incomingDeck?.image || ""}`.trim(),
+      lastUsedAt: Number.isFinite(incomingDeck?.lastUsedAt) ? incomingDeck.lastUsedAt : 0
+    });
+    addedDecks += 1;
+  });
+
+  const existingHistoryKeys = new Set(matchHistory.map(getHistoryShareKey).filter(Boolean));
+  importedGames.forEach((incomingGame) => {
+    const sourceEntryId = `${incomingGame?.sourceEntryId || incomingGame?.id || ""}`.trim();
+    if (!sourceEntryId) return;
+    const sourceDeviceId = `${incomingGame?.sourceDeviceId || payload.sourceDeviceId || ""}`.trim();
+    const dedupeKey = sourceDeviceId ? `${sourceDeviceId}::${sourceEntryId}` : sourceEntryId;
+    if (existingHistoryKeys.has(dedupeKey)) return;
+
+    const playerNames = Array.isArray(incomingGame?.playerNames) ? incomingGame.playerNames : [];
+    const commanderNames = Array.isArray(incomingGame?.commanderNames) ? incomingGame.commanderNames : [];
+    const playersSummary = playerNames.map((name, index) => ({
+      name: `${name || ""}`.trim() || `Player ${index + 1}`,
+      commander: `${commanderNames[index] || ""}`.trim(),
+      image: getDefaultPlayerBackground(index, "commander"),
+      totalTime: 0,
+      finalLife: 0,
+      finalPoison: 0,
+      stats: createDefaultMatchStat(),
+      eliminationTurn: null,
+      eliminationCause: "",
+      isWinner: false
+    }));
+
+    matchHistory.push(normalizeMatchHistoryEntry({
+      id: createLocalId(),
+      sourceEntryId,
+      createdByDeviceId: sourceDeviceId,
+      endedAt: Number.isFinite(incomingGame?.endedAt) ? incomingGame.endedAt : Date.now(),
+      mode: incomingGame?.mode === "magic" ? "magic" : "commander",
+      playerCount: Number.isFinite(incomingGame?.playerCount) ? incomingGame.playerCount : playersSummary.length,
+      winnerIndex: -1,
+      winnerName: `${incomingGame?.winnerName || ""}`.trim(),
+      winCause: `${incomingGame?.winCause || ""}`.trim(),
+      finalMessage: `${incomingGame?.winCause || ""}`.trim(),
+      totalMatchSeconds: 0,
+      turnCount: 0,
+      actionCount: 0,
+      players: playersSummary,
+      gameLog: []
+    }));
+    existingHistoryKeys.add(dedupeKey);
+    addedGames += 1;
+  });
+
+  profileLibrary.sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
+  deckLibrary.sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
+  matchHistory.sort((a, b) => (b.endedAt || 0) - (a.endedAt || 0));
+  matchHistory = trimMatchHistoryByCommanderCap(matchHistory);
+
+  saveProfileLibrary();
+  saveDeckLibrary();
+  saveMatchHistory();
+  void warmCommanderImageCache();
+
+  return { addedProfiles, addedDecks, addedGames };
+}
+
+function stopQrScanner() {
+  if (qrScannerLoopId !== null) {
+    window.cancelAnimationFrame(qrScannerLoopId);
+    qrScannerLoopId = null;
+  }
+  if (qrScannerStream) {
+    qrScannerStream.getTracks().forEach(track => track.stop());
+    qrScannerStream = null;
+  }
+  qrScannerDetector = null;
+}
+
+async function startQrScanner() {
+  stopQrScanner();
+  const state = ensureSetupState();
+  if (!state.qrOpen || state.qrView !== "scan") return;
+
+  const videoEl = document.getElementById("qr-scan-video");
+  if (!videoEl) return;
+
+  if (!("BarcodeDetector" in window)) {
+    state.qrStatus = "Camera scan is not supported here. Paste payload below.";
+    renderStartSetupScreen();
+    return;
+  }
+
+  try {
+    qrScannerDetector = new window.BarcodeDetector({ formats: ["qr_code"] });
+  } catch {
+    state.qrStatus = "QR detector is not available. Paste payload below.";
+    renderStartSetupScreen();
+    return;
+  }
+
+  try {
+    if (!navigator.mediaDevices || typeof navigator.mediaDevices.getUserMedia !== "function") {
+      throw new Error("media-unavailable");
+    }
+    qrScannerStream = await navigator.mediaDevices.getUserMedia({
+      video: { facingMode: "environment" },
+      audio: false
+    });
+  } catch {
+    state.qrStatus = "Unable to access camera. Paste payload below.";
+    renderStartSetupScreen();
+    return;
+  }
+
+  videoEl.srcObject = qrScannerStream;
+  await videoEl.play().catch(() => {});
+
+  const loop = async () => {
+    const current = ensureSetupState();
+    if (!current.qrOpen || current.qrView !== "scan") {
+      stopQrScanner();
+      return;
+    }
+
+    try {
+      const results = await qrScannerDetector.detect(videoEl);
+      const rawValue = results?.[0]?.rawValue || "";
+      if (rawValue) {
+        current.qrInput = rawValue;
+        const parsed = parseQrTransferPayload(rawValue);
+        if (!parsed) {
+          current.qrStatus = "QR data is invalid.";
+          renderStartSetupScreen();
+          stopQrScanner();
+          return;
+        }
+
+        const merged = mergeImportedTransferData(parsed);
+        current.qrView = "menu";
+        current.qrStatus = `Imported ${merged.addedProfiles} profiles, ${merged.addedDecks} decks, ${merged.addedGames} games.`;
+        current.qrInput = "";
+        renderStartSetupScreen();
+        stopQrScanner();
+        return;
+      }
+    } catch {
+      // Ignore intermittent decode errors; continue scanning loop.
+    }
+
+    qrScannerLoopId = window.requestAnimationFrame(loop);
+  };
+
+  qrScannerLoopId = window.requestAnimationFrame(loop);
 }
 
 function isCommanderSeatReady(seat) {
@@ -1617,12 +2063,18 @@ function renderStartSetupScreen() {
     exitSetupGridPreview();
     container.innerHTML = renderStartConfigStep(state);
   } else if (state.step === "history") {
+    stopQrScanner();
+    state.qrOpen = false;
     exitSetupGridPreview();
     container.innerHTML = renderStartHistoryScreen();
   } else if (state.step === "seats") {
+    stopQrScanner();
+    state.qrOpen = false;
     renderCommanderGridOnGame(state);
     container.innerHTML = "";
   } else {
+    stopQrScanner();
+    state.qrOpen = false;
     exitSetupGridPreview();
     container.innerHTML = renderStartingPlayerStep(state);
   }
@@ -1819,6 +2271,118 @@ function setupStartScreen() {
       void clearPwaCacheForDebug().finally(() => {
         window.location.reload();
       });
+      return;
+    }
+
+    if (action === "open-qr") {
+      state.qrOpen = true;
+      state.qrView = "menu";
+      state.qrStatus = "";
+      state.qrInput = "";
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "close-qr") {
+      stopQrScanner();
+      state.qrOpen = false;
+      state.qrView = "menu";
+      state.qrInput = "";
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "back-qr-menu") {
+      stopQrScanner();
+      state.qrView = "menu";
+      state.qrInput = "";
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "open-qr-share") {
+      const fullBundle = buildQrTransferBundle(true);
+      const fullPayload = encodeQrTransferPayload(fullBundle);
+      const compactPayload = encodeQrTransferPayload(buildCompactQrTransferBundle());
+      const qrPayload = compactPayload.length <= MAX_QR_PAYLOAD_CHARS ? compactPayload : "";
+      const qrDataUrl = qrPayload.length <= MAX_QR_IMAGE_PAYLOAD_CHARS
+        ? buildLocalQrDataUrl(qrPayload)
+        : "";
+      const hasQrImage = !!qrDataUrl;
+
+      state.qrOpen = true;
+      state.qrView = "share";
+      state.qrSharePayload = fullPayload;
+      state.qrDisplayPayload = qrPayload;
+      state.qrImageUrl = qrDataUrl;
+      state.qrStatus = hasQrImage
+        ? "QR shares compact data (profiles + decks). Use Copy/Share for full payload."
+        : "Data is too large for a single QR image. Use Copy/Share payload.";
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "copy-qr-payload") {
+      const payload = `${state.qrSharePayload || ""}`.trim();
+      if (!payload) return;
+      try {
+        await navigator.clipboard.writeText(payload);
+        state.qrStatus = "Payload copied.";
+      } catch {
+        state.qrStatus = "Copy failed on this device.";
+      }
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "native-share-qr") {
+      const payload = `${state.qrSharePayload || ""}`.trim();
+      if (!payload) return;
+      if (!navigator.share) {
+        state.qrStatus = "Native share unavailable here. Use Copy.";
+        renderStartSetupScreen();
+        return;
+      }
+      try {
+        await navigator.share({
+          title: "LifeX Transfer",
+          text: payload
+        });
+      } catch {
+        // User canceled or platform share failed.
+      }
+      return;
+    }
+
+    if (action === "open-qr-scan") {
+      state.qrOpen = true;
+      state.qrView = "scan";
+      state.qrStatus = "Scanning...";
+      state.qrInput = "";
+      renderStartSetupScreen();
+      void startQrScanner();
+      return;
+    }
+
+    if (action === "import-qr-payload") {
+      const payload = `${state.qrInput || ""}`.trim();
+      if (!payload) {
+        state.qrStatus = "Paste payload first.";
+        renderStartSetupScreen();
+        return;
+      }
+      const parsed = parseQrTransferPayload(payload);
+      if (!parsed) {
+        state.qrStatus = "Invalid payload.";
+        renderStartSetupScreen();
+        return;
+      }
+      const merged = mergeImportedTransferData(parsed);
+      state.qrView = "menu";
+      state.qrStatus = `Imported ${merged.addedProfiles} profiles, ${merged.addedDecks} decks, ${merged.addedGames} games.`;
+      state.qrInput = "";
+      stopQrScanner();
+      renderStartSetupScreen();
       return;
     }
 
@@ -2334,6 +2898,12 @@ function setupStartScreen() {
 
   async function handleSetupInputFromEvent(event) {
     const state = ensureSetupState();
+    const qrInput = event.target.closest("[data-qr-input]");
+    if (qrInput) {
+      state.qrInput = qrInput.value || "";
+      return;
+    }
+
     const seatInput = event.target.closest("[data-seat-input]");
     if (seatInput) {
       const seat = Number(seatInput.dataset.seat);
@@ -2373,6 +2943,7 @@ function setupStartScreen() {
 }
 
 function quickStartGame(playerCount, options = {}) {
+  stopQrScanner();
   const normalizedCount = Math.min(6, Math.max(2, Number(playerCount) || 4));
   const mode = options.mode === "magic" ? "magic" : "commander";
   const configuredLife = Number(options.startingLife) || 40;
@@ -3226,6 +3797,7 @@ function formatHistoryDateTime(timestamp) {
 function buildMatchHistoryEntry(finalCauseLabel, finalMessage) {
   syncActivePlayerTimer();
   const endedAt = Date.now();
+  const entryId = createLocalId();
   const playersSummary = players.slice(0, selectedPlayerCount).map((player, index) => ({
     name: getPlayerNameForLog(player, index),
     commander: gameMode === "magic" ? "" : getCommanderNameForLog(player),
@@ -3240,7 +3812,9 @@ function buildMatchHistoryEntry(finalCauseLabel, finalMessage) {
   }));
 
   return {
-    id: `${endedAt}-${Math.random().toString(16).slice(2, 8)}`,
+    id: entryId,
+    sourceEntryId: entryId,
+    createdByDeviceId: deviceId,
     endedAt,
     mode: gameMode,
     playerCount: selectedPlayerCount,
@@ -3264,9 +3838,7 @@ function buildMatchHistoryEntry(finalCauseLabel, finalMessage) {
 function archiveCompletedGame(finalCauseLabel, finalMessage) {
   const entry = buildMatchHistoryEntry(finalCauseLabel, finalMessage);
   matchHistory.unshift(entry);
-  if (matchHistory.length > MAX_MATCH_HISTORY_ENTRIES) {
-    matchHistory.length = MAX_MATCH_HISTORY_ENTRIES;
-  }
+  matchHistory = trimMatchHistoryByCommanderCap(matchHistory);
   saveMatchHistory();
 }
 
