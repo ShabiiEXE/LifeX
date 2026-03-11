@@ -2333,7 +2333,7 @@ body.setup-grid-mode #player-buttons {
 }
 
 .setup-center-back-side {
-    left: calc(50% - clamp(104px, 12vmin, 116px));
+    left: calc(50% - clamp(104px, 12vmin, 316px));
 }
 
 body[data-players="5"] .setup-center-play,
