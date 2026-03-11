@@ -5218,16 +5218,19 @@ window.addEventListener("resize", updateOrientationLock);
 window.addEventListener("orientationchange", updateOrientationLock);
 window.addEventListener("beforeunload", saveState);
 window.addEventListener("pagehide", saveState);
-//window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
+
+
+window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
 
 // Console helpers for quick troubleshooting:
 // start2(), start3(), start4(), start5(), start6(), startPlayers(n)
-window.startPlayers = (n) => quickStartGame(n);
+/*window.startPlayers = (n) => quickStartGame(n);
 window.start2 = () => quickStartGame(2);
 window.start3 = () => quickStartGame(3);
 window.start4 = () => quickStartGame(4);
 window.start5 = () => quickStartGame(5);
 window.start6 = () => quickStartGame(6);
+*/
 
 render();
 setupStartScreen();
