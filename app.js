@@ -84,7 +84,7 @@ function normalizeDuelMatchLength(value) {
   return [1, 3, 5].includes(Number(value)) ? Number(value) : 1;
 }
 
-function createDefaultDuelSeriesState(matchLength = 1) {
+function createDefaultDuelSeriesState(matchLength = 3) {
   return {
     matchLength: normalizeDuelMatchLength(matchLength),
     currentGame: 1,
@@ -593,7 +593,7 @@ function createDefaultSetupState() {
     step: "config",
     mode: "commander",
     playerCount: 4,
-    matchLength: 1,
+    matchLength: 3,
     startingLife: 40,
     startingPlayerIndex: 0,
     showStarterPicker: false,
