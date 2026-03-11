@@ -6429,6 +6429,7 @@ window.start5 = () => quickStartGame(5);
 window.start6 = () => quickStartGame(6);
 */
 
+
 render();
 setupStartScreen();
 setupEndCauseButtons();
