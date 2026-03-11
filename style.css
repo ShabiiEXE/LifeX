@@ -437,7 +437,7 @@ button:active {
 .duel-series-token {
   width: clamp(18px, 4.2vmin, 36px);
   height: clamp(18px, 4.2vmin, 36px);
-  opacity: 0.68;
+  opacity: 0.69;
 }
 
 .duel-series-token img {

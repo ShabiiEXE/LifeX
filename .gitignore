@@ -1,0 +1,26 @@
+# Folders
+/app/
+/gradle/
+/twa-manifest/
+/.vscode/
+/.idea/
+/.git/
+
+# Gradle files
+build.gradle
+gradle.properties
+settings.gradle
+gradlew
+gradlew.bat
+
+# Keystore
+android.keystore
+
+# Checksums
+manifest-checksums.txt
+
+# Node
+package-lock.json
+
+# Assets
+store_icon.png
