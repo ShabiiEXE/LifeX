@@ -1356,6 +1356,14 @@ function getDeckTransferArtRef(deck) {
   return normalizeCommanderArtRef(deck?.artRef) || normalizeCommanderArtRef(deck?.artId);
 }
 
+function buildScryfallArtCropUrlFromRef(ref) {
+  const normalizedRef = normalizeCommanderArtRef(ref);
+  if (!normalizedRef) return "";
+  const [setCode, collectorNumber] = normalizedRef.replace(/^\/+|\/+$/g, "").split("/");
+  if (!setCode || !collectorNumber) return "";
+  return `https://api.scryfall.com/cards/${encodeURIComponent(setCode)}/${encodeURIComponent(collectorNumber)}?format=image&version=art_crop`;
+}
+
 function buildQrTransferBundle(includeGames = false) {
   const decksByOwner = new Map();
   deckLibrary.forEach((deck) => {
@@ -1441,20 +1449,7 @@ async function fetchCommanderArtByPrintId(printId) {
 }
 
 async function fetchCommanderArtByRef(ref) {
-  const normalizedRef = normalizeCommanderArtRef(ref);
-  if (!normalizedRef) return "";
-  const [setCode, collectorNumber] = normalizedRef.replace(/^\/+|\/+$/g, "").split("/");
-  if (!setCode || !collectorNumber) return "";
-  const url = `https://api.scryfall.com/cards/${encodeURIComponent(setCode)}/${encodeURIComponent(collectorNumber)}`;
-  try {
-    const response = await fetch(url);
-    if (!response.ok) return "";
-    const card = await response.json();
-    if (!isCommanderEligibleCard(card)) return "";
-    return getCardArtCrop(card) || "";
-  } catch {
-    return "";
-  }
+  return buildScryfallArtCropUrlFromRef(ref);
 }
 
 async function fetchCommanderArtRefByPrintId(printId) {
@@ -1465,7 +1460,6 @@ async function fetchCommanderArtRefByPrintId(printId) {
     const response = await fetch(url);
     if (!response.ok) return "";
     const card = await response.json();
-    if (!isCommanderEligibleCard(card)) return "";
     const setCode = `${card?.set || ""}`.trim();
     const collector = `${card?.collector_number || ""}`.trim();
     return normalizeCommanderArtRef(`${setCode}/${collector}`);
@@ -1487,7 +1481,6 @@ async function fetchCommanderArtRefByName(name) {
       const response = await fetch(url);
       if (!response.ok) continue;
       const card = await response.json();
-      if (!isCommanderEligibleCard(card)) continue;
       const setCode = `${card?.set || ""}`.trim();
       const collector = `${card?.collector_number || ""}`.trim();
       const ref = normalizeCommanderArtRef(`${setCode}/${collector}`);
@@ -1706,6 +1699,7 @@ function mergeImportedTransferData(payload) {
     const incomingImage = `${incomingDeck?.image || ""}`.trim();
     const incomingArtId = normalizeCommanderArtId(incomingDeck?.artId);
     const incomingArtRef = normalizeCommanderArtRef(incomingDeck?.artRef || incomingDeck?.artId);
+    const resolvedIncomingImage = incomingImage || buildScryfallArtCropUrlFromRef(incomingArtRef);
 
     // Owner name is authoritative for cross-device merging.
     let ownerProfileId = "";
@@ -1720,8 +1714,8 @@ function mergeImportedTransferData(payload) {
       normalizeLibraryName(deck.cardName || deck.deckName) === normalizeLibraryName(commanderName)
     );
     if (existingDeck) {
-      if (!hasDeckImage(existingDeck) && incomingImage) {
-        existingDeck.image = incomingImage;
+      if (!hasDeckImage(existingDeck) && resolvedIncomingImage) {
+        existingDeck.image = resolvedIncomingImage;
       }
       if (!normalizeCommanderArtId(existingDeck.artId) && incomingArtId) {
         existingDeck.artId = incomingArtId;
@@ -1740,7 +1734,7 @@ function mergeImportedTransferData(payload) {
       cardName: commanderName,
       artId: incomingArtId,
       artRef: incomingArtRef,
-      image: incomingImage,
+      image: resolvedIncomingImage,
       lastUsedAt: Number.isFinite(incomingDeck?.lastUsedAt) ? incomingDeck.lastUsedAt : 0
     });
     addedDecks += 1;
