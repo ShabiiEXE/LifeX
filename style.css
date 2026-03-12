@@ -1,3 +1,10 @@
+/* ==========================================================================
+   LifeX Stylesheet
+   ========================================================================== */
+
+/* =========================
+   Typography / Font Faces
+   ========================= */
 @font-face {
   font-family: "Google Sans Code";
   src: url("./fonts/GoogleSansCode-Regular.woff") format("woff");
@@ -38,6 +45,9 @@
   font-display: swap;
 }
 
+/* =========================
+   Design Tokens
+   ========================= */
 :root {
   --buttonshape-image: url("data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyBpZD0iTGF5ZXJfMiIgZGF0YS1uYW1lPSJMYXllciAyIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB2aWV3Qm94PSIwIDAgMTc1Ny44MyAxOTY4LjEiPgogIDxkZWZzPgogICAgPHN0eWxlPgogICAgICAuY2xzLTEgewogICAgICAgIGZpbGw6IHVybCgjcmFkaWFsLWdyYWRpZW50KTsKICAgICAgfQoKICAgICAgLmNscy0yIHsKICAgICAgICBmaWxsOiB1cmwoI3JhZGlhbC1ncmFkaWVudC0yKTsKICAgICAgfQogICAgPC9zdHlsZT4KICAgIDxyYWRpYWxHcmFkaWVudCBpZD0icmFkaWFsLWdyYWRpZW50IiBjeD0iLTI2Ny4wMiIgY3k9IjI3ODQuOTMiIGZ4PSItMjY3LjAyIiBmeT0iMjc4NC45MyIgcj0iOTMyLjk2IiBncmFkaWVudFRyYW5zZm9ybT0idHJhbnNsYXRlKC0yODIuMjkgLTE1NjEuMjgpIHJvdGF0ZSgtMzApIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2M5MzgxNCIvPgogICAgICA8c3RvcCBvZmZzZXQ9Ii4yNSIgc3RvcC1jb2xvcj0iI2NmNDExNiIvPgogICAgICA8c3RvcCBvZmZzZXQ9Ii42NyIgc3RvcC1jb2xvcj0iI2UxNWIxYiIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiNmMzc1MjEiLz4KICAgIDwvcmFkaWFsR3JhZGllbnQ+CiAgICA8cmFkaWFsR3JhZGllbnQgaWQ9InJhZGlhbC1ncmFkaWVudC0yIiBjeD0iLTI2Ny4wMiIgY3k9IjI3ODQuOTMiIGZ4PSItMjY3LjAyIiBmeT0iMjc4NC45MyIgcj0iNzkyLjE1IiB4bGluazpocmVmPSIjcmFkaWFsLWdyYWRpZW50Ii8+CiAgPC9kZWZzPgogIDxnIGlkPSJMYXllcl8yLTIiIGRhdGEtbmFtZT0iTGF5ZXIgMiI+CiAgICA8Zz4KICAgICAgPHBhdGggY2xhc3M9ImNscy0xIiBkPSJNNzc5LjI2LDI2LjdMOTkuNjYsNDE5LjA3QzM3Ljk5LDQ1NC42NywwLDUyMC40NywwLDU5MS42OHY3ODQuNzNjMCw3MS4yMSwzNy45OSwxMzcuMDEsOTkuNjYsMTcyLjYxbDY3OS42LDM5Mi4zN2M2MS42NywzNS42LDEzNy42NSwzNS42LDE5OS4zMiwwbDY3OS42LTM5Mi4zN2M2MS42Ny0zNS42LDk5LjY2LTEwMS40LDk5LjY2LTE3Mi42MXYtNzg0LjczYzAtNzEuMjEtMzcuOTktMTM3LjAxLTk5LjY2LTE3Mi42MUw5NzguNTgsMjYuN2MtNjEuNjctMzUuNi0xMzcuNjUtMzUuNi0xOTkuMzIsMFoiLz4KICAgICAgPHBhdGggY2xhc3M9ImNscy0yIiBkPSJNNzc5LjI2LDE3Ny4yNkwyMzAuMDUsNDk0LjM1Yy02MS42NywzNS42LTk5LjY2LDEwMS40LTk5LjY2LDE3Mi42MXY2MzQuMThjMCw3MS4yMSwzNy45OSwxMzcuMDEsOTkuNjYsMTcyLjYxbDU0OS4yMSwzMTcuMDljNjEuNjcsMzUuNiwxMzcuNjUsMzUuNiwxOTkuMzIsMGw1NDkuMjEtMzE3LjA5YzYxLjY3LTM1LjYsOTkuNjYtMTAxLjQsOTkuNjYtMTcyLjYxdi02MzQuMThjMC03MS4yMS0zNy45OS0xMzcuMDEtOTkuNjYtMTcyLjYxTDk3OC41OCwxNzcuMjZjLTYxLjY3LTM1LjYtMTM3LjY1LTM1LjYtMTk5LjMyLDBaIi8+CiAgICA8L2c+CiAgPC9nPgo8L3N2Zz4=");
   --default-main-color: var(--main-color);
@@ -57,6 +67,9 @@
 }
 
 
+/* =========================
+   Base / Global
+   ========================= */
 html,
 body {
   margin: 0;
@@ -75,6 +88,7 @@ body {
   -webkit-tap-highlight-color: transparent;
 }
 
+/* Shared scrollbars used across setup/history/log panes */
 .setup-seat-body,
 .setup-profile-list,
 .setup-search-results,
@@ -120,6 +134,9 @@ body {
   background-clip: padding-box;
 }
 
+/* =========================
+   Orientation Lock Overlay
+   ========================= */
 .portrait-lock-overlay {
   position: fixed;
   inset: 0;
@@ -165,6 +182,9 @@ body.portrait-locked-landscape .portrait-lock-overlay {
   color: rgba(255, 255, 255, 0.84);
 }
 
+/* =========================
+   Generic Controls + Icons
+   ========================= */
 button {
   font-size: 3vw;
   font-family: "Google Sans Code", monospace;
@@ -234,6 +254,9 @@ button {
   pointer-events: none;
 }
 
+/* =========================
+   In-Game Layout
+   ========================= */
 #game-screen {
   position: relative;
   padding: 8px;
@@ -261,6 +284,9 @@ button {
   pointer-events: none;
 }
 
+/* =========================
+   Player Card / Seat UI
+   ========================= */
 .player {
   --player-scale: 0.98;
   overflow: hidden;
@@ -428,10 +454,14 @@ button {
   opacity: 0.69;
 }
 
-.duel-series-token img {
+.duel-series-token-shape {
   width: 100%;
   height: 100%;
   display: block;
+  background-image: var(--buttonshape-image);
+  background-repeat: no-repeat;
+  background-position: center;
+  background-size: contain;
   filter: saturate(0) brightness(0.8);
 }
 
@@ -439,7 +469,7 @@ button {
   opacity: 1;
 }
 
-.duel-series-token.is-won img {
+.duel-series-token.is-won .duel-series-token-shape {
   filter: saturate(1) brightness(1);
 }
 
@@ -1095,6 +1125,14 @@ body.setup-grid-mode #player-buttons {
   border-radius: 8px;
 }
 
+.qr-menu-intro {
+  font-size: 12px;
+  color: rgba(255, 255, 255, 0.92);
+  text-align: center;
+  line-height: 1.35;
+  padding: 4px 8px 0;
+}
+
 .qr-menu-actions button {
   min-height: 42px;
 }
@@ -1504,11 +1542,68 @@ body.setup-grid-mode #player-buttons {
   margin-top: -2px;
 }
 
+.history-series-chip {
+  display: inline-block;
+  margin-left: 0.45em;
+  padding: 0.08em 0.46em;
+  border-radius: 999px;
+  font-size: 0.78em;
+  color: #fff;
+  background: color-mix(in srgb, var(--main-color-alt) 64%, transparent);
+  vertical-align: middle;
+}
+
+.history-series-score {
+  font-size: clamp(34px, 7.2vmin, 76px);
+  line-height: 1;
+  font-weight: 800;
+  color: #fff;
+  text-align: center;
+  margin: 4px 0 8px;
+  text-shadow: 0 0 16px rgba(0, 0, 0, 0.45);
+}
+
+.history-series-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.history-series-game-row {
+  border-radius: 12px;
+  border: 1px solid rgba(255, 255, 255, 0.14);
+  background: rgba(255, 255, 255, 0.05);
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.history-series-game-title {
+  font-size: clamp(15px, 2.25vmin, 20px);
+  font-weight: 700;
+  color: var(--main-color-alt);
+}
+
+.history-series-game-meta {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  gap: 6px;
+}
+
+.history-series-game-meta span {
+  color: rgba(255, 255, 255, 0.88);
+  font-size: clamp(12px, 1.75vmin, 15px);
+}
+
 .history-list-entry.is-delete-mode {
   border-color: color-mix(in srgb, var(--main-color) 72%, rgba(255, 255, 255, 0.18));
   box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--main-color) 22%, transparent);
 }
 
+/* =========================
+   Setup Screen
+   ========================= */
 .setup-board {
   position: relative;
   width: 100%;
@@ -2614,11 +2709,14 @@ body.setup-grid-mode #player-buttons {
   }
 }
 
+/* =========================
+   End Screen
+   ========================= */
 #end-screen {
   justify-content: stretch;
   align-items: stretch;
   overflow: hidden;
-  background: #0f0f0f;
+  background: #0f0f0f91;
 }
 
 #end-screen-bg {
@@ -2673,6 +2771,63 @@ body.setup-grid-mode #player-buttons {
   color: var(--main-color-alt) !important;
 }
 
+.end-duel-summary {
+  width: 100%;
+  display: flex;
+  flex-direction: column;
+  gap: 0.35em;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+}
+
+.duel-summary-label {
+  font-size: clamp(12px, 1.65vmin, 16px);
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: rgba(255, 255, 255, 0.76);
+}
+
+.duel-summary-scoreline {
+  display: flex;
+  align-items: baseline;
+  justify-content: center;
+  gap: 0.45em;
+  font-size: clamp(34px, 3vmin, 44px);
+  font-weight: 700;
+  line-height: 1.1;
+  text-align: center;
+}
+
+.duel-summary-name {
+  max-width: min(26ch, 32vw);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.duel-summary-score {
+  min-width: 1.2ch;
+  font-size: clamp(60px, 5.2vmin, 62px);
+  line-height: 1;
+  color: rgba(255, 255, 255, 0.95);
+}
+
+.duel-summary-score.winner {
+  color: var(--main-color-alt);
+  text-shadow: 0 0 12px color-mix(in srgb, var(--main-color-alt) 50%, transparent);
+}
+
+.duel-summary-sep {
+  color: rgba(255, 255, 255, 0.7);
+}
+
+.player.series-winner-highlight .bg {
+  filter: saturate(1) blur(0px) !important;
+  box-shadow: inset 0 0 24rem 2rem color-mix(in srgb, var(--main-color-alt) 78%, transparent);
+}
+
 .end-cause-buttons {
   width: 100%;
   display: flex;
@@ -2703,9 +2858,9 @@ body.setup-grid-mode #player-buttons {
 }
 
 #end-cause-buttons button[data-cause="Combo"].active {
-  background: #111;
+  background: var(--main-color-alt);
   color: white;
-  border: 1px solid rgba(255, 255, 255, 0.6);
+  border: none;
 }
 
 .end-log-panel {
@@ -2764,6 +2919,9 @@ body.setup-grid-mode #player-buttons {
 }
 
 
+/* =========================
+   Pause Controls + Log Panel
+   ========================= */
 #pause-btn {
   position: fixed;
   top: 50%;
@@ -3003,6 +3161,9 @@ body[data-players="6"] #game-log-panel {
   max-height: min(40vh, 360px);
 }
 
+/* =========================
+   Damage Entry UI
+   ========================= */
 .damage-menu {
   pointer-events: auto;
   width: 100%;
@@ -3270,6 +3431,9 @@ body[data-players="6"] #game-log-panel {
   }
 }
 
+/* =========================
+   Animation Keyframes
+   ========================= */
 @keyframes poisonPop {
   from { opacity: 0.4; }
   to { opacity: 1; }
@@ -3436,6 +3600,9 @@ body[data-players="6"] #game-log-panel {
 }
 
 
+/* =========================
+   Damage Arrow Overlay
+   ========================= */
 #damage-arrow-layer {
   position: absolute;
   inset: 0;

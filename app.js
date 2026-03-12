@@ -1,3 +1,13 @@
+/* ==========================================================================
+   LifeX App Script
+   Notes:
+   - Keep behavior unchanged; section headers below are for maintainability.
+   - Shared state/constants live first, then helpers, UI logic, and bootstrapping.
+   ========================================================================== */
+
+/* =========================
+   Core Runtime State
+   ========================= */
 let starting_life = 40;
 let selectedPlayerCount = 0;
 let activePlayerIndex = 0;
@@ -39,11 +49,15 @@ let matchEliminations = Array.from({ length: 6 }, () => ({
   turn: null,
   cause: ""
 }));
+/* =========================
+   Domain Constants
+   ========================= */
 const ENDGAME_PRIMARY_CAUSES = [
   "Combat Damage",
   "Non-Combat Damage",
   "Commander",
   "Milled",
+  "Combo",
   "Wincon",
   "Poison"
 ];
@@ -56,11 +70,15 @@ const RESUME_SESSIONS_STORAGE_KEY = "lifeTrackerResumeSessionsV1";
 const START_MENU_BACKDROP_STORAGE_KEY = "lifeTrackerStartMenuBackdropV1";
 const DEVICE_ID_STORAGE_KEY = "lifeXDeviceIdV1";
 const QR_TRANSFER_PREFIX = "LIFEX1:";
+const SCRYFALL_SEARCH_TIMEOUT_MS = 3200;
 const DEFAULT_PLAYER_BACKGROUND = "./img/default_back0.png";
 const DEFAULT_MAGIC_PLAYER_BACKGROUNDS = [
   "./img/default_back0.png",
   "./img/default_back1.png"
 ];
+/* =========================
+   Root DOM References
+   ========================= */
 const game = document.getElementById("game");
 const pauseBtn = document.getElementById("pause-btn");
 let setupState = null;
@@ -79,6 +97,11 @@ let qrScannerStream = null;
 let qrScannerLoopId = null;
 let qrScannerDetector = null;
 let duelSeries = createDefaultDuelSeriesState();
+let pendingDuelContinuation = null;
+
+/* =========================
+   Duel Series Helpers
+   ========================= */
 
 function normalizeDuelMatchLength(value) {
   return [1, 3, 5].includes(Number(value)) ? Number(value) : 1;
@@ -86,6 +109,7 @@ function normalizeDuelMatchLength(value) {
 
 function createDefaultDuelSeriesState(matchLength = 3) {
   return {
+    seriesId: createLocalId(),
     matchLength: normalizeDuelMatchLength(matchLength),
     currentGame: 1,
     wins: [0, 0],
@@ -95,6 +119,9 @@ function createDefaultDuelSeriesState(matchLength = 3) {
 
 function normalizeDuelSeriesState(state) {
   const matchLength = normalizeDuelMatchLength(state?.matchLength);
+  const seriesId = typeof state?.seriesId === "string" && state.seriesId.trim()
+    ? state.seriesId.trim()
+    : createLocalId();
   const winners = Array.isArray(state?.winners)
     ? state.winners
         .map(value => Number.isInteger(value) && value >= 0 && value <= 1 ? value : null)
@@ -106,6 +133,7 @@ function normalizeDuelSeriesState(state) {
     wins[index] += 1;
   });
   return {
+    seriesId,
     matchLength,
     currentGame: Math.min(matchLength, Math.max(1, Number(state?.currentGame) || (winners.length + 1))),
     wins,
@@ -121,19 +149,52 @@ function getCompletedDuelGamesCount() {
   return Array.isArray(duelSeries?.winners) ? duelSeries.winners.length : 0;
 }
 
+function getDuelWinsNeeded(matchLength = duelSeries?.matchLength) {
+  return Math.ceil(normalizeDuelMatchLength(matchLength) / 2);
+}
+
+function getDuelSeriesWinnerIndex(state = duelSeries) {
+  const normalized = normalizeDuelSeriesState(state);
+  const winsNeeded = getDuelWinsNeeded(normalized.matchLength);
+  if ((normalized.wins?.[0] || 0) >= winsNeeded) return 0;
+  if ((normalized.wins?.[1] || 0) >= winsNeeded) return 1;
+  return null;
+}
+
+function isDuelSeriesCompleteForState(state = duelSeries) {
+  const normalized = normalizeDuelSeriesState(state);
+  const winsNeeded = getDuelWinsNeeded(normalized.matchLength);
+  const completedGames = Array.isArray(normalized.winners) ? normalized.winners.length : 0;
+  return (normalized.wins?.[0] || 0) >= winsNeeded
+    || (normalized.wins?.[1] || 0) >= winsNeeded
+    || completedGames >= normalized.matchLength;
+}
+
+function getProjectedDuelSeriesState(currentGameWinnerIndex = winnerIndex) {
+  return normalizeDuelSeriesState({
+    ...duelSeries,
+    currentGame: Math.min(duelSeries.matchLength, duelSeries.currentGame),
+    winners: [...(Array.isArray(duelSeries.winners) ? duelSeries.winners : []), Number.isInteger(currentGameWinnerIndex) ? currentGameWinnerIndex : null]
+      .slice(0, duelSeries.matchLength)
+  });
+}
+
 function isDuelSeriesComplete() {
-  return isDuelMode() && getCompletedDuelGamesCount() >= duelSeries.matchLength;
+  return isDuelMode() && isDuelSeriesCompleteForState(duelSeries);
 }
 
 function isCurrentDuelGameFinal() {
-  return isDuelMode() && (getCompletedDuelGamesCount() + 1) >= duelSeries.matchLength;
+  if (!isDuelMode()) return false;
+  return isDuelSeriesCompleteForState(getProjectedDuelSeriesState(winnerIndex));
 }
 
 function resetDuelSeriesState(matchLength = 1) {
   duelSeries = createDefaultDuelSeriesState(matchLength);
 }
 
-const BUTTON_SHAPE_DATA_URL = "data:image/svg+xml;base64,PD94bWwgdmVyc2lvbj0iMS4wIiBlbmNvZGluZz0iVVRGLTgiPz4KPHN2ZyBpZD0iTGF5ZXJfMiIgZGF0YS1uYW1lPSJMYXllciAyIiB4bWxucz0iaHR0cDovL3d3dy53My5vcmcvMjAwMC9zdmciIHhtbG5zOnhsaW5rPSJodHRwOi8vd3d3LnczLm9yZy8xOTk5L3hsaW5rIiB2aWV3Qm94PSIwIDAgMTc1Ny44MyAxOTY4LjEiPgogIDxkZWZzPgogICAgPHN0eWxlPgogICAgICAuY2xzLTEgewogICAgICAgIGZpbGw6IHVybCgjcmFkaWFsLWdyYWRpZW50KTsKICAgICAgfQoKICAgICAgLmNscy0yIHsKICAgICAgICBmaWxsOiB1cmwoI3JhZGlhbC1ncmFkaWVudC0yKTsKICAgICAgfQogICAgPC9zdHlsZT4KICAgIDxyYWRpYWxHcmFkaWVudCBpZD0icmFkaWFsLWdyYWRpZW50IiBjeD0iLTI2Ny4wMiIgY3k9IjI3ODQuOTMiIGZ4PSItMjY3LjAyIiBmeT0iMjc4NC45MyIgcj0iOTMyLjk2IiBncmFkaWVudFRyYW5zZm9ybT0idHJhbnNsYXRlKC0yODIuMjkgLTE1NjEuMjgpIHJvdGF0ZSgtMzApIiBncmFkaWVudFVuaXRzPSJ1c2VyU3BhY2VPblVzZSI+CiAgICAgIDxzdG9wIG9mZnNldD0iMCIgc3RvcC1jb2xvcj0iI2M5MzgxNCIvPgogICAgICA8c3RvcCBvZmZzZXQ9Ii4yNSIgc3RvcC1jb2xvcj0iI2NmNDExNiIvPgogICAgICA8c3RvcCBvZmZzZXQ9Ii42NyIgc3RvcC1jb2xvcj0iI2UxNWIxYiIvPgogICAgICA8c3RvcCBvZmZzZXQ9IjEiIHN0b3AtY29sb3I9IiNmMzc1MjEiLz4KICAgIDwvcmFkaWFsR3JhZGllbnQ+CiAgICA8cmFkaWFsR3JhZGllbnQgaWQ9InJhZGlhbC1ncmFkaWVudC0yIiBjeD0iLTI2Ny4wMiIgY3k9IjI3ODQuOTMiIGZ4PSItMjY3LjAyIiBmeT0iMjc4NC45MyIgcj0iNzkyLjE1IiB4bGluazpocmVmPSIjcmFkaWFsLWdyYWRpZW50Ii8+CiAgPC9kZWZzPgogIDxnIGlkPSJMYXllcl8yLTIiIGRhdGEtbmFtZT0iTGF5ZXIgMiI+CiAgICA8Zz4KICAgICAgPHBhdGggY2xhc3M9ImNscy0xIiBkPSJNNzc5LjI2LDI2LjdMOTkuNjYsNDE5LjA3QzM3Ljk5LDQ1NC42NywwLDUyMC40NywwLDU5MS42OHY3ODQuNzNjMCw3MS4yMSwzNy45OSwxMzcuMDEsOTkuNjYsMTcyLjYxbDY3OS42LDM5Mi4zN2M2MS42NywzNS42LDEzNy42NSwzNS42LDE5OS4zMiwwbDY3OS42LTM5Mi4zN2M2MS42Ny0zNS42LDk5LjY2LTEwMS40LDk5LjY2LTE3Mi42MXYtNzg0LjczYzAtNzEuMjEtMzcuOTktMTM3LjAxLTk5LjY2LTE3Mi42MUw5NzguNTgsMjYuN2MtNjEuNjctMzUuNi0xMzcuNjUtMzUuNi0xOTkuMzIsMFoiLz4KICAgICAgPHBhdGggY2xhc3M9ImNscy0yIiBkPSJNNzc5LjI2LDE3Ny4yNkwyMzAuMDUsNDk0LjM1Yy02MS42NywzNS42LTk5LjY2LDEwMS40LTk5LjY2LDE3Mi42MXY2MzQuMThjMCw3MS4yMSwzNy45OSwxMzcuMDEsOTkuNjYsMTcyLjYxbDU0OS4yMSwzMTcuMDljNjEuNjcsMzUuNiwxMzcuNjUsMzUuNiwxOTkuMzIsMGw1NDkuMjEtMzE3LjA5YzYxLjY3LTM1LjYsOTkuNjYtMTAxLjQsOTkuNjYtMTcyLjYxdi02MzQuMThjMC03MS4yMS0zNy45OS0xMzcuMDEtOTkuNjYtMTcyLjYxTDk3OC41OCwxNzcuMjZjLTYxLjY3LTM1LjYtMTM3LjY1LTM1LjYtMTk5LjMyLDBaIi8+CiAgICA8L2c+CiAgPC9nPgo8L3N2Zz4=";
+/* =========================
+   UI Asset / Icon Helpers
+   ========================= */
 const INLINE_ICON_MARKUP = {
   Cancel: `<svg viewBox="0 0 1735.39 1735.4" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1689.28,1466.63c61.48,61.48,61.48,161.17,0,222.65-30.75,30.75-71.04,46.12-111.33,46.12s-80.58-15.37-111.32-46.12l-598.93-598.93-598.94,598.93c-61.48,61.49-161.17,61.49-222.65,0-30.74-30.74-46.11-71.03-46.11-111.33s15.37-80.58,46.11-111.32l598.93-598.93L46.11,268.77c-61.48-61.49-61.48-161.17,0-222.66C76.85,15.37,117.14,0,157.43,0s80.59,15.37,111.33,46.11l598.94,598.94L1466.63,46.11c61.48-61.48,161.16-61.48,222.65,0,30.74,30.74,46.11,71.04,46.11,111.33s-15.37,80.59-46.11,111.33l-598.93,598.93,598.93,598.93Z"/></svg>`,
   Monarch: `<svg viewBox="0 0 2446.54 1706.11" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M281.15,1503.98h1884.24c37.94,0,66.57,34.43,59.66,71.73l-10.49,56.6c-7.92,42.77-45.23,73.8-88.73,73.8H320.7c-43.5,0-80.8-31.03-88.73-73.8l-10.49-56.6c-6.91-37.3,21.72-71.73,59.66-71.73Z"/><path fill="currentColor" d="M2445.24,387.11l-159.32,860.02c-8.29,44.73-47.3,77.18-92.79,77.18H253.41c-45.49,0-84.5-32.45-92.79-77.18L1.3,387.11c-12.65-68.27,70.07-112.27,119.61-63.63l469.86,461.29c49.72,48.82,132.26,36.95,166.22-23.9L1161.24,36.42c27.1-48.56,96.96-48.56,124.06,0l404.25,724.45c33.96,60.85,116.5,72.72,166.22,23.9l469.86-461.29c49.54-48.64,132.26-4.64,119.61,63.63Z"/></svg>`,
@@ -154,22 +215,22 @@ function isJudyPlayerName(name) {
   return (name || "").trim().toLowerCase() === "judy";
 }
 
-function getRootCssVar(name, fallback = "") {
+function getRootCssVar(name) {
   const value = getComputedStyle(document.documentElement).getPropertyValue(name).trim();
-  return value || fallback;
+  return value;
 }
 
 function applyJudyThemeVars(el) {
   if (!el) return;
-  el.style.setProperty("--main-color", getRootCssVar("--judy-color", "pink"));
-  el.style.setProperty("--main-color-alt", getRootCssVar("--judy-color-alt", "rgb(250, 203, 211)"));
-  el.style.setProperty("--arrow-color", getRootCssVar("--judy-arrow-color", "rgb(250, 203, 211)"));
+  el.style.setProperty("--main-color", getRootCssVar("--judy-color"));
+  el.style.setProperty("--main-color-alt", getRootCssVar("--judy-color-alt"));
+  el.style.setProperty("--arrow-color", getRootCssVar("--judy-arrow-color"));
 }
 
 function getPlayerArrowColor(index) {
   return isJudyPlayerName(players[index]?.name)
-    ? getRootCssVar("--judy-arrow-color", "#f55831")
-    : getRootCssVar("--arrow-color", "#f55831");
+    ? getRootCssVar("--judy-arrow-color")
+    : getRootCssVar("--arrow-color");
 }
 
 function getDefaultPlayerBackground(index, mode = gameMode) {
@@ -193,11 +254,15 @@ function setPauseButtonIcon(isPausedState) {
 }
 
 
+/* =========================
+   Player Model / Defaults
+   ========================= */
 const players = [
   { id: 1, 
     life: starting_life, 
     name: "Player 1", 
     commander: "", 
+    commanderArtId: "",
     image: getDefaultPlayerBackground(0, "commander"),
     poison: 0,
     commanderDamage: {},
@@ -207,6 +272,7 @@ const players = [
     life: starting_life, 
     name: "Player 2", 
     commander: "", 
+    commanderArtId: "",
     image: getDefaultPlayerBackground(1, "commander"),
     poison: 0,
     commanderDamage: {},
@@ -216,6 +282,7 @@ const players = [
     life: starting_life, 
     name: "Player 3", 
     commander: "", 
+    commanderArtId: "",
     image: getDefaultPlayerBackground(2, "commander"),
     poison: 0,
     commanderDamage: {},
@@ -225,6 +292,7 @@ const players = [
     life: starting_life, 
     name: "Player 4", 
     commander: "", 
+    commanderArtId: "",
     image: getDefaultPlayerBackground(3, "commander"),
     poison: 0,
     commanderDamage: {},
@@ -234,6 +302,7 @@ const players = [
     life: starting_life, 
     name: "Player 5", 
     commander: "", 
+    commanderArtId: "",
     image: getDefaultPlayerBackground(4, "commander"),
     poison: 0,
     commanderDamage: {},
@@ -243,6 +312,7 @@ const players = [
     life: starting_life, 
     name: "Player 6", 
     commander: "", 
+    commanderArtId: "",
     image: getDefaultPlayerBackground(5, "commander"),
     poison: 0,
     commanderDamage: {},
@@ -250,6 +320,9 @@ const players = [
   },
 ];
 
+/* =========================
+   Generic Utility Helpers
+   ========================= */
 function safeJsonParse(raw, fallback) {
   if (!raw) return fallback;
   try {
@@ -319,6 +392,9 @@ function resetMatchStats() {
   }));
 }
 
+/* =========================
+   Storage / Persistence
+   ========================= */
 const deviceId = getOrCreateDeviceId();
 
 function loadProfileLibrary() {
@@ -355,6 +431,7 @@ function loadDeckLibrary() {
     .map(item => ({
       ...item,
       ownerProfileId: typeof item.ownerProfileId === "string" ? item.ownerProfileId : "",
+      artId: typeof item.artId === "string" ? item.artId : "",
       lastUsedAt: Number.isFinite(item.lastUsedAt) ? item.lastUsedAt : 0
     }))
     .sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
@@ -377,6 +454,9 @@ function getCommanderImageUrlsToCache() {
   ));
 }
 
+/* =========================
+   Service Worker / Image Cache
+   ========================= */
 async function ensureServiceWorkerReady() {
   if (!("serviceWorker" in navigator)) return null;
   if (!serviceWorkerReadyPromise) {
@@ -412,6 +492,9 @@ async function warmCommanderImageCacheUrls(urls) {
   });
 }
 
+/* =========================
+   Match History Normalization
+   ========================= */
 function trimMatchHistoryByCommanderCap(entries) {
   const source = Array.isArray(entries) ? entries : [];
   let commanderCount = 0;
@@ -570,6 +653,7 @@ function getDefaultSeatState(index) {
     deckId: "",
     deckName: "",
     cardName: "",
+    artId: "",
     borrowedFromProfileId: "",
     borrowedFromProfileName: "",
     image: getDefaultPlayerBackground(index, "commander"),
@@ -581,6 +665,7 @@ function getDefaultSeatState(index) {
     isDeletingDeck: false,
     isBorrowingDeck: false,
     borrowProfileId: "",
+    searchQuery: "",
     searchResults: [],
     pendingSearchCard: null,
     searchArtOptions: [],
@@ -679,6 +764,7 @@ function clearSeatDeckSelection(seat) {
   seat.deckId = "";
   seat.deckName = "";
   seat.cardName = "";
+  seat.artId = "";
   seat.borrowedFromProfileId = "";
   seat.borrowedFromProfileName = "";
   seat.image = DEFAULT_PLAYER_BACKGROUND;
@@ -686,6 +772,7 @@ function clearSeatDeckSelection(seat) {
   seat.isDeletingDeck = false;
   seat.isBorrowingDeck = false;
   seat.borrowProfileId = "";
+  seat.searchQuery = "";
   seat.searchResults = [];
   seat.pendingSearchCard = null;
   seat.searchArtOptions = [];
@@ -815,6 +902,9 @@ function scoreCommanderSearchResult(query, card) {
   return score;
 }
 
+/* =========================
+   Snapshot Save / Load
+   ========================= */
 function saveState() {
   if (!hasStartedGame || setupGridPreviewActive || selectedPlayerCount === 0) {
     localStorage.removeItem(STORAGE_KEY);
@@ -845,6 +935,7 @@ function saveState() {
       life: p.life,
       name: p.name || "",
       commander: p.commander || "",
+      commanderArtId: p.commanderArtId || "",
       image: p.image || "",
       totalTime: p.totalTime || 0,
       turnTime: p.turnTime || 0,
@@ -969,6 +1060,7 @@ function getCurrentStateSnapshot() {
       life: p.life,
       name: p.name || "",
       commander: p.commander || "",
+      commanderArtId: p.commanderArtId || "",
       image: p.image || "",
       totalTime: p.totalTime || 0,
       turnTime: p.turnTime || 0,
@@ -1013,6 +1105,7 @@ function applyStateSnapshot(snapshot, { forcePaused = false } = {}) {
     p.life = Number.isFinite(sp.life) ? sp.life : starting_life;
     p.name = (sp.name || "").trim() || `Player ${i + 1}`;
     p.commander = (sp.commander || "").trim();
+    p.commanderArtId = normalizeCommanderArtId(sp.commanderArtId);
     p.image = (sp.image || "").trim() || getDefaultPlayerBackground(i, gameMode);
     p.totalTime = sp.totalTime || 0;
     p.turnTime = sp.turnTime || 0;
@@ -1200,17 +1293,23 @@ function renderQrPanel(state) {
   if (!state?.qrOpen) return "";
 
   const status = (state.qrStatus || "").trim();
-  const statusMarkup = status ? `<div class="qr-status">${escapeHtml(status)}</div>` : "";
+  const statusMarkup = status && state.qrView !== "menu"
+    ? `<div class="qr-status">${escapeHtml(status)}</div>`
+    : "";
   const isMenu = state.qrView === "menu";
   const isShare = state.qrView === "share";
   const isScan = state.qrView === "scan";
   const showBackdrop = isShare && !!state.qrImageUrl;
+  const menuIntroMarkup = isMenu
+    ? `<div class="qr-menu-intro">Copy or Share Player Profiles and Decks</div>`
+    : "";
 
   return `
     <div class="qr-overlay ${showBackdrop ? "qr-overlay-active" : ""}">
       <div class="qr-modal">
         ${isMenu ? `<button class="setup-icon-circle-btn qr-close-btn" data-action="close-qr" aria-label="Close">${getIconMarkup("Cancel", "setup-inline-icon")}</button>` : ""}
         <h3>Transfer Data</h3>
+        ${menuIntroMarkup}
         ${statusMarkup}
         ${isMenu ? `
           <div class="setup-footer qr-menu-actions">
@@ -1260,8 +1359,8 @@ function buildQrTransferBundle(includeGames = true) {
       commanderNames: Array.isArray(entry.players)
         ? entry.players.map(player => player?.commander || "").filter(Boolean)
         : [],
-      commanderImages: Array.isArray(entry.players)
-        ? entry.players.map(player => `${player?.image || ""}`.trim())
+      commanderArtIds: Array.isArray(entry.players)
+        ? entry.players.map(player => normalizeCommanderArtId(player?.artId))
         : []
     }))
     : [];
@@ -1276,7 +1375,8 @@ function buildQrTransferBundle(includeGames = true) {
     decks: deckLibrary.map(deck => ({
       ownerProfileName: profileNameById.get(deck.ownerProfileId) || "",
       deckName: deck.deckName || deck.cardName || "",
-      cardName: deck.cardName || deck.deckName || ""
+      cardName: deck.cardName || deck.deckName || "",
+      artId: normalizeCommanderArtId(deck.artId)
     })),
     games: sharedGames
   };
@@ -1291,7 +1391,8 @@ function buildCompactQrTransferBundle() {
   const compactDecks = deckLibrary
     .map((deck) => ({
       ownerProfileName: `${profileById.get(deck.ownerProfileId) || ""}`.trim(),
-      cardName: `${deck?.cardName || deck?.deckName || ""}`.trim()
+      cardName: `${deck?.cardName || deck?.deckName || ""}`.trim(),
+      artId: normalizeCommanderArtId(deck?.artId)
     }))
     .filter(deck => deck.ownerProfileName && deck.cardName);
 
@@ -1313,6 +1414,28 @@ function encodeQrTransferPayload(bundle) {
 function hasDeckImage(deck) {
   const image = `${deck?.image || ""}`.trim();
   return image.length > 0;
+}
+
+function normalizeCommanderArtId(value) {
+  const raw = `${value || ""}`.trim();
+  return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(raw)
+    ? raw
+    : "";
+}
+
+async function fetchCommanderArtByPrintId(printId) {
+  const normalizedId = normalizeCommanderArtId(printId);
+  if (!normalizedId) return "";
+  const url = `https://api.scryfall.com/cards/${encodeURIComponent(normalizedId)}`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return "";
+    const card = await response.json();
+    if (!isCommanderEligibleCard(card)) return "";
+    return getCardArtCrop(card) || "";
+  } catch {
+    return "";
+  }
 }
 
 async function fetchCommanderArtByName(name) {
@@ -1343,7 +1466,7 @@ async function hydrateMissingDeckImages({ limit = 12 } = {}) {
   const candidates = deckLibrary.filter(deck =>
     deck?.mode === "commander" &&
     !hasDeckImage(deck) &&
-    `${deck?.cardName || deck?.deckName || ""}`.trim()
+    (normalizeCommanderArtId(deck?.artId) || `${deck?.cardName || deck?.deckName || ""}`.trim())
   ).slice(0, Math.max(1, limit));
 
   if (!candidates.length) return 0;
@@ -1352,7 +1475,8 @@ async function hydrateMissingDeckImages({ limit = 12 } = {}) {
   const warmedUrls = [];
 
   for (const deck of candidates) {
-    const art = await fetchCommanderArtByName(deck.cardName || deck.deckName);
+    const art = await fetchCommanderArtByPrintId(deck.artId)
+      || await fetchCommanderArtByName(deck.cardName || deck.deckName);
     if (!art) continue;
     deck.image = art;
     warmedUrls.push(art);
@@ -1487,6 +1611,7 @@ function mergeImportedTransferData(payload) {
     const commanderName = `${incomingDeck?.cardName || incomingDeck?.deckName || ""}`.trim();
     if (!commanderName) return;
     const incomingImage = `${incomingDeck?.image || ""}`.trim();
+    const incomingArtId = normalizeCommanderArtId(incomingDeck?.artId);
 
     // Owner name is authoritative for cross-device merging.
     let ownerProfileId = "";
@@ -1507,6 +1632,9 @@ function mergeImportedTransferData(payload) {
       if (!hasDeckImage(existingDeck) && incomingImage) {
         existingDeck.image = incomingImage;
       }
+      if (!normalizeCommanderArtId(existingDeck.artId) && incomingArtId) {
+        existingDeck.artId = incomingArtId;
+      }
       return;
     }
 
@@ -1516,6 +1644,7 @@ function mergeImportedTransferData(payload) {
       ownerProfileId,
       deckName: `${incomingDeck?.deckName || commanderName}`.trim() || commanderName,
       cardName: commanderName,
+      artId: incomingArtId,
       image: incomingImage,
       lastUsedAt: Number.isFinite(incomingDeck?.lastUsedAt) ? incomingDeck.lastUsedAt : 0
     });
@@ -1532,8 +1661,10 @@ function mergeImportedTransferData(payload) {
 
     const playerNames = Array.isArray(incomingGame?.playerNames) ? incomingGame.playerNames : [];
     const commanderNames = Array.isArray(incomingGame?.commanderNames) ? incomingGame.commanderNames : [];
+    const commanderArtIds = Array.isArray(incomingGame?.commanderArtIds) ? incomingGame.commanderArtIds : [];
     const commanderImages = Array.isArray(incomingGame?.commanderImages) ? incomingGame.commanderImages : [];
     const playerDeckImages = [];
+    const playerDeckArtIds = [];
 
     playerNames.forEach((playerName, index) => {
       const profileId = ensureProfileIdByName(playerName);
@@ -1542,9 +1673,11 @@ function mergeImportedTransferData(payload) {
         return;
       }
       const commanderName = `${commanderNames[index] || ""}`.trim();
+      const commanderArtId = normalizeCommanderArtId(commanderArtIds[index]);
       const commanderImage = `${commanderImages[index] || ""}`.trim();
       if (!commanderName) {
         playerDeckImages[index] = "";
+        playerDeckArtIds[index] = "";
         return;
       }
 
@@ -1557,7 +1690,11 @@ function mergeImportedTransferData(payload) {
         if (!hasDeckImage(existingDeck) && commanderImage) {
           existingDeck.image = commanderImage;
         }
+        if (!normalizeCommanderArtId(existingDeck.artId) && commanderArtId) {
+          existingDeck.artId = commanderArtId;
+        }
         playerDeckImages[index] = `${existingDeck.image || ""}`.trim();
+        playerDeckArtIds[index] = normalizeCommanderArtId(existingDeck.artId) || commanderArtId;
         return;
       }
 
@@ -1567,16 +1704,19 @@ function mergeImportedTransferData(payload) {
         ownerProfileId: profileId,
         deckName: commanderName,
         cardName: commanderName,
+        artId: commanderArtId,
         image: commanderImage,
         lastUsedAt: 0
       });
       playerDeckImages[index] = commanderImage;
+      playerDeckArtIds[index] = commanderArtId;
       addedDecks += 1;
     });
 
     const playersSummary = playerNames.map((name, index) => ({
       name: `${name || ""}`.trim() || `Player ${index + 1}`,
       commander: `${commanderNames[index] || ""}`.trim(),
+      artId: normalizeCommanderArtId(playerDeckArtIds[index]),
       image: playerDeckImages[index] || getDefaultPlayerBackground(index, "commander"),
       totalTime: 0,
       finalLife: 0,
@@ -2057,6 +2197,7 @@ function renderCommanderGridOnGame(state) {
     p.life = state.startingLife;
     p.name = (seat.profileName || "").trim() || `Player ${index + 1}`;
     p.commander = state.mode === "magic" ? "" : ((seat.cardName || "").trim());
+    p.commanderArtId = state.mode === "magic" ? "" : normalizeCommanderArtId(seat.artId);
     p.image = getSeatBackgroundImage(seat, index, state.mode);
     p.turnTime = 0;
     p.totalTime = 0;
@@ -2127,6 +2268,7 @@ function syncSetupSeatPreviewPlayer(state, seatIndex) {
   player.life = state?.startingLife || player.life;
   player.name = (seat.profileName || "").trim() || `Player ${seatIndex + 1}`;
   player.commander = state?.mode === "magic" ? "" : ((seat.cardName || "").trim());
+  player.commanderArtId = state?.mode === "magic" ? "" : normalizeCommanderArtId(seat?.artId);
   player.image = getSeatBackgroundImage(seat, seatIndex, state?.mode);
 }
 
@@ -2269,6 +2411,11 @@ function renderCommanderGridStep(state) {
 
 function renderStartingPlayerStep(state, options = {}) {
   const { modal = false, backAction = "back-from-starter" } = options;
+  const isDuelSeriesSetup = state.mode === "magic" && normalizeDuelMatchLength(state.matchLength) > 1;
+  const duelGameNumber = Number(pendingDuelContinuation?.nextSeries?.currentGame) || 1;
+  const title = isDuelSeriesSetup
+    ? `Starting Player Game ${duelGameNumber}`
+    : "Choose Starting Player";
   const seatButtons = Array.from({ length: state.playerCount }, (_, seatIndex) => {
     const seat = state.seats[seatIndex];
     const name = (seat.profileName || "").trim() || `Player ${seatIndex + 1}`;
@@ -2277,7 +2424,7 @@ function renderStartingPlayerStep(state, options = {}) {
   const wrapperClass = modal ? "setup-starter-modal" : "setup-panel";
   return `
     <div class="${wrapperClass}">
-      <h2>Choose Starting Player</h2>
+      <h2>${title}</h2>
       <div class="chip-row">${seatButtons}</div>
       <div class="setup-footer">
         <button data-action="${backAction}">Back</button>
@@ -2314,7 +2461,9 @@ function renderStartSetupScreen() {
     stopQrScanner();
     state.qrOpen = false;
     exitSetupGridPreview();
-    container.innerHTML = renderStartingPlayerStep(state);
+    container.innerHTML = pendingDuelContinuation
+      ? renderStartingPlayerStep(state, { backAction: "back-from-duel-next-starter" })
+      : renderStartingPlayerStep(state);
   }
 
   updateScrollableFadeState(container);
@@ -2322,11 +2471,13 @@ function renderStartSetupScreen() {
 
 function renderDuelSeriesOverlay(playerIndex) {
   if (!isDuelMode() || selectedPlayerCount !== 2) return "";
-  const winsNeeded = Math.ceil(normalizeDuelMatchLength(duelSeries.matchLength) / 2);
+  const matchLength = normalizeDuelMatchLength(duelSeries.matchLength);
+  if (matchLength <= 1) return "";
+  const winsNeeded = getDuelWinsNeeded(matchLength);
   const wins = duelSeries.wins?.[playerIndex] || 0;
   const tokenMarkup = Array.from({ length: winsNeeded }, (_, index) => `
     <span class="duel-series-token ${index < wins ? "is-won" : ""}">
-      <img src="${BUTTON_SHAPE_DATA_URL}" alt="">
+      <span class="duel-series-token-shape" aria-hidden="true"></span>
     </span>
   `).join("");
   return `
@@ -2341,8 +2492,10 @@ async function searchScryfallCards(query, { commanderOnly = false } = {}) {
   if (clean.length < 2) return [];
   const q = `${clean} game:paper legal:commander is:commander`;
   const url = `https://api.scryfall.com/cards/search?unique=cards&order=name&dir=asc&q=${encodeURIComponent(q)}`;
+  const controller = new AbortController();
+  const timeoutId = window.setTimeout(() => controller.abort(), SCRYFALL_SEARCH_TIMEOUT_MS);
   try {
-    const response = await fetch(url);
+    const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) return [];
     const payload = await response.json();
     const cards = Array.isArray(payload.data) ? payload.data : [];
@@ -2361,6 +2514,8 @@ async function searchScryfallCards(query, { commanderOnly = false } = {}) {
       .filter(card => card.art);
   } catch {
     return [];
+  } finally {
+    window.clearTimeout(timeoutId);
   }
 }
 
@@ -2369,6 +2524,7 @@ async function fetchCommanderPrintArts(card) {
   const fallback = card.art
     ? [{
       id: `${card.id || card.name}-base`,
+      printId: normalizeCommanderArtId(card.id),
       art: card.art,
       setLabel: "Default"
     }]
@@ -2395,6 +2551,7 @@ async function fetchCommanderPrintArts(card) {
         const collector = `${printCard?.collector_number || ""}`.trim();
         return {
           id: printCard.id || `${setCode}-${collector}-${art}`,
+          printId: normalizeCommanderArtId(printCard.id),
           art,
           setLabel: [setCode, collector].filter(Boolean).join(" ")
         };
@@ -2444,13 +2601,31 @@ async function clearPwaCacheForDebug() {
   }
 }
 
-function renderSearchResults(seatIndex, cards) {
+function renderSearchResults(seatIndex, cards, query = "") {
   const resultsEl = document.getElementById(`search-results-${seatIndex}`);
   if (!resultsEl) return;
   const state = ensureSetupState();
   const seat = state.seats[seatIndex];
+  const cleanQuery = `${query || ""}`.trim();
   if (!cards.length) {
-    resultsEl.innerHTML = "";
+    if (!seat?.isAddingDeck || cleanQuery.length < 2 || !seat?.profileId) {
+      resultsEl.innerHTML = "";
+      return;
+    }
+    const isDuplicateForPlayer = profileAlreadyHasDeck(seat.profileId, cleanQuery);
+    resultsEl.innerHTML = `
+      <button class="search-result ${isDuplicateForPlayer ? "search-result-disabled" : ""}" data-action="create-default-search-deck" data-seat="${seatIndex}" data-deck-name="${escapeHtml(cleanQuery)}" ${isDuplicateForPlayer ? "disabled" : ""}>
+        <img src="${DEFAULT_PLAYER_BACKGROUND}" alt="">
+        <span class="search-result-copy">
+          <span class="search-result-name-row">
+            <span class="search-result-name">${escapeHtml(cleanQuery)}</span>
+            <span class="search-result-badge search-result-badge-muted">Default Deck</span>
+            ${isDuplicateForPlayer ? '<span class="search-result-badge search-result-badge-muted">Added</span>' : ""}
+          </span>
+          <span class="search-result-meta">${navigator.onLine ? "No online match found. Create locally." : "Offline mode. Create locally with default art."}</span>
+        </span>
+      </button>
+    `;
     return;
   }
   resultsEl.innerHTML = cards.map(card => {
@@ -2473,6 +2648,9 @@ function renderSearchResults(seatIndex, cards) {
   state.seats[seatIndex].searchResults = cards;
 }
 
+/* =========================
+   Start / Setup Screen
+   ========================= */
 function setupStartScreen() {
   const container = document.getElementById("player-buttons");
   const startScreen = document.getElementById("start-screen");
@@ -2876,6 +3054,7 @@ function setupStartScreen() {
       state.seats[seat].deckId = deck.id;
       state.seats[seat].deckName = deck.deckName || "";
       state.seats[seat].cardName = deck.cardName || "";
+      state.seats[seat].artId = normalizeCommanderArtId(deck.artId);
       state.seats[seat].borrowedFromProfileId = state.seats[seat].isBorrowingDeck ? expectedOwnerId : "";
       state.seats[seat].borrowedFromProfileName = state.seats[seat].isBorrowingDeck
         ? (profileLibrary.find(item => item.id === expectedOwnerId)?.name || "")
@@ -2885,6 +3064,7 @@ function setupStartScreen() {
       state.seats[seat].isDeletingDeck = false;
       state.seats[seat].isBorrowingDeck = false;
       state.seats[seat].borrowProfileId = "";
+      state.seats[seat].searchQuery = "";
       state.seats[seat].searchResults = [];
       state.seats[seat].pendingSearchCard = null;
       state.seats[seat].searchArtOptions = [];
@@ -2930,6 +3110,7 @@ function setupStartScreen() {
       state.seats[seat].isDeletingDeck = false;
       state.seats[seat].isBorrowingDeck = false;
       state.seats[seat].borrowProfileId = "";
+      state.seats[seat].searchQuery = "";
       state.seats[seat].pendingSearchCard = null;
       state.seats[seat].searchArtOptions = [];
       state.seats[seat].isLoadingArtOptions = false;
@@ -2943,11 +3124,53 @@ function setupStartScreen() {
       state.seats[seat].isDeletingDeck = false;
       state.seats[seat].isBorrowingDeck = false;
       state.seats[seat].borrowProfileId = "";
+      state.seats[seat].searchQuery = "";
       state.seats[seat].searchResults = [];
       state.seats[seat].pendingSearchCard = null;
       state.seats[seat].searchArtOptions = [];
       state.seats[seat].isLoadingArtOptions = false;
       state.forceDeckSelection = true;
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "create-default-search-deck" && Number.isInteger(seat)) {
+      const seatState = state.seats[seat];
+      if (!seatState.profileId || !seatState.isAddingDeck) return;
+      const requestedName = `${btn.dataset.deckName || seatState.searchQuery || ""}`.trim();
+      if (requestedName.length < 2) return;
+      if (profileAlreadyHasDeck(seatState.profileId, requestedName)) {
+        return;
+      }
+      const deck = {
+        id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+        mode: "commander",
+        ownerProfileId: seatState.profileId,
+        deckName: requestedName,
+        cardName: requestedName,
+        artId: "",
+        image: DEFAULT_PLAYER_BACKGROUND,
+        lastUsedAt: Date.now()
+      };
+      deckLibrary.unshift(deck);
+      saveDeckLibrary();
+      seatState.deckId = deck.id;
+      seatState.deckName = deck.deckName;
+      seatState.cardName = deck.cardName;
+      seatState.artId = "";
+      seatState.borrowedFromProfileId = "";
+      seatState.borrowedFromProfileName = "";
+      seatState.image = deck.image;
+      seatState.isAddingDeck = false;
+      seatState.isDeletingDeck = false;
+      seatState.isBorrowingDeck = false;
+      seatState.borrowProfileId = "";
+      seatState.searchQuery = "";
+      seatState.searchResults = [];
+      seatState.pendingSearchCard = null;
+      seatState.searchArtOptions = [];
+      seatState.isLoadingArtOptions = false;
+      state.forceDeckSelection = false;
       renderStartSetupScreen();
       return;
     }
@@ -2982,6 +3205,7 @@ function setupStartScreen() {
           ownerProfileId: seatState.profileId,
           deckName: seatState.pendingSearchCard.name,
           cardName: seatState.pendingSearchCard.name,
+          artId: normalizeCommanderArtId(artOptions?.[0]?.printId || seatState.pendingSearchCard.id),
           image: chosenArt,
           lastUsedAt: Date.now()
         };
@@ -2991,6 +3215,7 @@ function setupStartScreen() {
         seatState.deckId = deck.id;
         seatState.deckName = deck.deckName;
         seatState.cardName = deck.cardName;
+        seatState.artId = deck.artId;
         seatState.borrowedFromProfileId = "";
         seatState.borrowedFromProfileName = "";
         seatState.image = deck.image;
@@ -2998,6 +3223,7 @@ function setupStartScreen() {
         seatState.isDeletingDeck = false;
         seatState.isBorrowingDeck = false;
         seatState.borrowProfileId = "";
+        seatState.searchQuery = "";
         seatState.searchResults = [];
         seatState.pendingSearchCard = null;
         seatState.searchArtOptions = [];
@@ -3037,6 +3263,7 @@ function setupStartScreen() {
         ownerProfileId: seatState.profileId,
         deckName: seatState.pendingSearchCard.name,
         cardName: seatState.pendingSearchCard.name,
+        artId: normalizeCommanderArtId(selectedArt?.printId || seatState.pendingSearchCard.id),
         image: selectedArt?.art || fallbackArt,
         lastUsedAt: Date.now()
       };
@@ -3046,6 +3273,7 @@ function setupStartScreen() {
       seatState.deckId = deck.id;
       seatState.deckName = deck.deckName;
       seatState.cardName = deck.cardName;
+      seatState.artId = deck.artId;
       seatState.borrowedFromProfileId = "";
       seatState.borrowedFromProfileName = "";
       seatState.image = deck.image;
@@ -3053,6 +3281,7 @@ function setupStartScreen() {
       seatState.isDeletingDeck = false;
       seatState.isBorrowingDeck = false;
       seatState.borrowProfileId = "";
+      seatState.searchQuery = "";
       seatState.searchResults = [];
       seatState.pendingSearchCard = null;
       seatState.searchArtOptions = [];
@@ -3074,9 +3303,11 @@ function setupStartScreen() {
       seatState.deckId = "";
       seatState.deckName = "";
       seatState.cardName = "";
+      seatState.artId = "";
       seatState.image = DEFAULT_PLAYER_BACKGROUND;
       seatState.isAddingDeck = false;
       seatState.isDeletingDeck = false;
+      seatState.searchQuery = "";
       seatState.searchResults = [];
       seatState.pendingSearchCard = null;
       seatState.searchArtOptions = [];
@@ -3094,6 +3325,11 @@ function setupStartScreen() {
     }
 
     if (action === "back-from-board-starter") {
+      if (pendingDuelContinuation) {
+        pendingDuelContinuation = null;
+        openEndMenu(winnerIndex !== null && winnerIndex >= 0 ? winnerIndex : undefined);
+        return;
+      }
       state.forceDeckSelection = true;
       document.getElementById("setup-center-play")?.remove();
       document.getElementById("setup-center-back")?.remove();
@@ -3127,7 +3363,29 @@ function setupStartScreen() {
       return;
     }
 
+    if (action === "back-from-duel-next-starter") {
+      pendingDuelContinuation = null;
+      openEndMenu(winnerIndex !== null && winnerIndex >= 0 ? winnerIndex : undefined);
+      return;
+    }
+
     if (action === "start-configured-game") {
+      if (pendingDuelContinuation) {
+        const continuation = pendingDuelContinuation;
+        pendingDuelContinuation = null;
+        quickStartGame(2, {
+          mode: "magic",
+          matchLength: continuation.nextSeries.matchLength,
+          startingLife: state.startingLife,
+          startingPlayerIndex: Math.min(1, Math.max(0, Number(state.startingPlayerIndex) || 0)),
+          seats: state.seats,
+          preserveDuelSeries: true,
+          duelSeries: continuation.nextSeries,
+          gameLog: continuation.gameLog
+        });
+        return;
+      }
+
       const playerCount = state.mode === "magic" ? 2 : state.playerCount;
       if (state.mode === "commander" && !allCommanderSeatsReady(state)) {
         alert("Select profile and deck for all players first.");
@@ -3185,13 +3443,14 @@ function setupStartScreen() {
       const seat = Number(searchInput.dataset.seatDeckSearch);
       if (!Number.isInteger(seat)) return;
       const query = searchInput.value || "";
+      state.seats[seat].searchQuery = query;
       state.seats[seat].pendingSearchCard = null;
       state.seats[seat].searchArtOptions = [];
       state.seats[seat].isLoadingArtOptions = false;
       const token = ++scryfallSearchToken;
       const cards = await searchScryfallCards(query, { commanderOnly: true });
       if (token !== scryfallSearchToken) return;
-      renderSearchResults(seat, cards);
+      renderSearchResults(seat, cards, query);
     }
   }
 
@@ -3245,6 +3504,7 @@ function quickStartGame(playerCount, options = {}) {
     const seat = seats[index] || getDefaultSeatState(index);
     p.name = (seat.profileName || "").trim() || `Player ${index + 1}`;
     p.commander = mode === "magic" ? "" : ((seat.cardName || "").trim());
+    p.commanderArtId = mode === "magic" ? "" : normalizeCommanderArtId(seat.artId);
     p.image = getSeatBackgroundImage(seat, index, mode);
     p.life = configuredLife;
     p.turnTime = 0;
@@ -3327,7 +3587,11 @@ function autoPassIfActivePlayerDead() {
   nextTurn(false, "Auto-pass");
 }
 
+/* =========================
+   Main Render + Grid Layout
+   ========================= */
 function render() {
+  clearSeriesWinnerSeatHighlight();
   if (!selectedPlayerCount) return;
   game.dataset.players = String(selectedPlayerCount);
   document.body.dataset.players = String(selectedPlayerCount);
@@ -4082,6 +4346,7 @@ function buildMatchHistoryEntry(finalCauseLabel, finalMessage) {
   const playersSummary = players.slice(0, selectedPlayerCount).map((player, index) => ({
     name: getPlayerNameForLog(player, index),
     commander: gameMode === "magic" ? "" : getCommanderNameForLog(player),
+    artId: gameMode === "magic" ? "" : normalizeCommanderArtId(player.commanderArtId),
     image: player.image || getDefaultPlayerBackground(index, gameMode),
     totalTime: player.totalTime || 0,
     finalLife: player.life || 0,
@@ -4091,6 +4356,15 @@ function buildMatchHistoryEntry(finalCauseLabel, finalMessage) {
     eliminationCause: matchEliminations[index]?.cause || "",
     isWinner: winnerIndex === index
   }));
+
+  const duelMetadata = isDuelMode()
+    ? {
+      duelSeriesId: typeof duelSeries?.seriesId === "string" ? duelSeries.seriesId : "",
+      duelMatchLength: normalizeDuelMatchLength(duelSeries?.matchLength),
+      duelGameNumber: Math.max(1, getCompletedDuelGamesCount()),
+      duelWins: [duelSeries?.wins?.[0] || 0, duelSeries?.wins?.[1] || 0]
+    }
+    : {};
 
   return {
     id: entryId,
@@ -4113,7 +4387,8 @@ function buildMatchHistoryEntry(finalCauseLabel, finalMessage) {
       activePlayerName: entry.activePlayerName || "",
       tone: entry.tone || "default",
       message: entry.message || ""
-    }))
+    })),
+    ...duelMetadata
   };
 }
 
@@ -4126,11 +4401,146 @@ function archiveCompletedGame(finalCauseLabel, finalMessage) {
 
 function deleteMatchHistoryEntry(entryId) {
   if (!entryId) return false;
+  if (entryId.startsWith("series:")) {
+    const seriesId = entryId.slice("series:".length);
+    if (!seriesId) return false;
+    const before = matchHistory.length;
+    matchHistory = matchHistory.filter(entry => `${entry?.duelSeriesId || ""}` !== seriesId);
+    if (matchHistory.length === before) return false;
+    saveMatchHistory();
+    return true;
+  }
   const index = matchHistory.findIndex(entry => entry.id === entryId);
   if (index === -1) return false;
   matchHistory.splice(index, 1);
   saveMatchHistory();
   return true;
+}
+
+function getHistoryGroupScore(entries) {
+  const wins = [0, 0];
+  (Array.isArray(entries) ? entries : []).forEach((entry) => {
+    if (entry?.winnerIndex === 0 || entry?.winnerIndex === 1) {
+      wins[entry.winnerIndex] += 1;
+    }
+  });
+  return wins;
+}
+
+function buildHistoryGroups() {
+  const groups = [];
+  const groupedSeriesIds = new Set();
+
+  for (const entry of matchHistory) {
+    const isDuelSeriesEntry = (entry?.mode === "magic")
+      && normalizeDuelMatchLength(entry?.duelMatchLength) > 1
+      && typeof entry?.duelSeriesId === "string"
+      && entry.duelSeriesId.trim();
+
+    if (!isDuelSeriesEntry) {
+      groups.push({
+        id: entry.id,
+        type: "single",
+        entry
+      });
+      continue;
+    }
+
+    const seriesId = entry.duelSeriesId.trim();
+    if (groupedSeriesIds.has(seriesId)) continue;
+    groupedSeriesIds.add(seriesId);
+
+    const seriesEntries = matchHistory
+      .filter(item => `${item?.duelSeriesId || ""}`.trim() === seriesId)
+      .slice()
+      .sort((a, b) => {
+        const aGame = Number(a?.duelGameNumber) || 0;
+        const bGame = Number(b?.duelGameNumber) || 0;
+        if (aGame && bGame) return aGame - bGame;
+        return (a?.endedAt || 0) - (b?.endedAt || 0);
+      });
+
+    const latestEntry = seriesEntries[seriesEntries.length - 1] || entry;
+    groups.push({
+      id: `series:${seriesId}`,
+      type: "duel-series",
+      entries: seriesEntries,
+      latestEntry
+    });
+  }
+
+  return groups;
+}
+
+function renderHistoryDuelSeriesDetail(group) {
+  const entries = Array.isArray(group?.entries) ? group.entries : [];
+  const latestEntry = group?.latestEntry || entries[entries.length - 1];
+  if (!latestEntry) return "";
+
+  const wins = getHistoryGroupScore(entries);
+  const gameRows = entries.map((entry, index) => {
+    const gameNum = Number(entry?.duelGameNumber) || (index + 1);
+    return `
+      <div class="history-series-game-row">
+        <div class="history-series-game-title">Game ${gameNum}</div>
+        <div class="history-final-line history-winreason-top">${escapeHtml(getDisplayLabel(entry?.finalMessage || ""))}</div>
+        <div class="history-entry-body history-entry-body-static">
+          <div class="history-overview-grid">
+            <div><span>Total Time</span><strong>${escapeHtml(formatTime(entry.totalMatchSeconds || 0))}</strong></div>
+            <div><span>Winner</span><strong>${escapeHtml(entry.winnerName || "No Winner")}</strong></div>
+            <div><span>Won By</span><strong>${escapeHtml(getDisplayLabel(entry.winCause || "Unknown"))}</strong></div>
+            <div><span>Turns</span><strong>${escapeHtml(String(entry.turnCount || 0))}</strong></div>
+            <div><span>Mode</span><strong>${escapeHtml(modeLabel(entry.mode))}</strong></div>
+            <div><span>Actions</span><strong>${escapeHtml(String(entry.actionCount || 0))}</strong></div>
+          </div>
+          <div class="history-player-grid">
+            ${(entry.players || []).map(player => `
+              <div class="history-player-card ${player.isWinner ? "is-winner" : ""}">
+                <div class="history-player-header">
+                  <div class="history-player-art">
+                    <img src="${escapeHtml(player.image)}" alt="${escapeHtml(player.commander)}">
+                  </div>
+                  <div class="history-player-copy">
+                    <h4>${escapeHtml(player.name)}</h4>
+                    ${entry.mode === "magic" ? "" : `<div>${escapeHtml(player.commander)}</div>`}
+                  </div>
+                </div>
+                <div class="history-stat-grid">
+                  <div><span>Turn Time</span><strong>${escapeHtml(formatTime(player.totalTime || 0))}</strong></div>
+                  <div><span>Total Damage</span><strong>${escapeHtml(String(player.stats?.damageDealt || 0))}</strong></div>
+                  <div><span>Commander</span><strong>${escapeHtml(String(player.stats?.commanderDamageDealt || 0))}</strong></div>
+                  <div><span>Poison</span><strong>${escapeHtml(String(player.stats?.poisonDealt || 0))}</strong></div>
+                  <div><span>Healing</span><strong>${escapeHtml(String(player.stats?.healingDone || 0))}</strong></div>
+                  <div><span>Final Life</span><strong>${escapeHtml(String(player.finalLife || 0))}</strong></div>
+                  <div><span>Died Turn</span><strong>${player.isWinner ? "-" : escapeHtml(player.eliminationTurn ? String(player.eliminationTurn) : "-")}</strong></div>
+                  <div><span>Died By</span><strong>${player.isWinner ? "-" : escapeHtml(getDisplayLabel(player.eliminationCause || "-"))}</strong></div>
+                </div>
+              </div>
+            `).join("")}
+          </div>
+        </div>
+      </div>
+    `;
+  }).join("");
+
+  return `
+    <div class="setup-panel setup-panel-wide history-detail-panel">
+      <button class="setup-icon-circle-btn history-back-btn" data-action="back-from-history-detail" aria-label="Back">
+        ${getIconMarkup("Back", "setup-back-icon")}
+      </button>
+      <h2>Game History</h2>
+      <div class="history-detail-shell">
+        <div class="history-summary-copy history-summary-copy-detail">
+          <div class="history-summary-names">${latestEntry.players.map(player => escapeHtml(player.name)).join(" | ")}</div>
+          <div class="history-summary-date">${escapeHtml(formatHistoryDateTime(latestEntry.endedAt))}</div>
+        </div>
+        <div class="history-series-score">${wins[0]} - ${wins[1]}</div>
+        <div class="history-series-list">
+          ${gameRows}
+        </div>
+      </div>
+    </div>
+  `;
 }
 
 function renderHistoryEntryDetail(entry) {
@@ -4196,16 +4606,26 @@ function renderHistoryEntryDetail(entry) {
 
 function renderStartHistoryScreen() {
   const state = ensureSetupState();
-  const selectedEntry = matchHistory.find(entry => entry.id === state.historyEntryId) || null;
-  if (state.historyView === "detail" && selectedEntry) {
-    return renderHistoryEntryDetail(selectedEntry);
+  const groups = buildHistoryGroups();
+  const selectedGroup = groups.find(group => group.id === state.historyEntryId) || null;
+  if (state.historyView === "detail" && selectedGroup) {
+    if (selectedGroup.type === "duel-series") {
+      return renderHistoryDuelSeriesDetail(selectedGroup);
+    }
+    return renderHistoryEntryDetail(selectedGroup.entry);
   }
 
-  const entriesMarkup = matchHistory.length
-    ? matchHistory.map(entry => `
-      <button class="history-list-entry ${state.historyDeleteMode ? "is-delete-mode" : ""}" data-action="${state.historyDeleteMode ? "delete-history-entry" : "open-history-entry"}" data-history-id="${entry.id}">
+  const entriesMarkup = groups.length
+    ? groups.map(group => {
+      const entry = group.type === "duel-series" ? group.latestEntry : group.entry;
+      const showDuelBestOfChip = entry?.mode === "magic";
+      const duelBestOfChip = showDuelBestOfChip
+        ? ` <span class="history-series-chip">Bo${normalizeDuelMatchLength(entry.duelMatchLength)}</span>`
+        : "";
+      return `
+      <button class="history-list-entry ${state.historyDeleteMode ? "is-delete-mode" : ""}" data-action="${state.historyDeleteMode ? "delete-history-entry" : "open-history-entry"}" data-history-id="${group.id}">
         <div class="history-summary-copy">
-          <div class="history-summary-names">${entry.players.map(player => escapeHtml(player.name)).join(" | ")}</div>
+          <div class="history-summary-names">${entry.players.map(player => escapeHtml(player.name)).join(" | ")}${duelBestOfChip}</div>
           <div class="history-summary-date">${escapeHtml(formatHistoryDateTime(entry.endedAt))}</div>
         </div>
         <div class="history-summary-commanders">
@@ -4216,7 +4636,8 @@ function renderStartHistoryScreen() {
           `).join("")}
         </div>
       </button>
-    `).join("")
+    `;
+    }).join("")
     : `<div class="history-empty">No completed games yet.</div>`;
 
   return `
@@ -5862,17 +6283,60 @@ function updateEndCauseButtonUI() {
   });
 }
 
+function renderEndDuelSummary(currentWinnerIndex) {
+  const summaryEl = document.getElementById("end-duel-summary");
+  if (!summaryEl) return;
+
+  summaryEl.classList.add("hidden");
+  summaryEl.innerHTML = "";
+
+  if (!isDuelMode()) return;
+
+  const projected = getProjectedDuelSeriesState(currentWinnerIndex);
+  const seriesComplete = isDuelSeriesCompleteForState(projected);
+  if (!seriesComplete) return;
+
+  const wins0 = projected.wins?.[0] || 0;
+  const wins1 = projected.wins?.[1] || 0;
+  const seriesWinnerIndex = getDuelSeriesWinnerIndex(projected);
+  const p1ActiveClass = seriesWinnerIndex === 0 ? "winner" : "";
+  const p2ActiveClass = seriesWinnerIndex === 1 ? "winner" : "";
+
+  summaryEl.innerHTML = `
+    <div class="duel-summary-label">Round Results</div>
+    <div class="duel-summary-scoreline">
+      <span class="duel-summary-score ${p1ActiveClass}">${wins0}</span>
+      <span class="duel-summary-sep">-</span>
+      <span class="duel-summary-score ${p2ActiveClass}">${wins1}</span>
+    </div>
+  `;
+  summaryEl.classList.remove("hidden");
+}
+
+function clearSeriesWinnerSeatHighlight() {
+  document.querySelectorAll(".player.series-winner-highlight").forEach((el) => {
+    el.classList.remove("series-winner-highlight");
+  });
+}
+
+function applySeriesWinnerSeatHighlight(playerIndex) {
+  clearSeriesWinnerSeatHighlight();
+  if (!Number.isInteger(playerIndex) || playerIndex < 0) return;
+  const winnerEl = document.getElementById(`player${playerIndex}`);
+  winnerEl?.classList.add("series-winner-highlight");
+}
+
 function updateEndScreenActions() {
   const primaryBtn = document.getElementById("new-game-btn");
   const menuBtn = document.getElementById("back-menu-btn");
   if (!primaryBtn || !menuBtn) return;
 
   if (isDuelMode()) {
-    const isFinalScheduledGame = isCurrentDuelGameFinal();
+    const isSeriesCompleteAfterCurrentGame = isCurrentDuelGameFinal();
     primaryBtn.textContent = "Next Game";
-    primaryBtn.classList.toggle("hidden", isFinalScheduledGame);
+    primaryBtn.classList.toggle("hidden", isSeriesCompleteAfterCurrentGame);
     menuBtn.textContent = "Back to Menu";
-    menuBtn.classList.toggle("hidden", !isFinalScheduledGame);
+    menuBtn.classList.toggle("hidden", !isSeriesCompleteAfterCurrentGame);
     return;
   }
 
@@ -5945,13 +6409,12 @@ function finalizeEndGameSelection(actionType) {
     message
   });
 
+  // Persist the user's final end-screen reason edits before any transition action.
+  lastEliminationSelections = [...orderedCauses];
+  lastEliminationCause = finalCauseLabel || null;
+
   if (isDuelMode()) {
-    duelSeries = normalizeDuelSeriesState({
-      ...duelSeries,
-      currentGame: Math.min(duelSeries.matchLength, duelSeries.currentGame),
-      winners: [...duelSeries.winners, winnerIndex !== null && winnerIndex >= 0 ? winnerIndex : null]
-        .slice(0, duelSeries.matchLength)
-    });
+    duelSeries = getProjectedDuelSeriesState(winnerIndex);
   }
 
   archiveCompletedGame(finalCauseLabel, message);
@@ -5980,16 +6443,29 @@ function startNextDuelGame() {
     ...duelSeries,
     currentGame: getCompletedDuelGamesCount() + 1
   });
-  quickStartGame(2, {
-    mode: "magic",
-    matchLength: nextSeries.matchLength,
-    startingLife: starting_life,
-    startingPlayerIndex: Math.min(1, Math.max(0, Number(setupState?.startingPlayerIndex) || 0)),
-    seats: buildDuelContinuationSeats(),
-    preserveDuelSeries: true,
-    duelSeries: nextSeries,
-    gameLog
-  });
+  pendingDuelContinuation = {
+    nextSeries,
+    gameLog: [...gameLog]
+  };
+
+  const state = ensureSetupState();
+  state.step = "seats";
+  state.mode = "magic";
+  state.playerCount = 2;
+  state.matchLength = nextSeries.matchLength;
+  state.startingLife = starting_life;
+  state.startingPlayerIndex = Math.min(1, Math.max(0, Number(state.startingPlayerIndex) || 0));
+  state.showStarterPicker = false;
+  state.forceDeckSelection = false;
+  state.seats = buildDuelContinuationSeats();
+
+  isGameOver = false;
+  const gameEl = document.getElementById("game");
+  const startScreen = document.getElementById("start-screen");
+  gameEl?.classList.remove("blurred");
+  startScreen?.classList.remove("hidden");
+  document.getElementById("end-screen")?.classList.add("hidden");
+  renderStartSetupScreen();
 }
 
 function endGameFromPause() {
@@ -6027,6 +6503,7 @@ function openRematchSetupFromEnd() {
     p.life = rematchState.startingLife;
     p.name = (seat.profileName || "").trim() || `Player ${index + 1}`;
     p.commander = "";
+    p.commanderArtId = "";
     p.image = getDefaultPlayerBackground(index, rematchState.mode);
     p.turnTime = 0;
     p.totalTime = 0;
@@ -6086,6 +6563,7 @@ function backToMenuFromEnd() {
 
   players.forEach(p => {
     p.life = starting_life;
+    p.commanderArtId = "";
     p.turnTime = 0;
     p.totalTime = 0;
     p.poison = 0;
@@ -6122,6 +6600,9 @@ function backToMenuFromEnd() {
   updateUndoButtonState();
 }
 
+/* =========================
+   Game Flow: Reset / End
+   ========================= */
 function resetGame() {
   localStorage.removeItem(STORAGE_KEY);
   clearResumeSessions();
@@ -6137,6 +6618,7 @@ function resetGame() {
   // Reset player data only
   players.forEach(p => {
     p.life = starting_life;
+    p.commanderArtId = "";
     p.turnTime = 0;
     p.totalTime = 0;
     p.poison = 0;
@@ -6184,6 +6666,17 @@ function openEndMenu(winnerIndex) {
   isGameOver = true;
   isPaused = true;
   const hasWinner = winnerIndex !== undefined && winnerIndex !== null && winnerIndex >= 0;
+  const projectedSeries = isDuelMode() ? getProjectedDuelSeriesState(winnerIndex) : null;
+  const isFinalDuelScreen = isDuelMode() && isDuelSeriesCompleteForState(projectedSeries);
+  const seriesWinnerIndex = isFinalDuelScreen ? getDuelSeriesWinnerIndex(projectedSeries) : null;
+
+  // In duel, keep the game winner visually active on the board.
+  if (isDuelMode() && hasWinner) {
+    activePlayerIndex = winnerIndex;
+    render();
+  }
+
+  applySeriesWinnerSeatHighlight(isFinalDuelScreen ? seriesWinnerIndex : null);
 
   // Show end screen
   const endScreen = document.getElementById("end-screen");
@@ -6208,13 +6701,20 @@ function openEndMenu(winnerIndex) {
 
   const endBg = document.getElementById("end-screen-bg");
   if (endBg) {
-    if (hasWinner && players[winnerIndex]) {
-      endBg.style.backgroundImage = `
-        linear-gradient(180deg, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.68) 100%),
-        url("${players[winnerIndex].image}")
-      `;
-    } else {
+    if (isDuelMode() || isFinalDuelScreen) {
       endBg.style.backgroundImage = "none";
+    } else {
+      const bgPlayerIndex = Number.isInteger(seriesWinnerIndex)
+        ? seriesWinnerIndex
+        : (hasWinner ? winnerIndex : null);
+      if (Number.isInteger(bgPlayerIndex) && players[bgPlayerIndex]) {
+        endBg.style.backgroundImage = `
+          linear-gradient(180deg, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.68) 100%),
+          url("${players[bgPlayerIndex].image}")
+        `;
+      } else {
+        endBg.style.backgroundImage = "none";
+      }
     }
   }
 
@@ -6226,6 +6726,7 @@ function openEndMenu(winnerIndex) {
   ensureValidEndGameCause({ allowEmpty: !hasWinner });
   setupEndCauseButtons();
   updateEndCauseButtonUI();
+  renderEndDuelSummary(winnerIndex);
   updateEndScreenActions();
   renderEndGameLogPanel();
   updateUndoButtonState();
@@ -6302,11 +6803,15 @@ function updateOrientationLock() {
   document.body.classList.toggle("portrait-locked-landscape", window.innerWidth > window.innerHeight);
 }
 
+/* =========================
+   App Bootstrapping
+   ========================= */
 profileLibrary = loadProfileLibrary();
 deckLibrary = loadDeckLibrary();
 matchHistory = loadMatchHistory();
 resumeSessions = loadResumeSessions();
 startMenuBackdrop = loadStartMenuBackdrop();
+void hydrateMissingDeckImages({ limit: 50 });
 
 if ("serviceWorker" in navigator) {
   ensureServiceWorkerReady().then(() => {
@@ -6316,6 +6821,10 @@ if ("serviceWorker" in navigator) {
     warmCommanderImageCache();
   });
 }
+
+window.addEventListener("online", () => {
+  void hydrateMissingDeckImages({ limit: 50 });
+});
 
 const hasLoadedState = loadState();
 if (!hasLoadedState) {
@@ -6327,6 +6836,9 @@ if (!hasLoadedState) {
 
 
 
+/* =========================
+   Damage Arrow Visualization
+   ========================= */
 function drawDamageArrow(sourceIndex, mouseX, mouseY) {
 
   const svg = document.getElementById("damage-arrow-layer");
@@ -6450,6 +6962,9 @@ function initExitConfirmGuard() {
 
 
 
+/* =========================
+   Global Event Wiring
+   ========================= */
 document.getElementById("pause-btn").addEventListener("click", togglePause);
 document.getElementById("game").addEventListener("click", openStartMenuWhenNoGame);
 document.getElementById("new-game-btn")?.addEventListener("click", () => {
@@ -6469,7 +6984,7 @@ window.addEventListener("beforeunload", saveState);
 window.addEventListener("pagehide", saveState);
 
 
-//window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
+window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
 
 // Console helpers for quick troubleshooting:
 // start2(), start3(), start4(), start5(), start6(), startPlayers(n)
