@@ -1,4 +1,5 @@
-const APP_SHELL_CACHE = "life-tracker-app-shell-v12";
+const APP_SHELL_CACHE = "life-tracker-app-shell-v13";
+const APP_SHELL_CACHE_PREFIX = "life-tracker-app-shell-";
 const COMMANDER_IMAGE_CACHE = "life-tracker-commander-images-v1";
 const MAX_CACHED_IMAGES = 180;
 
@@ -75,6 +76,29 @@ async function matchAppShellRequest(cache, requestOrUrl) {
   return null;
 }
 
+async function matchAppShellRequestAcrossCaches(requestOrUrl) {
+  const currentCache = await caches.open(APP_SHELL_CACHE);
+  const currentMatch = await matchAppShellRequest(currentCache, requestOrUrl);
+  if (currentMatch) return currentMatch;
+
+  const cacheKeys = await caches.keys();
+  const legacyShellCaches = cacheKeys.filter((key) =>
+    key !== APP_SHELL_CACHE && key.startsWith(APP_SHELL_CACHE_PREFIX)
+  );
+
+  for (const key of legacyShellCaches) {
+    try {
+      const cache = await caches.open(key);
+      const match = await matchAppShellRequest(cache, requestOrUrl);
+      if (match) return match;
+    } catch {
+      // Ignore a single cache read failure and continue.
+    }
+  }
+
+  return null;
+}
+
 async function cacheAssetList(cache, assets) {
   await Promise.all(assets.map(async (asset) => {
     try {
@@ -122,7 +146,8 @@ self.addEventListener("activate", (event) => {
     const validCaches = new Set([APP_SHELL_CACHE, COMMANDER_IMAGE_CACHE]);
     const keys = await caches.keys();
     await Promise.all(keys.map((key) => {
-      if (!validCaches.has(key)) {
+      const isLegacyShellCache = key.startsWith(APP_SHELL_CACHE_PREFIX);
+      if (!validCaches.has(key) && !isLegacyShellCache) {
         return caches.delete(key);
       }
       return Promise.resolve();
@@ -162,7 +187,7 @@ self.addEventListener("message", (event) => {
 
 async function handleAppShellRequest(request) {
   const cache = await caches.open(APP_SHELL_CACHE);
-  const cachedShell = await matchAppShellRequest(cache, "./index.html");
+  const cachedShell = await matchAppShellRequestAcrossCaches("./index.html");
 
   if (request.mode === "navigate") {
     try {
@@ -179,6 +204,8 @@ async function handleAppShellRequest(request) {
 
   const cached = await matchAppShellRequest(cache, request);
   if (cached) return cached;
+  const cachedFromAnyShell = await matchAppShellRequestAcrossCaches(request);
+  if (cachedFromAnyShell) return cachedFromAnyShell;
 
   try {
     const fresh = await fetch(request);
@@ -187,7 +214,7 @@ async function handleAppShellRequest(request) {
     }
     return fresh;
   } catch {
-    const fallback = await matchAppShellRequest(cache, request);
+    const fallback = await matchAppShellRequestAcrossCaches(request);
     if (fallback) return fallback;
     throw new Error("Offline and no cached asset");
   }

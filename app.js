@@ -1293,10 +1293,11 @@ function renderQrPanel(state) {
   if (!state?.qrOpen) return "";
 
   const status = (state.qrStatus || "").trim();
-  const statusMarkup = status && state.qrView !== "menu"
+  const isMenu = state.qrView === "menu";
+  const shouldShowMenuImportStatus = isMenu && /^Imported\s/i.test(status);
+  const statusMarkup = status && (!isMenu || shouldShowMenuImportStatus)
     ? `<div class="qr-status">${escapeHtml(status)}</div>`
     : "";
-  const isMenu = state.qrView === "menu";
   const isShare = state.qrView === "share";
   const isScan = state.qrView === "scan";
   const showBackdrop = isShare && !!state.qrImageUrl;
