@@ -432,6 +432,7 @@ function loadDeckLibrary() {
       ...item,
       ownerProfileId: typeof item.ownerProfileId === "string" ? item.ownerProfileId : "",
       artId: typeof item.artId === "string" ? item.artId : "",
+      artRef: typeof item.artRef === "string" ? item.artRef : "",
       lastUsedAt: Number.isFinite(item.lastUsedAt) ? item.lastUsedAt : 0
     }))
     .sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
@@ -1344,67 +1345,67 @@ function renderQrPanel(state) {
   `;
 }
 
-function buildQrTransferBundle(includeGames = true) {
-  const profileNameById = new Map(profileLibrary.map(profile => [profile.id, profile.name]));
-  const commanderGames = trimMatchHistoryByCommanderCap(matchHistory.filter(entry => (entry?.mode || "commander") === "commander"));
-  const sharedGames = includeGames
-    ? commanderGames.map(entry => ({
-      sourceEntryId: entry.sourceEntryId || entry.id || createLocalId(),
-      sourceDeviceId: entry.createdByDeviceId || "",
-      endedAt: Number.isFinite(entry.endedAt) ? entry.endedAt : Date.now(),
-      mode: entry.mode || "commander",
-      playerCount: Number.isFinite(entry.playerCount) ? entry.playerCount : (entry.players?.length || 0),
-      winnerName: entry.winnerName || "",
-      winCause: entry.winCause || "",
-      playerNames: Array.isArray(entry.players) ? entry.players.map(player => player?.name || "").filter(Boolean) : [],
-      commanderNames: Array.isArray(entry.players)
-        ? entry.players.map(player => player?.commander || "").filter(Boolean)
-        : [],
-      commanderArtIds: Array.isArray(entry.players)
-        ? entry.players.map(player => normalizeCommanderArtId(player?.artId))
-        : []
+function normalizeCommanderArtRef(value) {
+  const raw = `${value || ""}`.trim().replace(/^\/+|\/+$/g, "");
+  const match = raw.match(/^([a-z0-9]{2,8})\/([a-z0-9]+)$/i);
+  if (!match) return "";
+  return `/${match[1].toLowerCase()}/${match[2].toLowerCase()}/`;
+}
+
+function getDeckTransferArtRef(deck) {
+  return normalizeCommanderArtRef(deck?.artRef) || normalizeCommanderArtRef(deck?.artId);
+}
+
+function buildQrTransferBundle(includeGames = false) {
+  const decksByOwner = new Map();
+  deckLibrary.forEach((deck) => {
+    if (deck?.mode && deck.mode !== "commander") return;
+    const ownerId = `${deck?.ownerProfileId || ""}`.trim();
+    if (!ownerId) return;
+    if (!decksByOwner.has(ownerId)) {
+      decksByOwner.set(ownerId, []);
+    }
+    decksByOwner.get(ownerId).push({
+      name: `${deck?.cardName || deck?.deckName || ""}`.trim(),
+      artRef: getDeckTransferArtRef(deck)
+    });
+  });
+
+  const commanderGames = includeGames
+    ? trimMatchHistoryByCommanderCap(matchHistory.filter(entry => (entry?.mode || "commander") === "commander"))
+    : [];
+  const games = includeGames
+    ? commanderGames.map((entry) => ({
+      sourceEntryId: `${entry?.sourceEntryId || entry?.id || createLocalId()}`.trim(),
+      endedAt: Number.isFinite(entry?.endedAt) ? entry.endedAt : Date.now(),
+      mode: entry?.mode === "magic" ? "magic" : "commander",
+      playerCount: Number.isFinite(entry?.playerCount) ? entry.playerCount : (entry?.players?.length || 0),
+      winnerName: `${entry?.winnerName || ""}`.trim(),
+      winCause: `${entry?.winCause || ""}`.trim(),
+      playerNames: Array.isArray(entry?.players) ? entry.players.map(player => `${player?.name || ""}`.trim()).filter(Boolean) : [],
+      commanderNames: Array.isArray(entry?.players) ? entry.players.map(player => `${player?.commander || ""}`.trim()).filter(Boolean) : [],
+      commanderArtIds: Array.isArray(entry?.players) ? entry.players.map(player => normalizeCommanderArtId(player?.artId)) : []
     }))
     : [];
 
   return {
-    version: 1,
-    exportedAt: Date.now(),
-    sourceDeviceId: deviceId,
-    profiles: profileLibrary.map(profile => ({
-      name: profile.name
-    })),
-    decks: deckLibrary.map(deck => ({
-      ownerProfileName: profileNameById.get(deck.ownerProfileId) || "",
-      deckName: deck.deckName || deck.cardName || "",
-      cardName: deck.cardName || deck.deckName || "",
-      artId: normalizeCommanderArtId(deck.artId)
-    })),
-    games: sharedGames
-  };
-}
-
-function buildCompactQrTransferBundle() {
-  const profileById = new Map(profileLibrary.map(profile => [profile.id, profile.name]));
-  const compactProfiles = profileLibrary
-    .map(profile => `${profile?.name || ""}`.trim())
-    .filter(Boolean);
-
-  const compactDecks = deckLibrary
-    .map((deck) => ({
-      ownerProfileName: `${profileById.get(deck.ownerProfileId) || ""}`.trim(),
-      cardName: `${deck?.cardName || deck?.deckName || ""}`.trim(),
-      artId: normalizeCommanderArtId(deck?.artId)
-    }))
-    .filter(deck => deck.ownerProfileName && deck.cardName);
-
-  return {
-    version: 1,
-    compact: true,
-    exportedAt: Date.now(),
-    sourceDeviceId: deviceId,
-    profiles: compactProfiles.map(name => ({ name })),
-    decks: compactDecks,
-    games: []
+    profiles: profileLibrary
+      .map((profile) => {
+        const name = `${profile?.name || ""}`.trim();
+        if (!name) return null;
+        const decks = (decksByOwner.get(profile.id) || [])
+          .filter(deck => deck.name)
+          .map(deck => ({
+            name: deck.name,
+            artRef: deck.artRef
+          }));
+        return {
+          name,
+          decks
+        };
+      })
+      .filter(Boolean),
+    games
   };
 }
 
@@ -1439,6 +1440,94 @@ async function fetchCommanderArtByPrintId(printId) {
   }
 }
 
+async function fetchCommanderArtByRef(ref) {
+  const normalizedRef = normalizeCommanderArtRef(ref);
+  if (!normalizedRef) return "";
+  const [setCode, collectorNumber] = normalizedRef.replace(/^\/+|\/+$/g, "").split("/");
+  if (!setCode || !collectorNumber) return "";
+  const url = `https://api.scryfall.com/cards/${encodeURIComponent(setCode)}/${encodeURIComponent(collectorNumber)}`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return "";
+    const card = await response.json();
+    if (!isCommanderEligibleCard(card)) return "";
+    return getCardArtCrop(card) || "";
+  } catch {
+    return "";
+  }
+}
+
+async function fetchCommanderArtRefByPrintId(printId) {
+  const normalizedId = normalizeCommanderArtId(printId);
+  if (!normalizedId) return "";
+  const url = `https://api.scryfall.com/cards/${encodeURIComponent(normalizedId)}`;
+  try {
+    const response = await fetch(url);
+    if (!response.ok) return "";
+    const card = await response.json();
+    if (!isCommanderEligibleCard(card)) return "";
+    const setCode = `${card?.set || ""}`.trim();
+    const collector = `${card?.collector_number || ""}`.trim();
+    return normalizeCommanderArtRef(`${setCode}/${collector}`);
+  } catch {
+    return "";
+  }
+}
+
+async function fetchCommanderArtRefByName(name) {
+  const cleanName = `${name || ""}`.trim();
+  if (!cleanName) return "";
+
+  const exactUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cleanName)}`;
+  const fuzzyUrl = `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cleanName)}`;
+  const urls = [exactUrl, fuzzyUrl];
+
+  for (const url of urls) {
+    try {
+      const response = await fetch(url);
+      if (!response.ok) continue;
+      const card = await response.json();
+      if (!isCommanderEligibleCard(card)) continue;
+      const setCode = `${card?.set || ""}`.trim();
+      const collector = `${card?.collector_number || ""}`.trim();
+      const ref = normalizeCommanderArtRef(`${setCode}/${collector}`);
+      if (ref) return ref;
+    } catch {
+      // Try the next lookup strategy.
+    }
+  }
+
+  return "";
+}
+
+async function hydrateMissingDeckArtRefs({ limit = 24 } = {}) {
+  if (navigator.onLine === false) return 0;
+  const candidates = deckLibrary.filter(deck =>
+    deck?.mode === "commander"
+    && !normalizeCommanderArtRef(deck?.artRef)
+    && (
+      normalizeCommanderArtId(deck?.artId)
+      || `${deck?.cardName || deck?.deckName || ""}`.trim()
+    )
+  ).slice(0, Math.max(1, limit));
+
+  if (!candidates.length) return 0;
+
+  let updatedCount = 0;
+  for (const deck of candidates) {
+    const artRef = await fetchCommanderArtRefByPrintId(deck.artId)
+      || await fetchCommanderArtRefByName(deck.cardName || deck.deckName);
+    if (!artRef) continue;
+    deck.artRef = artRef;
+    updatedCount += 1;
+  }
+
+  if (updatedCount > 0) {
+    saveDeckLibrary();
+  }
+  return updatedCount;
+}
+
 async function fetchCommanderArtByName(name) {
   const cleanName = `${name || ""}`.trim();
   if (!cleanName) return "";
@@ -1467,7 +1556,11 @@ async function hydrateMissingDeckImages({ limit = 12 } = {}) {
   const candidates = deckLibrary.filter(deck =>
     deck?.mode === "commander" &&
     !hasDeckImage(deck) &&
-    (normalizeCommanderArtId(deck?.artId) || `${deck?.cardName || deck?.deckName || ""}`.trim())
+    (
+      normalizeCommanderArtId(deck?.artId)
+      || normalizeCommanderArtRef(deck?.artRef || deck?.artId)
+      || `${deck?.cardName || deck?.deckName || ""}`.trim()
+    )
   ).slice(0, Math.max(1, limit));
 
   if (!candidates.length) return 0;
@@ -1477,6 +1570,7 @@ async function hydrateMissingDeckImages({ limit = 12 } = {}) {
 
   for (const deck of candidates) {
     const art = await fetchCommanderArtByPrintId(deck.artId)
+      || await fetchCommanderArtByRef(deck.artRef || deck.artId)
       || await fetchCommanderArtByName(deck.cardName || deck.deckName);
     if (!art) continue;
     deck.image = art;
@@ -1557,13 +1651,21 @@ function mergeImportedTransferData(payload) {
   }
 
   const importedProfiles = Array.isArray(payload.profiles) ? payload.profiles : [];
-  const importedDecks = Array.isArray(payload.decks) ? payload.decks : [];
+  const nestedProfileDecks = importedProfiles.flatMap((incomingProfile) => {
+    const ownerProfileName = `${incomingProfile?.name || ""}`.trim();
+    const profileDecks = Array.isArray(incomingProfile?.decks) ? incomingProfile.decks : [];
+    return profileDecks.map((deck) => ({
+      ...deck,
+      ownerProfileName: `${deck?.ownerProfileName || ownerProfileName}`.trim()
+    }));
+  });
+  const importedDecks = nestedProfileDecks;
   const importedGames = Array.isArray(payload.games) ? payload.games : [];
 
-  const profileMapByIncomingId = new Map();
   let addedProfiles = 0;
   let addedDecks = 0;
   let addedGames = 0;
+
   const ensureProfileIdByName = (name) => {
     const cleanName = `${name || ""}`.trim();
     if (!cleanName) return "";
@@ -1582,19 +1684,12 @@ function mergeImportedTransferData(payload) {
   };
 
   importedProfiles.forEach((incoming) => {
-    const incomingName = typeof incoming === "string"
-      ? incoming.trim()
-      : `${incoming?.name || ""}`.trim();
+    const incomingName = `${incoming?.name || ""}`.trim();
     if (!incomingName) return;
     const normalized = normalizeLibraryName(incomingName);
     const existing = profileLibrary.find(profile => normalizeLibraryName(profile.name) === normalized);
 
-    if (existing) {
-      if (incoming && typeof incoming === "object") {
-        profileMapByIncomingId.set(`${incoming.id || ""}`, existing.id);
-      }
-      return;
-    }
+    if (existing) return;
 
     const created = {
       id: createLocalId(),
@@ -1602,26 +1697,21 @@ function mergeImportedTransferData(payload) {
       lastUsedAt: Number.isFinite(incoming?.lastUsedAt) ? incoming.lastUsedAt : 0
     };
     profileLibrary.push(created);
-    if (incoming && typeof incoming === "object") {
-      profileMapByIncomingId.set(`${incoming.id || ""}`, created.id);
-    }
     addedProfiles += 1;
   });
 
   importedDecks.forEach((incomingDeck) => {
-    const commanderName = `${incomingDeck?.cardName || incomingDeck?.deckName || ""}`.trim();
+    const commanderName = `${incomingDeck?.name || ""}`.trim();
     if (!commanderName) return;
     const incomingImage = `${incomingDeck?.image || ""}`.trim();
     const incomingArtId = normalizeCommanderArtId(incomingDeck?.artId);
+    const incomingArtRef = normalizeCommanderArtRef(incomingDeck?.artRef || incomingDeck?.artId);
 
     // Owner name is authoritative for cross-device merging.
     let ownerProfileId = "";
     const ownerName = `${incomingDeck?.ownerProfileName || ""}`.trim();
     if (ownerName) {
       ownerProfileId = ensureProfileIdByName(ownerName);
-    }
-    if (!ownerProfileId) {
-      ownerProfileId = profileMapByIncomingId.get(`${incomingDeck?.ownerProfileId || ""}`) || "";
     }
     if (!ownerProfileId) return;
 
@@ -1636,6 +1726,9 @@ function mergeImportedTransferData(payload) {
       if (!normalizeCommanderArtId(existingDeck.artId) && incomingArtId) {
         existingDeck.artId = incomingArtId;
       }
+      if (!normalizeCommanderArtRef(existingDeck.artRef) && incomingArtRef) {
+        existingDeck.artRef = incomingArtRef;
+      }
       return;
     }
 
@@ -1643,27 +1736,29 @@ function mergeImportedTransferData(payload) {
       id: createLocalId(),
       mode: "commander",
       ownerProfileId,
-      deckName: `${incomingDeck?.deckName || commanderName}`.trim() || commanderName,
+      deckName: commanderName,
       cardName: commanderName,
       artId: incomingArtId,
+      artRef: incomingArtRef,
       image: incomingImage,
       lastUsedAt: Number.isFinite(incomingDeck?.lastUsedAt) ? incomingDeck.lastUsedAt : 0
     });
     addedDecks += 1;
   });
 
-  const existingHistoryKeys = new Set(matchHistory.map(getHistoryShareKey).filter(Boolean));
+  const existingHistoryKeys = new Set(
+    matchHistory
+      .map(entry => `${entry?.sourceEntryId || entry?.id || ""}`.trim())
+      .filter(Boolean)
+  );
+
   importedGames.forEach((incomingGame) => {
     const sourceEntryId = `${incomingGame?.sourceEntryId || incomingGame?.id || ""}`.trim();
-    if (!sourceEntryId) return;
-    const sourceDeviceId = `${incomingGame?.sourceDeviceId || payload.sourceDeviceId || ""}`.trim();
-    const dedupeKey = sourceDeviceId ? `${sourceDeviceId}::${sourceEntryId}` : sourceEntryId;
-    if (existingHistoryKeys.has(dedupeKey)) return;
+    if (!sourceEntryId || existingHistoryKeys.has(sourceEntryId)) return;
 
     const playerNames = Array.isArray(incomingGame?.playerNames) ? incomingGame.playerNames : [];
     const commanderNames = Array.isArray(incomingGame?.commanderNames) ? incomingGame.commanderNames : [];
     const commanderArtIds = Array.isArray(incomingGame?.commanderArtIds) ? incomingGame.commanderArtIds : [];
-    const commanderImages = Array.isArray(incomingGame?.commanderImages) ? incomingGame.commanderImages : [];
     const playerDeckImages = [];
     const playerDeckArtIds = [];
 
@@ -1671,11 +1766,11 @@ function mergeImportedTransferData(payload) {
       const profileId = ensureProfileIdByName(playerName);
       if (!profileId) {
         playerDeckImages[index] = "";
+        playerDeckArtIds[index] = "";
         return;
       }
       const commanderName = `${commanderNames[index] || ""}`.trim();
       const commanderArtId = normalizeCommanderArtId(commanderArtIds[index]);
-      const commanderImage = `${commanderImages[index] || ""}`.trim();
       if (!commanderName) {
         playerDeckImages[index] = "";
         playerDeckArtIds[index] = "";
@@ -1688,9 +1783,6 @@ function mergeImportedTransferData(payload) {
       );
 
       if (existingDeck) {
-        if (!hasDeckImage(existingDeck) && commanderImage) {
-          existingDeck.image = commanderImage;
-        }
         if (!normalizeCommanderArtId(existingDeck.artId) && commanderArtId) {
           existingDeck.artId = commanderArtId;
         }
@@ -1706,10 +1798,11 @@ function mergeImportedTransferData(payload) {
         deckName: commanderName,
         cardName: commanderName,
         artId: commanderArtId,
-        image: commanderImage,
+        artRef: "",
+        image: "",
         lastUsedAt: 0
       });
-      playerDeckImages[index] = commanderImage;
+      playerDeckImages[index] = "";
       playerDeckArtIds[index] = commanderArtId;
       addedDecks += 1;
     });
@@ -1731,7 +1824,7 @@ function mergeImportedTransferData(payload) {
     matchHistory.push(normalizeMatchHistoryEntry({
       id: createLocalId(),
       sourceEntryId,
-      createdByDeviceId: sourceDeviceId,
+      createdByDeviceId: "",
       endedAt: Number.isFinite(incomingGame?.endedAt) ? incomingGame.endedAt : Date.now(),
       mode: incomingGame?.mode === "magic" ? "magic" : "commander",
       playerCount: Number.isFinite(incomingGame?.playerCount) ? incomingGame.playerCount : playersSummary.length,
@@ -1745,7 +1838,7 @@ function mergeImportedTransferData(payload) {
       players: playersSummary,
       gameLog: []
     }));
-    existingHistoryKeys.add(dedupeKey);
+    existingHistoryKeys.add(sourceEntryId);
     addedGames += 1;
   });
 
@@ -2526,6 +2619,7 @@ async function fetchCommanderPrintArts(card) {
     ? [{
       id: `${card.id || card.name}-base`,
       printId: normalizeCommanderArtId(card.id),
+      artRef: "",
       art: card.art,
       setLabel: "Default"
     }]
@@ -2553,6 +2647,7 @@ async function fetchCommanderPrintArts(card) {
         return {
           id: printCard.id || `${setCode}-${collector}-${art}`,
           printId: normalizeCommanderArtId(printCard.id),
+          artRef: normalizeCommanderArtRef(`${setCode.toLowerCase()}/${collector}`),
           art,
           setLabel: [setCode, collector].filter(Boolean).join(" ")
         };
@@ -2742,9 +2837,10 @@ function setupStartScreen() {
     }
 
     if (action === "open-qr-share") {
+      await hydrateMissingDeckArtRefs({ limit: 100 });
       const transferBundle = buildQrTransferBundle(true);
       const transferPayload = encodeQrTransferPayload(transferBundle);
-      const qrPayload = encodeQrTransferPayload(buildCompactQrTransferBundle());
+      const qrPayload = encodeQrTransferPayload(buildQrTransferBundle(false));
       const qrDataUrl = buildLocalQrDataUrl(qrPayload);
       const hasQrImage = !!qrDataUrl;
 
@@ -3207,6 +3303,7 @@ function setupStartScreen() {
           deckName: seatState.pendingSearchCard.name,
           cardName: seatState.pendingSearchCard.name,
           artId: normalizeCommanderArtId(artOptions?.[0]?.printId || seatState.pendingSearchCard.id),
+          artRef: normalizeCommanderArtRef(artOptions?.[0]?.artRef),
           image: chosenArt,
           lastUsedAt: Date.now()
         };
@@ -3265,6 +3362,7 @@ function setupStartScreen() {
         deckName: seatState.pendingSearchCard.name,
         cardName: seatState.pendingSearchCard.name,
         artId: normalizeCommanderArtId(selectedArt?.printId || seatState.pendingSearchCard.id),
+        artRef: normalizeCommanderArtRef(selectedArt?.artRef),
         image: selectedArt?.art || fallbackArt,
         lastUsedAt: Date.now()
       };
