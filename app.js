@@ -157,8 +157,17 @@ function getDuelWinsNeeded(matchLength = duelSeries?.matchLength) {
 function getDuelSeriesWinnerIndex(state = duelSeries) {
   const normalized = normalizeDuelSeriesState(state);
   const winsNeeded = getDuelWinsNeeded(normalized.matchLength);
-  if ((normalized.wins?.[0] || 0) >= winsNeeded) return 0;
-  if ((normalized.wins?.[1] || 0) >= winsNeeded) return 1;
+  const completedGames = Array.isArray(normalized.winners) ? normalized.winners.length : 0;
+  const wins0 = normalized.wins?.[0] || 0;
+  const wins1 = normalized.wins?.[1] || 0;
+
+  if (completedGames >= normalized.matchLength) {
+    if (wins0 > wins1) return 0;
+    if (wins1 > wins0) return 1;
+  }
+
+  if (wins0 >= winsNeeded) return 0;
+  if (wins1 >= winsNeeded) return 1;
   return null;
 }
 
@@ -1198,7 +1207,7 @@ function undoLastMove() {
   applyStateSnapshot(snapshot, { forcePaused: true });
   updateUndoButtonState();
   saveState();
-  triggerHaptic("step");
+  triggerHaptic("minimal");
 }
 
 function undoLastMoveFromEndScreen() {
@@ -2782,7 +2791,7 @@ function setupStartScreen() {
     const state = ensureSetupState();
     const action = btn.dataset.action;
     const seat = Number(btn.dataset.seat);
-    triggerHaptic("tap");
+    triggerHaptic("minimal");
 
     if (action === "set-mode") {
       state.mode = btn.dataset.mode === "magic" ? "magic" : "commander";
@@ -3659,7 +3668,6 @@ function quickStartGame(playerCount, options = {}) {
   startTurnTimer(true);
   updateUndoButtonState();
   saveState();
-  triggerHaptic("success");
 }
 
 function nextTurn(recordHistory = true, reason = "Pass") {
@@ -3696,7 +3704,9 @@ function nextTurn(recordHistory = true, reason = "Pass") {
 
   saveState();
   render();
-  triggerHaptic("step");
+  if (reason === "Pass") {
+    triggerHaptic("step");
+  }
 }
 
 function autoPassIfActivePlayerDead() {
@@ -4045,7 +4055,7 @@ function getPlayerOrder(count) {
 function togglePause() {
   if (selectedPlayerCount === 0) {
     renderStartSetupScreen();
-    triggerHaptic("tap");
+    triggerHaptic("minimal");
     return;
   }
 
@@ -4086,7 +4096,7 @@ function togglePause() {
     saveState();
   }
 
-  triggerHaptic(isPaused ? "tap" : "step");
+  triggerHaptic("minimal");
 }
 
 function openStartMenuWhenNoGame() {
@@ -5044,7 +5054,7 @@ function openDamageMenu(targetIndex) {
   damageSelfMode = null;
   pauseBtn.classList.add("hidden");
   render();
-  triggerHaptic("tap");
+  triggerHaptic("minimal");
 
   const playerDiv = document.getElementById("player" + targetIndex);
   playerDiv.classList.add("target-highlight");
@@ -5186,7 +5196,7 @@ container.querySelectorAll(".damage-types button").forEach(btn => {
   }
 
   updateDamageButtonUI();
-  triggerHaptic("tap");
+  triggerHaptic("minimal");
   return;
 }
 
@@ -5252,7 +5262,7 @@ function toggleDamageType(type) {
         selectedDamageTypes.push("Milled");
       }
       updateDamageButtonUI();
-      triggerHaptic("tap");
+      triggerHaptic("minimal");
       return;
     }
 
@@ -5270,7 +5280,7 @@ function toggleDamageType(type) {
   }
 
   updateDamageButtonUI();
-  triggerHaptic("tap");
+  triggerHaptic("minimal");
 }
 
 function updateDamageButtonUI() {
@@ -5965,7 +5975,7 @@ function cancelDamage() {
   damageTargetIndex = null;
   pauseBtn.classList.remove("hidden");
   closeDamageMode();
-  triggerHaptic("tap");
+  triggerHaptic("minimal");
 }
 
 
@@ -6314,7 +6324,7 @@ function toggleGameLogPanel() {
   if (!panel) return;
   renderGameLogPanel();
   panel.classList.toggle("hidden");
-  triggerHaptic("tap");
+  triggerHaptic("minimal");
 }
 
 function renderGameLogIntoList(listEl) {
@@ -6522,7 +6532,7 @@ function setupEndCauseButtons() {
     ensureValidEndGameCause();
     updateEndCauseButtonUI();
     saveState();
-    triggerHaptic("tap");
+    triggerHaptic("minimal");
   });
 
   endCauseButtons.dataset.bound = "1";
@@ -6570,7 +6580,7 @@ function finalizeEndGameSelection(actionType) {
   archiveCompletedGame(finalCauseLabel, message);
   saveState();
   clearResumeSessions();
-  triggerHaptic(actionType === "menu" ? "tap" : "success");
+  triggerHaptic("minimal");
 
   if (actionType === "next") {
     startNextDuelGame();
@@ -6625,6 +6635,7 @@ function endGameFromPause() {
   lastEliminationCause = null;
   lastEliminationSelections = [];
   saveState();
+  triggerHaptic("minimal");
   openEndMenu(undefined);
 }
 
@@ -6817,10 +6828,14 @@ function openEndMenu(winnerIndex) {
 
   isGameOver = true;
   isPaused = true;
-  const hasWinner = winnerIndex !== undefined && winnerIndex !== null && winnerIndex >= 0;
   const projectedSeries = isDuelMode() ? getProjectedDuelSeriesState(winnerIndex) : null;
   const isFinalDuelScreen = isDuelMode() && isDuelSeriesCompleteForState(projectedSeries);
   const seriesWinnerIndex = isFinalDuelScreen ? getDuelSeriesWinnerIndex(projectedSeries) : null;
+  const hasWinner = winnerIndex !== undefined && winnerIndex !== null && winnerIndex >= 0;
+  const displayWinnerIndex = Number.isInteger(seriesWinnerIndex)
+    ? seriesWinnerIndex
+    : (hasWinner ? winnerIndex : null);
+  const hasDisplayWinner = Number.isInteger(displayWinnerIndex) && displayWinnerIndex >= 0;
 
   // In duel, keep the game winner visually active on the board.
   if (isDuelMode() && hasWinner) {
@@ -6832,7 +6847,7 @@ function openEndMenu(winnerIndex) {
 
   // Show end screen
   const endScreen = document.getElementById("end-screen");
-  endScreen.classList.toggle("no-winner", !hasWinner);
+  endScreen.classList.toggle("no-winner", !hasDisplayWinner);
   endScreen.classList.remove("hidden");
 
   document.getElementById("game").classList.add("blurred");
@@ -6847,8 +6862,8 @@ function openEndMenu(winnerIndex) {
   closeGameLogPanel();
 
   document.getElementById("winner-text").textContent =
-    hasWinner
-      ? players[winnerIndex].name
+    hasDisplayWinner
+      ? players[displayWinnerIndex].name
       : "No Winner";
 
   const endBg = document.getElementById("end-screen-bg");
@@ -6856,9 +6871,7 @@ function openEndMenu(winnerIndex) {
     if (isDuelMode() || isFinalDuelScreen) {
       endBg.style.backgroundImage = "none";
     } else {
-      const bgPlayerIndex = Number.isInteger(seriesWinnerIndex)
-        ? seriesWinnerIndex
-        : (hasWinner ? winnerIndex : null);
+      const bgPlayerIndex = hasDisplayWinner ? displayWinnerIndex : null;
       if (Number.isInteger(bgPlayerIndex) && players[bgPlayerIndex]) {
         endBg.style.backgroundImage = `
           linear-gradient(180deg, rgba(0,0,0,0.42) 0%, rgba(0,0,0,0.68) 100%),
@@ -6882,7 +6895,6 @@ function openEndMenu(winnerIndex) {
   updateEndScreenActions();
   renderEndGameLogPanel();
   updateUndoButtonState();
-  triggerHaptic("alert");
 }
 
 
