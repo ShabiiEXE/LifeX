@@ -2436,11 +2436,14 @@ function bindSetupSeatBodyDrag(playerEl, seatIndex) {
   const seatRotation = getSeatRotation(selectedPlayerCount, seatIndex);
   const usesSidewaysDrag = Math.abs(seatRotation) === 90;
   scrollers.forEach((scroller) => {
+    const containsDeckGrid = !!scroller.querySelector(".setup-deck-grid");
     bindDragScroll(scroller, {
       usesSidewaysDrag,
       seatRotation,
       reverseSidewaysDrag: usesSidewaysDrag && (
-        scroller.classList.contains("setup-profile-list")
+        (scroller.classList.contains("setup-seat-body") && containsDeckGrid)
+        || scroller.classList.contains("setup-profile-list")
+        || scroller.classList.contains("setup-deck-grid")
         || scroller.classList.contains("setup-search-results")
         || scroller.classList.contains("setup-search-art-grid")
       ),
