@@ -258,7 +258,7 @@ const HAPTIC_PATTERNS = {
   minimal: 6,
   tap: 10,
   step: 16,
-  impact: 580,
+  impact: [10, 86, 10, 86, 10, 86, 10, 86, 10, 86, 10, 90],
   success: [18, 24, 18],
   alert: [36, 18, 36]
 };
@@ -2782,6 +2782,7 @@ function setupStartScreen() {
     const state = ensureSetupState();
     const action = btn.dataset.action;
     const seat = Number(btn.dataset.seat);
+    triggerHaptic("tap");
 
     if (action === "set-mode") {
       state.mode = btn.dataset.mode === "magic" ? "magic" : "commander";
@@ -3812,6 +3813,7 @@ svg.innerHTML = "";
       const state = ensureSetupState();
       state.startingPlayerIndex = index;
       activePlayerIndex = index;
+      triggerHaptic("tap");
       renderStartSetupScreen();
     });
 
@@ -5129,7 +5131,7 @@ function startHold(amount) {
       changeDamage(amount * 10);
     }, 1000);
 
-  }, 100);
+  }, 80);
 
 }
 
@@ -5184,6 +5186,7 @@ container.querySelectorAll(".damage-types button").forEach(btn => {
   }
 
   updateDamageButtonUI();
+  triggerHaptic("tap");
   return;
 }
 
@@ -5249,6 +5252,7 @@ function toggleDamageType(type) {
         selectedDamageTypes.push("Milled");
       }
       updateDamageButtonUI();
+      triggerHaptic("tap");
       return;
     }
 
@@ -6310,6 +6314,7 @@ function toggleGameLogPanel() {
   if (!panel) return;
   renderGameLogPanel();
   panel.classList.toggle("hidden");
+  triggerHaptic("tap");
 }
 
 function renderGameLogIntoList(listEl) {
@@ -6517,6 +6522,7 @@ function setupEndCauseButtons() {
     ensureValidEndGameCause();
     updateEndCauseButtonUI();
     saveState();
+    triggerHaptic("tap");
   });
 
   endCauseButtons.dataset.bound = "1";
@@ -6614,6 +6620,7 @@ function startNextDuelGame() {
 }
 
 function endGameFromPause() {
+  pushUndoSnapshot();
   winnerIndex = null;
   lastEliminationCause = null;
   lastEliminationSelections = [];
