@@ -2439,7 +2439,12 @@ function bindSetupSeatBodyDrag(playerEl, seatIndex) {
     bindDragScroll(scroller, {
       usesSidewaysDrag,
       seatRotation,
-      reverseSidewaysDrag: usesSidewaysDrag && scroller.classList.contains("setup-deck-grid"),
+      reverseSidewaysDrag: usesSidewaysDrag && (
+        scroller.classList.contains("setup-profile-list")
+        || scroller.classList.contains("setup-deck-grid")
+        || scroller.classList.contains("setup-search-results")
+        || scroller.classList.contains("setup-search-art-grid")
+      ),
       ignoreSelectors: "input, select"
     });
   });
