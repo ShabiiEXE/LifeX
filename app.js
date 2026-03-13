@@ -2436,11 +2436,16 @@ function bindSetupSeatBodyDrag(playerEl, seatIndex) {
   const seatRotation = getSeatRotation(selectedPlayerCount, seatIndex);
   const usesSidewaysDrag = Math.abs(seatRotation) === 90;
   scrollers.forEach((scroller) => {
-    bindDragScroll(scroller, { usesSidewaysDrag, seatRotation, ignoreSelectors: "input, select" });
+    bindDragScroll(scroller, {
+      usesSidewaysDrag,
+      seatRotation,
+      reverseSidewaysDrag: usesSidewaysDrag && scroller.classList.contains("setup-deck-grid"),
+      ignoreSelectors: "input, select"
+    });
   });
 }
 
-function bindDragScroll(scroller, { usesSidewaysDrag = false, seatRotation = 0, ignoreSelectors = "" } = {}) {
+function bindDragScroll(scroller, { usesSidewaysDrag = false, seatRotation = 0, reverseSidewaysDrag = false, ignoreSelectors = "" } = {}) {
   if (!scroller || scroller.dataset.dragBound === "1") return;
   let startX = 0;
   let startY = 0;
@@ -2473,9 +2478,8 @@ function bindDragScroll(scroller, { usesSidewaysDrag = false, seatRotation = 0, 
     if (!dragging) return;
 
     if (usesSidewaysDrag) {
-      // Side-drag mode for rotated seats: horizontal finger movement drives list scroll.
-      // Keep direction consistent across both +90 and -90 seats.
-      scroller.scrollTop = startScrollTop + deltaX;
+      // Deck grids visually read in the opposite direction from the other rotated setup scrollers.
+      scroller.scrollTop = startScrollTop + (reverseSidewaysDrag ? -deltaX : deltaX);
     } else {
       scroller.scrollTop = startScrollTop - deltaY;
     }
