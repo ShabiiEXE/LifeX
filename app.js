@@ -253,6 +253,26 @@ function setPauseButtonIcon(isPausedState) {
   pauseBtn.innerHTML = getIconMarkup(isPausedState ? "Play" : "Pause");
 }
 
+const HAPTIC_PATTERNS = {
+  minimal: 6,
+  tap: 10,
+  step: 16,
+  success: [18, 24, 18],
+  alert: [36, 18, 36]
+};
+
+function triggerHaptic(pattern = "tap") {
+  if (typeof navigator === "undefined" || typeof navigator.vibrate !== "function") return false;
+  const resolvedPattern = HAPTIC_PATTERNS[pattern] ?? pattern;
+  if (!resolvedPattern) return false;
+
+  try {
+    return navigator.vibrate(resolvedPattern);
+  } catch {
+    return false;
+  }
+}
+
 
 /* =========================
    Player Model / Defaults
@@ -1176,6 +1196,7 @@ function undoLastMove() {
   applyStateSnapshot(snapshot, { forcePaused: true });
   updateUndoButtonState();
   saveState();
+  triggerHaptic("step");
 }
 
 function undoLastMoveFromEndScreen() {
@@ -3635,6 +3656,7 @@ function quickStartGame(playerCount, options = {}) {
   startTurnTimer(true);
   updateUndoButtonState();
   saveState();
+  triggerHaptic("success");
 }
 
 function nextTurn(recordHistory = true, reason = "Pass") {
@@ -3671,6 +3693,7 @@ function nextTurn(recordHistory = true, reason = "Pass") {
 
   saveState();
   render();
+  triggerHaptic("step");
 }
 
 function autoPassIfActivePlayerDead() {
@@ -3774,6 +3797,7 @@ svg.innerHTML = "";
       dragStartY = e.clientY;
 
       damageSourceIndex = dragStartIndex;
+      triggerHaptic("minimal");
 
       div.setPointerCapture(e.pointerId);
     });
@@ -4002,6 +4026,7 @@ function getPlayerOrder(count) {
 function togglePause() {
   if (selectedPlayerCount === 0) {
     renderStartSetupScreen();
+    triggerHaptic("tap");
     return;
   }
 
@@ -4041,6 +4066,8 @@ function togglePause() {
 
     saveState();
   }
+
+  triggerHaptic(isPaused ? "tap" : "step");
 }
 
 function openStartMenuWhenNoGame() {
@@ -4998,6 +5025,7 @@ function openDamageMenu(targetIndex) {
   damageSelfMode = null;
   pauseBtn.classList.add("hidden");
   render();
+  triggerHaptic("tap");
 
   const playerDiv = document.getElementById("player" + targetIndex);
   playerDiv.classList.add("target-highlight");
@@ -5221,6 +5249,7 @@ function toggleDamageType(type) {
   }
 
   updateDamageButtonUI();
+  triggerHaptic("tap");
 }
 
 function updateDamageButtonUI() {
@@ -5433,8 +5462,10 @@ function updateDamageButtonUI() {
 function changeDamage(amount) {
   if (selectedDamageTypes.includes("Milled") || selectedDamageTypes.includes("Wincon") || selectedDamageTypes.includes("Monarch")) return;
 
+  const previousAmount = damageAmount;
   damageAmount += amount;
   if (damageAmount < 0) damageAmount = 0;
+  if (damageAmount === previousAmount) return;
 
   const el = document.getElementById("damage-value");
   if (el) el.textContent = damageAmount;
@@ -5443,6 +5474,7 @@ function changeDamage(amount) {
   updateDamageControlsUI();
   updateConfirmButtonState();
   updateMassDamagePreviewUI();
+  triggerHaptic("step");
 }
 
 function closeDamageMode() {
@@ -5904,6 +5936,7 @@ function confirmDamage() {
   closeDamageMode();
   autoPassIfActivePlayerDead();
   cleanupDamageArrow();
+  triggerHaptic("success");
 }
 
 function cancelDamage() {
@@ -5911,6 +5944,7 @@ function cancelDamage() {
   damageTargetIndex = null;
   pauseBtn.classList.remove("hidden");
   closeDamageMode();
+  triggerHaptic("tap");
 }
 
 
@@ -6513,6 +6547,7 @@ function finalizeEndGameSelection(actionType) {
   archiveCompletedGame(finalCauseLabel, message);
   saveState();
   clearResumeSessions();
+  triggerHaptic(actionType === "menu" ? "tap" : "success");
 
   if (actionType === "next") {
     startNextDuelGame();
@@ -6823,6 +6858,7 @@ function openEndMenu(winnerIndex) {
   updateEndScreenActions();
   renderEndGameLogPanel();
   updateUndoButtonState();
+  triggerHaptic("alert");
 }
 
 
