@@ -26,6 +26,7 @@ let isDragging = false;
 let dragStartIndex = null;
 let dragStartX = 0;
 let dragStartY = 0;
+let dragHoverTargetIndex = null;
 let isDamageMode = false;
 let isGameOver = false;
 let winnerIndex = null;
@@ -257,6 +258,7 @@ const HAPTIC_PATTERNS = {
   minimal: 6,
   tap: 10,
   step: 16,
+  impact: 580,
   success: [18, 24, 18],
   alert: [36, 18, 36]
 };
@@ -3795,6 +3797,7 @@ svg.innerHTML = "";
       dragStartIndex = index;
       dragStartX = e.clientX;
       dragStartY = e.clientY;
+      dragHoverTargetIndex = index;
 
       damageSourceIndex = dragStartIndex;
       triggerHaptic("minimal");
@@ -3818,6 +3821,7 @@ svg.innerHTML = "";
 
       isDragging = false;
       dragStartIndex = null;
+      dragHoverTargetIndex = null;
       cleanupDamageArrow();
 
       const target = document.elementFromPoint(e.clientX, e.clientY);
@@ -3848,6 +3852,9 @@ div.addEventListener("pointermove", (e) => {
   
   const target = document.elementFromPoint(e.clientX, e.clientY);
   const targetPlayer = target?.closest(".player");
+  const hoveredTargetIndex = targetPlayer
+    ? parseInt(targetPlayer.id.replace("player", ""), 10)
+    : null;
 
   document.querySelectorAll(".player").forEach(p =>
     p.classList.remove("target-highlight")
@@ -3855,6 +3862,16 @@ div.addEventListener("pointermove", (e) => {
 
   if (targetPlayer) {
     targetPlayer.classList.add("target-highlight");
+  }
+
+  if (hoveredTargetIndex !== dragHoverTargetIndex) {
+    const enteredNewOtherPlayer =
+      Number.isInteger(hoveredTargetIndex) &&
+      hoveredTargetIndex !== dragStartIndex;
+    dragHoverTargetIndex = hoveredTargetIndex;
+    if (enteredNewOtherPlayer) {
+      triggerHaptic("minimal");
+    }
   }
 
 
@@ -5936,7 +5953,7 @@ function confirmDamage() {
   closeDamageMode();
   autoPassIfActivePlayerDead();
   cleanupDamageArrow();
-  triggerHaptic("success");
+  triggerHaptic("impact");
 }
 
 function cancelDamage() {
