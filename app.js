@@ -2441,7 +2441,6 @@ function bindSetupSeatBodyDrag(playerEl, seatIndex) {
       seatRotation,
       reverseSidewaysDrag: usesSidewaysDrag && (
         scroller.classList.contains("setup-profile-list")
-        || scroller.classList.contains("setup-deck-grid")
         || scroller.classList.contains("setup-search-results")
         || scroller.classList.contains("setup-search-art-grid")
       ),
