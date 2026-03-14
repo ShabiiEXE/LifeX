@@ -2437,6 +2437,7 @@ function renderCommanderGridOnGame(state) {
     const info = playerEl?.querySelector(".info_container");
     if (!playerEl || !info) return;
     playerEl.classList.add("setup-seat-player");
+    playerEl.classList.toggle("setup-seat-outlined", !useBoardStarterSelection);
     if (!useBoardStarterSelection) {
       info.innerHTML = renderCommanderSeatOverlay(state, playerIndex);
       bindSetupSeatBodyDrag(playerEl, playerIndex);
@@ -2511,6 +2512,7 @@ function refreshSetupSeatOverlay(seatIndex) {
   if (!playerEl || !info || !bg) return false;
 
   playerEl.classList.add("setup-seat-player");
+  playerEl.classList.toggle("setup-seat-outlined", !shouldUseBoardStarterSelection(state));
   info.innerHTML = renderCommanderSeatOverlay(state, seatIndex);
   bg.style.backgroundImage = players[seatIndex].image ? `url(${players[seatIndex].image})` : "none";
   bindSetupSeatBodyDrag(playerEl, seatIndex);
@@ -2632,6 +2634,8 @@ function bindSetupSeatBodyDrag(playerEl, seatIndex) {
       reverseSidewaysDrag: usesSidewaysDrag && (
         scroller.classList.contains("setup-profile-list")
         || scroller.classList.contains("setup-deck-grid")
+        || scroller.classList.contains("setup-search-results")
+        || scroller.classList.contains("setup-search-art-grid")
       ),
       ignoreSelectors: "input, select"
     });

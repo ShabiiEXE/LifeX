@@ -420,6 +420,11 @@ body.profile-editor-open #game {
   outline: 3px solid var(--main-color);
 }
 
+.player.setup-seat-outlined {
+  outline: 2px solid rgba(255, 255, 255, 0.96);
+  outline-offset: -2px;
+}
+
 .info_container {
   position: relative;
   z-index: 1;
