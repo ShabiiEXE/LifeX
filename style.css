@@ -1132,6 +1132,22 @@ body.history-open #player-buttons {
   z-index: 3;
 }
 
+.setup-delete-data-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  width: 38px;
+  min-width: 38px;
+  height: 38px;
+  min-height: 38px;
+  border-radius: 999px;
+  display: grid;
+  /*display: none* !important*/
+  place-items: center;
+  padding: 0;
+  z-index: 3;
+}
+
 .qr-overlay {
   position: fixed;
   inset: 0;
@@ -1195,6 +1211,7 @@ body.history-open #player-buttons {
 
 .qr-share-body .qr-menu-actions-inline {
   flex-wrap: nowrap;
+  justify-content: space-between;
 }
 
 .qr-share-body .qr-menu-actions-inline > button:not(.qr-back-btn) {
@@ -1284,6 +1301,10 @@ body.history-open #player-buttons {
 .setup-panel h3 {
   font-size: clamp(25px, 3vmin, 35px);
   margin-top: 1%;
+  color: rgba(255, 255, 255, 0.9);
+}
+
+.qr-modal h3 {
   color: rgba(255, 255, 255, 0.9);
 }
 
@@ -1930,7 +1951,24 @@ body.history-open .history-detail-shell {
   align-self: center;
 }
 
+#game[data-players="1"] .player.single-seat-editor .setup-seat-title-actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 0 auto;
+}
+
 #game[data-players="1"] .player.single-seat-editor .setup-seat-title-edit-btn {
+  flex: 0 0 auto;
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-seat-title-qr-btn {
   flex: 0 0 auto;
   width: 38px;
   height: 38px;

@@ -913,6 +913,14 @@ function clearResumeSessions() {
   localStorage.removeItem(RESUME_SESSIONS_STORAGE_KEY);
 }
 
+function clearStoredGameData() {
+  matchHistory = [];
+  persistentStats = createEmptyPersistentStatsStore();
+  clearResumeSessions();
+  localStorage.removeItem(MATCH_HISTORY_STORAGE_KEY);
+  localStorage.removeItem(PERSISTENT_STATS_STORAGE_KEY);
+}
+
 function renderStartScreenBackdrop() {
   const startScreenBg = document.getElementById("start-screen-bg");
   if (!startScreenBg) return;
@@ -990,6 +998,7 @@ function createDefaultSetupState() {
     qrDisplayPayload: "",
     qrSharePayload: "",
     qrImageUrl: "",
+    qrCloseOnShareExit: false,
     seats: Array.from({ length: 6 }, (_, index) => getDefaultSeatState(index))
   };
 }
@@ -1597,6 +1606,7 @@ function renderStartConfigStep(state) {
         <img class="setup-start-logo" src="./icons/favicon.png" alt="Life Tracker logo">
       </button>
       <button class="setup-qr-btn setup-icon-circle-btn" data-action="open-qr" aria-label="QR">${getIconMarkup("QR", "setup-inline-icon")}</button>
+      <button class="setup-delete-data-btn setup-icon-circle-btn" data-action="delete-game-data" aria-label="Delete stored game data">${getIconMarkup("Delete", "setup-inline-icon")}</button>
       <div class="setup-group" style="margin-top: 20%;">
         <h3 class="start-mode-label">Select Mode</h3>
         <div class="chip-row">${modeOptions}</div>
@@ -1632,6 +1642,9 @@ function renderQrPanel(state) {
   const isShare = state.qrView === "share";
   const isScan = state.qrView === "scan";
   const showBackdrop = isShare && !!state.qrImageUrl;
+  const shareExitAction = state.qrCloseOnShareExit ? "close-qr" : "back-qr-menu";
+  const shareExitIcon = state.qrCloseOnShareExit ? "Cancel" : "Back";
+  const shareExitLabel = state.qrCloseOnShareExit ? "Close" : "Back";
   const menuIntroMarkup = isMenu
     ? `<div class="qr-menu-intro">Copy or Share Player Profiles and Decks</div>`
     : "";
@@ -1651,12 +1664,11 @@ function renderQrPanel(state) {
         ` : ""}
         ${isShare ? `
           <div class="qr-share-body">
-            ${state.qrImageUrl ? `<img class="qr-image" src="${state.qrImageUrl}" alt="Transfer QR">` : `<div class="qr-placeholder">QR too large, use copy/share Code.</div>`}
+            ${state.qrImageUrl ? `<img class="qr-image" src="${state.qrImageUrl}" alt="Transfer QR">` : `<div class="qr-placeholder">QR too large, use Copy Code.</div>`}
             <textarea class="qr-payload" readonly>${escapeHtml(state.qrSharePayload || "")}</textarea>
             <div class="setup-footer qr-menu-actions qr-menu-actions-inline">
-              <button class="setup-icon-circle-btn qr-back-btn" data-action="back-qr-menu" aria-label="Back">${getIconMarkup("Back", "setup-inline-icon")}</button>
+              <button class="setup-icon-circle-btn qr-back-btn" data-action="${shareExitAction}" aria-label="${shareExitLabel}">${getIconMarkup(shareExitIcon, "setup-inline-icon")}</button>
               <button data-action="copy-qr-payload">Copy</button>
-              <button data-action="native-share-qr">Share</button>
             </div>
           </div>
         ` : ""}
@@ -1665,7 +1677,7 @@ function renderQrPanel(state) {
             <video id="qr-scan-video" class="qr-scan-video" autoplay playsinline muted></video>
             <textarea class="qr-payload" data-qr-input="scan-payload" placeholder="Paste your Code here if camera is unavailable.">${escapeHtml(state.qrInput || "")}</textarea>
             <div class="setup-footer qr-menu-actions qr-menu-actions-inline">
-              <button class="setup-icon-circle-btn qr-back-btn" data-action="back-qr-menu" aria-label="Back">${getIconMarkup("Back", "setup-inline-icon")}</button>
+              <button class="setup-icon-circle-btn qr-back-btn" data-action="${shareExitAction}" aria-label="${shareExitLabel}">${getIconMarkup(shareExitIcon, "setup-inline-icon")}</button>
               <button data-action="import-qr-payload">Import</button>
               </div>
           </div>
@@ -1752,6 +1764,44 @@ function buildQrTransferBundle(includeGames = false) {
       .filter(Boolean),
     games,
     stats: buildPersistentStatsSnapshot()
+  };
+}
+
+function buildProfileQrTransferBundle(profileId) {
+  const profile = profileLibrary.find(item => item?.id === profileId);
+  const profileName = `${profile?.name || ""}`.trim();
+  if (!profileName) {
+    return {
+      profiles: [],
+      games: []
+    };
+  }
+
+  const decks = deckLibrary
+    .filter(deck => deck?.mode === "commander" && deck?.ownerProfileId === profileId)
+    .map((deck) => {
+      const commanderName = `${deck?.cardName || deck?.deckName || ""}`.trim();
+      const customDeckName = `${deck?.deckName || commanderName}`.trim() || commanderName;
+      return {
+        name: commanderName,
+        commanderName,
+        deckName: customDeckName,
+        ownerProfileName: profileName,
+        artRef: getDeckTransferArtRef(deck),
+        lastUsedAt: Number.isFinite(deck?.lastUsedAt) ? deck.lastUsedAt : 0
+      };
+    })
+    .filter(deck => deck.name);
+
+  return {
+    profiles: [
+      {
+        name: profileName,
+        lastUsedAt: Number.isFinite(profile?.lastUsedAt) ? profile.lastUsedAt : 0,
+        decks
+      }
+    ],
+    games: []
   };
 }
 
@@ -2713,9 +2763,14 @@ function renderCommanderSeatOverlay(state, playerIndex) {
                 <div class="setup-seat-title-row">
                   <div class="setup-seat-title setup-seat-title-selected">${seat.isDeletingDeck ? "Delete Deck" : escapeHtml(seat.profileName)}</div>
                   ${seat.isDeletingDeck ? "" : `
-                    <button class="setup-seat-title-edit-btn" data-action="open-edit-seat-name" data-seat="${playerIndex}" aria-label="Edit player name">
-                      ${getIconMarkup("Edit", "setup-inline-icon")}
-                    </button>
+                    <div class="setup-seat-title-actions">
+                      <button class="setup-seat-title-edit-btn" data-action="open-edit-seat-name" data-seat="${playerIndex}" aria-label="Edit player name">
+                        ${getIconMarkup("Edit", "setup-inline-icon")}
+                      </button>
+                      <button class="setup-seat-title-qr-btn" data-action="open-profile-qr-share" data-seat="${playerIndex}" aria-label="Share profile decks as QR">
+                        ${getIconMarkup("QR", "setup-inline-icon")}
+                      </button>
+                    </div>
                   `}
                 </div>
               `
@@ -3128,9 +3183,8 @@ function renderStartSetupScreen() {
     container.innerHTML = renderStartHistoryScreen();
   } else if (state.step === "seats") {
     stopQrScanner();
-    state.qrOpen = false;
     renderCommanderGridOnGame(state);
-    container.innerHTML = "";
+    container.innerHTML = renderQrPanel(state);
   } else {
     stopQrScanner();
     state.qrOpen = false;
@@ -3398,11 +3452,20 @@ function setupStartScreen() {
       return;
     }
 
+    if (action === "delete-game-data") {
+      btn.disabled = true;
+      btn.textContent = "Deleting...";
+      clearStoredGameData();
+      renderStartSetupScreen();
+      return;
+    }
+
     if (action === "open-qr") {
       state.qrOpen = true;
       state.qrView = "menu";
       state.qrStatus = "";
       state.qrInput = "";
+      state.qrCloseOnShareExit = false;
       renderStartSetupScreen();
       return;
     }
@@ -3412,6 +3475,7 @@ function setupStartScreen() {
       state.qrOpen = false;
       state.qrView = "menu";
       state.qrInput = "";
+      state.qrCloseOnShareExit = false;
       renderStartSetupScreen();
       return;
     }
@@ -3420,6 +3484,7 @@ function setupStartScreen() {
       stopQrScanner();
       state.qrView = "menu";
       state.qrInput = "";
+      state.qrCloseOnShareExit = false;
       renderStartSetupScreen();
       return;
     }
@@ -3437,9 +3502,33 @@ function setupStartScreen() {
       state.qrSharePayload = transferPayload;
       state.qrDisplayPayload = qrPayload;
       state.qrImageUrl = qrDataUrl;
+      state.qrCloseOnShareExit = false;
       state.qrStatus = hasQrImage
         ? "Share player and deck names with a QR code. Alternatively use the text code."
-        : "Data is too large for a single QR code. Use Copy/Share.";
+        : "Data is too large for a single QR code. Use Copy.";
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "open-profile-qr-share" && Number.isInteger(seat)) {
+      const seatState = state.seats?.[seat];
+      const profileId = `${seatState?.profileId || ""}`.trim();
+      if (!profileId) return;
+      await hydrateMissingDeckArtRefs({ limit: 100 });
+      const transferBundle = buildProfileQrTransferBundle(profileId);
+      const transferPayload = encodeQrTransferPayload(transferBundle);
+      const qrDataUrl = buildLocalQrDataUrl(transferPayload);
+      const hasQrImage = !!qrDataUrl;
+
+      state.qrOpen = true;
+      state.qrView = "share";
+      state.qrSharePayload = transferPayload;
+      state.qrDisplayPayload = transferPayload;
+      state.qrImageUrl = qrDataUrl;
+      state.qrCloseOnShareExit = true;
+      state.qrStatus = hasQrImage
+        ? "Share this profile's decks and custom deck names with a QR code."
+        : "Data is too large for a single QR code. Use Copy.";
       renderStartSetupScreen();
       return;
     }
@@ -3481,6 +3570,7 @@ function setupStartScreen() {
       state.qrView = "scan";
       state.qrStatus = "Scanning...";
       state.qrInput = "";
+      state.qrCloseOnShareExit = false;
       renderStartSetupScreen();
       void startQrScanner();
       return;
