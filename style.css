@@ -1511,6 +1511,37 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   font-size: clamp(12px, 1.85vmin, 16px);
 }
 
+.stats-summary-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
+  gap: 8px;
+}
+
+.stats-summary-card {
+  display: flex;
+  flex-direction: column;
+  gap: 3px;
+  border-radius: 10px;
+  background: rgba(255, 255, 255, 0.05);
+  padding: 8px 10px;
+}
+
+.stats-summary-card span {
+  color: rgba(255, 255, 255, 0.68);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+}
+
+.stats-summary-card strong {
+  color: #fff;
+  font-size: clamp(12px, 1.85vmin, 16px);
+}
+
+.history-top-stats {
+  margin: 10px 0 12px;
+}
+
 .history-player-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
@@ -1756,14 +1787,14 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   font-size: clamp(28px, 4.1vmin, 38px);
   line-height: 1.05;
   text-align: center;
-  width: 100%;
+  width: fit-content;
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-seat-title-row {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 10px;
+  gap: 5%;
   width: min(100%, calc(100vw - 132px));
   align-self: center;
 }
@@ -1836,6 +1867,26 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   font-size: clamp(20px, 2.9vmin, 28px);
   line-height: 1.1;
   margin-top: 3%;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-profile-stats-grid {
+  width: min(100%, calc(100vw - 132px));
+  align-self: center;
+  margin-top: 8px;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 6px;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-profile-stats-grid .stats-summary-card {
+  padding: 7px 8px;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-profile-stats-grid .stats-summary-card span {
+  font-size: 10px;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-profile-stats-grid .stats-summary-card strong {
+  font-size: clamp(12px, 1.8vmin, 17px);
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-deck-grid {

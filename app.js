@@ -2149,6 +2149,20 @@ function renderCommanderSeatOverlay(state, playerIndex) {
   const isSingleSeatEditor = isSingleSeatProfileEditorMode();
   const artStyle = hasDeck ? `style="background-image:url('${seat.image.replace(/'/g, "\\'")}')"` : "";
   const selectedDeckName = getSeatDeckLabel(seat);
+  const profileStats = isSingleSeatEditor ? buildProfileHistoryStats(seat.profileName) : null;
+  const profileStatsMarkup = isSingleSeatEditor && hasProfile && !seat.isDeletingDeck && !seat.isBorrowingDeck && !seat.isAddingDeck && !seat.isEditingDeck
+    ? renderStatsSummaryGrid([
+      { label: "Number of Matches", value: String(profileStats.numberOfMatches) },
+      { label: "Total Play Time", value: formatTime(profileStats.totalPlayTime) },
+      { label: "Number of Wins", value: String(profileStats.numberOfWins) },
+      { label: "Average Turn Time", value: profileStats.averageTurnTime ? formatTime(profileStats.averageTurnTime) : "-" },
+      { label: "Average Turn Win", value: formatAverageTurnWin(profileStats.averageTurnWin) },
+      { label: "Total Damage", value: String(profileStats.totalDamage) },
+      { label: "Total Healing", value: String(profileStats.totalHealing) },
+      { label: "Your Enemy", value: profileStats.enemy || "-" },
+      { label: "Target Of", value: profileStats.targetOf || "-" }
+    ], "setup-profile-stats-grid")
+    : "";
   const backButton = `
     <button class="setup-seat-back-btn" data-action="go-back-profile-seat" data-seat="${playerIndex}" aria-label="Back to player selection">
       ${getIconMarkup("Back", "setup-back-icon")}
@@ -2377,6 +2391,7 @@ function renderCommanderSeatOverlay(state, playerIndex) {
         }
         ${(seat.isAddingDeck || seat.isDeletingDeck || seat.isBorrowingDeck || seat.isEditingDeck) ? "" : (selectedDeckName ? `<div class="setup-meta setup-seat-subtitle">${selectedDeckName}</div>` : "")}
       </div>
+      ${profileStatsMarkup}
       ${seat.isAddingDeck ? addPanel : seat.isEditingDeck ? deckEditPanel : seat.isBorrowingDeck ? borrowPanel : `
         <div class="setup-seat-body">
           ${deckGrid}
@@ -5171,6 +5186,121 @@ function buildHistoryGroups() {
   return groups;
 }
 
+function getTopScoreName(scoreMap) {
+  let topName = "";
+  let topScore = -1;
+  scoreMap.forEach((score, name) => {
+    if (score > topScore) {
+      topScore = score;
+      topName = name;
+    }
+  });
+  return topName;
+}
+
+function formatAverageTurnWin(turnValue) {
+  if (!Number.isFinite(turnValue) || turnValue <= 0) return "-";
+  const rounded = Math.round(turnValue * 10) / 10;
+  return `Turn ${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}`;
+}
+
+function buildMatchSummaryStats(entries = matchHistory) {
+  const safeEntries = Array.isArray(entries) ? entries : [];
+  const winningEntries = safeEntries.filter(entry =>
+    Number.isInteger(entry?.winnerIndex) &&
+    entry.winnerIndex >= 0 &&
+    Number.isFinite(entry?.turnCount) &&
+    entry.turnCount > 0
+  );
+
+  const totalTurnsToWin = winningEntries.reduce((sum, entry) => sum + (entry.turnCount || 0), 0);
+
+  return {
+    numberOfMatches: safeEntries.length,
+    totalPlayTime: safeEntries.reduce((sum, entry) => sum + (entry?.totalMatchSeconds || 0), 0),
+    averageGameTime: safeEntries.length
+      ? (safeEntries.reduce((sum, entry) => sum + (entry?.totalMatchSeconds || 0), 0) / safeEntries.length)
+      : null,
+    averageTurnWin: winningEntries.length ? (totalTurnsToWin / winningEntries.length) : null
+  };
+}
+
+function buildProfileHistoryStats(profileName) {
+  const normalizedProfileName = normalizeLibraryName(profileName);
+  if (!normalizedProfileName) {
+    return {
+      numberOfMatches: 0,
+      totalPlayTime: 0,
+      numberOfWins: 0,
+      averageTurnTime: null,
+      averageTurnWin: null,
+      totalDamage: 0,
+      totalHealing: 0,
+      enemy: "",
+      targetOf: ""
+    };
+  }
+
+  let numberOfMatches = 0;
+  let totalPlayTime = 0;
+  let numberOfWins = 0;
+  let totalWinTurns = 0;
+  let totalDamage = 0;
+  let totalHealing = 0;
+  const enemyScores = new Map();
+  const targetScores = new Map();
+
+  matchHistory.forEach((entry) => {
+    const playersInEntry = Array.isArray(entry?.players) ? entry.players : [];
+    const me = playersInEntry.find(player => normalizeLibraryName(player?.name) === normalizedProfileName);
+    if (!me) return;
+
+    numberOfMatches += 1;
+    totalPlayTime += me.totalTime || 0;
+    totalDamage += me.stats?.damageDealt || 0;
+    totalHealing += me.stats?.healingDone || 0;
+
+    if (me.isWinner && Number.isFinite(entry?.turnCount) && entry.turnCount > 0) {
+      numberOfWins += 1;
+      totalWinTurns += entry.turnCount;
+    }
+
+    const opponents = playersInEntry.filter(player => normalizeLibraryName(player?.name) !== normalizedProfileName);
+    const opponentCount = Math.max(1, opponents.length);
+    opponents.forEach((opponent) => {
+      const opponentName = `${opponent?.name || ""}`.trim();
+      if (!opponentName) return;
+      enemyScores.set(opponentName, (enemyScores.get(opponentName) || 0) + ((me.stats?.damageDealt || 0) / opponentCount));
+      targetScores.set(opponentName, (targetScores.get(opponentName) || 0) + ((opponent.stats?.damageDealt || 0) / opponentCount));
+    });
+  });
+
+  return {
+    numberOfMatches,
+    totalPlayTime,
+    numberOfWins,
+    averageTurnTime: numberOfMatches ? (totalPlayTime / numberOfMatches) : null,
+    averageTurnWin: numberOfWins ? (totalWinTurns / numberOfWins) : null,
+    totalDamage,
+    totalHealing,
+    enemy: getTopScoreName(enemyScores),
+    targetOf: getTopScoreName(targetScores)
+  };
+}
+
+function renderStatsSummaryGrid(items, extraClass = "") {
+  return `
+    <div class="stats-summary-grid ${extraClass}">
+      ${items.map((item) => `
+        <div class="stats-summary-card">
+          <span>${escapeHtml(item.label)}</span>
+          <strong>${escapeHtml(item.value)}</strong>
+        </div>
+      `).join("")}
+    </div>
+  `;
+}
+
 function renderHistoryDuelSeriesDetail(group) {
   const entries = Array.isArray(group?.entries) ? group.entries : [];
   const latestEntry = group?.latestEntry || entries[entries.length - 1];
@@ -5312,6 +5442,7 @@ function renderHistoryEntryDetail(entry) {
 function renderStartHistoryScreen() {
   const state = ensureSetupState();
   const groups = buildHistoryGroups();
+  const summaryStats = buildMatchSummaryStats(matchHistory);
   const selectedGroup = groups.find(group => group.id === state.historyEntryId) || null;
   if (state.historyView === "detail" && selectedGroup) {
     if (selectedGroup.type === "duel-series") {
@@ -5352,6 +5483,12 @@ function renderStartHistoryScreen() {
       </button>
       <button class="setup-minus-btn history-delete-btn ${state.historyDeleteMode ? "active" : ""}" data-action="${state.historyDeleteMode ? "close-history-delete" : "open-history-delete"}" aria-label="Delete log mode">${getIconMarkup("Minus", "setup-inline-icon setup-minus-icon")}</button>
       <h2>Game History</h2>
+      ${renderStatsSummaryGrid([
+        { label: "Number of Matches", value: String(summaryStats.numberOfMatches) },
+        { label: "Total Play Time", value: formatTime(summaryStats.totalPlayTime) },
+        { label: "Average Game Time", value: summaryStats.averageGameTime ? formatTime(summaryStats.averageGameTime) : "-" },
+        { label: "Average Turn Win", value: formatAverageTurnWin(summaryStats.averageTurnWin) }
+      ], "history-top-stats")}
       <div class="history-list">
         ${entriesMarkup}
       </div>
