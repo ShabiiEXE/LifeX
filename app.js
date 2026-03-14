@@ -72,6 +72,7 @@ const DEVICE_ID_STORAGE_KEY = "lifeXDeviceIdV1";
 const QR_TRANSFER_PREFIX = "LIFEX1:";
 const SCRYFALL_SEARCH_TIMEOUT_MS = 3200;
 const DEFAULT_PLAYER_BACKGROUND = "./img/default_back0.png";
+const MENU_BACKGROUND = "./img/menu_back.png";
 const DEFAULT_MAGIC_PLAYER_BACKGROUNDS = [
   "./img/default_back0.png",
   "./img/default_back1.png"
@@ -213,10 +214,13 @@ function resetDuelSeriesState(matchLength = 1) {
    ========================= */
 const INLINE_ICON_MARKUP = {
   Cancel: `<svg viewBox="0 0 1735.39 1735.4" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1689.28,1466.63c61.48,61.48,61.48,161.17,0,222.65-30.75,30.75-71.04,46.12-111.33,46.12s-80.58-15.37-111.32-46.12l-598.93-598.93-598.94,598.93c-61.48,61.49-161.17,61.49-222.65,0-30.74-30.74-46.11-71.03-46.11-111.33s15.37-80.58,46.11-111.32l598.93-598.93L46.11,268.77c-61.48-61.49-61.48-161.17,0-222.66C76.85,15.37,117.14,0,157.43,0s80.59,15.37,111.33,46.11l598.94,598.94L1466.63,46.11c61.48-61.48,161.16-61.48,222.65,0,30.74,30.74,46.11,71.04,46.11,111.33s-15.37,80.59-46.11,111.33l-598.93,598.93,598.93,598.93Z"/></svg>`,
-  Monarch: `<svg viewBox="0 0 2446.54 1706.11" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M281.15,1503.98h1884.24c37.94,0,66.57,34.43,59.66,71.73l-10.49,56.6c-7.92,42.77-45.23,73.8-88.73,73.8H320.7c-43.5,0-80.8-31.03-88.73-73.8l-10.49-56.6c-6.91-37.3,21.72-71.73,59.66-71.73Z"/><path fill="currentColor" d="M2445.24,387.11l-159.32,860.02c-8.29,44.73-47.3,77.18-92.79,77.18H253.41c-45.49,0-84.5-32.45-92.79-77.18L1.3,387.11c-12.65-68.27,70.07-112.27,119.61-63.63l469.86,461.29c49.72,48.82,132.26,36.95,166.22-23.9L1161.24,36.42c27.1-48.56,96.96-48.56,124.06,0l404.25,724.45c33.96,60.85,116.5,72.72,166.22,23.9l469.86-461.29c49.54-48.64,132.26-4.64,119.61,63.63Z"/></svg>`,
+  GameLog: `<svg viewBox="0 0 2118.07 2721.76" class="icon-img" aria-hidden="true" focusable="false"><g fill="currentColor"><rect x=".97" y="1468.51" width="1193.66" height="218.02" rx="109.01" ry="109.01"/><rect x=".97" y="1930.88" width="1453.55" height="218.02" rx="109.01" ry="109.01"/><path d="M1978.07,2721.76H140c-77.32,0-140-62.68-140-140s62.68-140,140-140h1698.07v-1367.47c0-28.75-5.58-56.8-16.58-83.36-11-26.57-26.89-50.34-47.22-70.67l-576.45-576.45c-20.33-20.33-44.11-36.22-70.67-47.22-26.56-11-54.61-16.58-83.36-16.58H140C62.68,280,0,217.32,0,140S62.68,0,140,0h903.78c65.71,0,129.81,12.75,190.51,37.9,60.71,25.15,115.05,61.46,161.51,107.92l576.45,576.45c46.46,46.46,82.77,100.81,107.92,161.51s37.9,124.8,37.9,190.51v1507.47c0,77.32-62.68,140-140,140Z"/></g></svg>`,
+  Monarch: `<svg viewBox="0 0 3003 1922.35" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M2490.04,1922.35H512.97c-64.29,0-120.32-43.79-135.85-106.18L4.16,318.06c-14.78-59.36,10.69-121.43,62.9-153.31,52.21-31.88,119.06-26.17,165.11,14.09l700.55,612.51L1382.53,66.2C1408.06,25.04,1453.06,0,1501.5,0s93.45,25.04,118.98,66.2l449.82,725.15,700.55-612.51c58.21-50.89,146.65-44.96,197.55,13.25,50.89,58.21,44.96,146.65-13.24,197.55l-824.72,721.08c-25.69,22.46-58.49,34.6-92.15,34.61-6.89,0-13.81-.51-20.73-1.54-40.65-6.08-76.58-29.73-98.25-64.66l-417.81-673.54-417.81,673.54c-21.67,34.93-57.59,58.57-98.25,64.66-40.65,6.08-81.93-6.01-112.87-33.06l-488.98-427.53,238.79,959.16h1867.65c77.32,0,140,62.68,140,140s-62.68,140-140,140Z"/></svg>`,
   Edit: `<svg viewBox="0 0 2040.37 2035.6" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1642.63,397.39c30.58,30.58,45.87,70.66,45.87,110.74,0,40.08-15.28,80.15-45.86,110.73L271.76,1989.73c-56,56-143.85,60.72-205.22,14.17-7.39-5.2-14.31-11.03-20.68-17.4-28.33-28.33-45.86-67.49-45.86-110.73v-744.09c0-86.49,70.11-156.6,156.6-156.6,43.25,0,82.4,17.53,110.74,45.87s45.86,67.49,45.86,110.73v373.66L1421.16,397.39c61.16-61.16,160.31-61.16,221.47,0Z"/><rect fill="currentColor" x="1727.49" y="0" width="312.88" height="312.88" rx="156.44" ry="156.44" transform="translate(441.17 1377.96) rotate(-45)"/></svg>`,
+  Minus: `<svg viewBox="0 0 100 100" class="icon-img" aria-hidden="true" focusable="false"><rect x="12" y="39" width="76" height="22" rx="11" ry="11" fill="currentColor"/></svg>`,
   Ok: `<svg viewBox="0 0 2029.21 2029.21" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1014.6,0C454.25,0,0,454.25,0,1014.6s454.25,1014.61,1014.6,1014.61,1014.61-454.26,1014.61-1014.61S1574.95,0,1014.6,0ZM1014.6,1664.59c-358.97,0-649.98-291.01-649.98-649.99S655.63,364.62,1014.6,364.62s649.98,291.01,649.98,649.98-291,649.99-649.98,649.99Z"/></svg>`,
   Play: `<svg viewBox="0 0 1481.73 1698.19" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1389.8,1011.15L285.67,1671.15C159.83,1746.38,0,1655.71,0,1509.1V189.09C0,42.48,159.83-48.19,285.67,27.04l1104.13,660c122.57,73.27,122.57,250.84,0,324.11Z"/></svg>`,
+  Plus: `<svg viewBox="0 0 100 100" class="icon-img" aria-hidden="true" focusable="false"><rect x="16" y="42" width="68" height="16" rx="8" ry="8" fill="currentColor"/><rect x="42" y="16" width="16" height="68" rx="8" ry="8" fill="currentColor"/></svg>`,
   Profile: `<svg viewBox="0 0 1930.03 2421.39" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M965.01,0C571.38,0,252.29,319.09,252.29,712.72s319.09,712.73,712.72,712.73,712.73-319.1,712.73-712.73S1358.63,0,965.01,0ZM965.01,1169.31c-252.16,0-456.59-204.42-456.59-456.59s204.42-456.59,456.59-456.59,456.59,204.42,456.59,456.59-204.42,456.59-456.59,456.59Z"/><path fill="currentColor" d="M1899.3,2096.72l-405.9-679.02c-62.57,53.9-133.47,98.4-210.5,131.3l369.71,622.36H277.41l370.51-622.02c-77.34-32.94-148.52-77.56-211.3-131.64L30.72,2096.72c-85.48,143.02,17.55,324.67,184.19,324.67h1500.21c166.63,0,269.68-181.65,184.18-324.67Z"/></svg>`,
   QR: `<svg viewBox="0 0 2663.47 2659.05" class="icon-img" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M597.62 1739.56H322.83C144.8 1739.56.48 1883.88.48 2061.91v274.79c0 178.03 144.32 322.35 322.35 322.35h274.79c178.03 0 322.35-144.32 322.35-322.35v-274.79c0-178.03-144.32-322.35-322.35-322.35Zm73.98 546.94c0 68.58-55.6 124.18-124.18 124.18H373.03c-68.58 0-124.18-55.6-124.18-124.18v-174.39c0-68.58 55.6-124.18 124.18-124.18h174.39c68.58 0 124.18 55.6 124.18 124.18v174.39Z"/><rect x="1700.26" y="1693.28" width="1601.58" height="319.35" rx="159.68" ry="159.68" transform="rotate(-90 2501.05 1852.955)"/><rect x="0" y="1126.53" width="2088.83" height="319.35" rx="159.68" ry="159.68"/><rect x="1219.55" y="2339.3" width="865.55" height="319.35" rx="159.68" ry="159.68"/><rect x="1219.55" y="1747.45" width="865.55" height="319.35" rx="159.68" ry="159.68"/><rect x="897.2" y="273.1" width="865.55" height="319.35" rx="159.68" ry="159.68" transform="rotate(-90 1329.975 432.775)"/><path d="M597.34 4.94H322.55C144.52 4.94.2 149.26.2 327.29v274.79c0 178.03 144.32 322.35 322.35 322.35h274.79c178.03 0 322.35-144.32 322.35-322.35V327.29c0-178.03-144.32-322.35-322.35-322.35Zm73.98 546.94c0 68.58-55.6 124.18-124.18 124.18H372.75c-68.58 0-124.18-55.6-124.18-124.18V377.49c0-68.58 55.6-124.18 124.18-124.18h174.39c68.58 0 124.18 55.6 124.18 124.18v174.39Z"/><path d="M2341.12 4.94h-274.79c-178.03 0-322.35 144.32-322.35 322.35v274.79c0 178.03 144.32 322.35 322.35 322.35h274.79c178.03 0 322.35-144.32 322.35-322.35V327.29c0-178.03-144.32-322.35-322.35-322.35Zm73.98 546.94c0 68.58-55.6 124.18-124.18 124.18h-174.39c-68.58 0-124.18-55.6-124.18-124.18V377.49c0-68.58 55.6-124.18 124.18-124.18h174.39c68.58 0 124.18 55.6 124.18 124.18v174.39Z"/></g></svg>`
 };
@@ -607,16 +611,19 @@ function renderStartScreenBackdrop() {
   if (!startScreenBg) return;
 
   const state = ensureSetupState();
-  const isHomeConfigScreen = state.step === "config" && !hasStartedGame && !isProfileEditorMode(state);
-  if (!isHomeConfigScreen) {
+  const shouldShowMenuBackdrop =
+    !hasStartedGame &&
+    !isProfileEditorMode(state) &&
+    (state.step === "config" || state.step === "history");
+  if (!shouldShowMenuBackdrop) {
     startScreenBg.classList.add("hidden");
     startScreenBg.innerHTML = "";
     return;
   }
 
-  startScreenBg.innerHTML = Array.from({ length: 4 }, () => `
-    <div class="start-screen-bg-tile" style="background-image:url('${DEFAULT_PLAYER_BACKGROUND}')"></div>
-  `).join("");
+  startScreenBg.innerHTML = `
+    <div class="start-screen-bg-tile start-screen-bg-tile-full" style="background-image:url('${MENU_BACKGROUND}')"></div>
+  `;
   startScreenBg.classList.remove("hidden");
 }
 
@@ -1386,11 +1393,16 @@ function buildQrTransferBundle(includeGames = false) {
     if (deck?.mode && deck.mode !== "commander") return;
     const ownerId = `${deck?.ownerProfileId || ""}`.trim();
     if (!ownerId) return;
+    const commanderName = `${deck?.cardName || deck?.deckName || ""}`.trim();
+    const customDeckName = `${deck?.deckName || ""}`.trim();
+    if (!commanderName) return;
     if (!decksByOwner.has(ownerId)) {
       decksByOwner.set(ownerId, []);
     }
     decksByOwner.get(ownerId).push({
-      name: `${deck?.cardName || deck?.deckName || ""}`.trim(),
+      name: commanderName,
+      commanderName,
+      deckName: customDeckName || commanderName,
       artRef: getDeckTransferArtRef(deck)
     });
   });
@@ -1710,8 +1722,10 @@ function mergeImportedTransferData(payload) {
   });
 
   importedDecks.forEach((incomingDeck) => {
-    const commanderName = `${incomingDeck?.name || ""}`.trim();
+    const commanderName = `${incomingDeck?.commanderName || incomingDeck?.name || ""}`.trim();
     if (!commanderName) return;
+    const importedDeckName = `${incomingDeck?.deckName || incomingDeck?.customName || commanderName}`.trim() || commanderName;
+    const hasImportedCustomDeckName = normalizeLibraryName(importedDeckName) !== normalizeLibraryName(commanderName);
     const incomingImage = `${incomingDeck?.image || ""}`.trim();
     const incomingArtId = normalizeCommanderArtId(incomingDeck?.artId);
     const incomingArtRef = normalizeCommanderArtRef(incomingDeck?.artRef || incomingDeck?.artId);
@@ -1730,6 +1744,17 @@ function mergeImportedTransferData(payload) {
       normalizeLibraryName(deck.cardName || deck.deckName) === normalizeLibraryName(commanderName)
     );
     if (existingDeck) {
+      if (!existingDeck.cardName) {
+        existingDeck.cardName = commanderName;
+      }
+      const existingDeckName = `${existingDeck.deckName || ""}`.trim();
+      const existingCommanderName = `${existingDeck.cardName || commanderName}`.trim();
+      const existingHasCustomDeckName =
+        existingDeckName &&
+        normalizeLibraryName(existingDeckName) !== normalizeLibraryName(existingCommanderName);
+      if (!existingHasCustomDeckName && hasImportedCustomDeckName) {
+        existingDeck.deckName = importedDeckName;
+      }
       if (!hasDeckImage(existingDeck) && resolvedIncomingImage) {
         existingDeck.image = resolvedIncomingImage;
       }
@@ -1746,7 +1771,7 @@ function mergeImportedTransferData(payload) {
       id: createLocalId(),
       mode: "commander",
       ownerProfileId,
-      deckName: commanderName,
+      deckName: importedDeckName,
       cardName: commanderName,
       artId: incomingArtId,
       artRef: incomingArtRef,
@@ -2066,7 +2091,7 @@ function renderCommanderGridSeat(state, playerIndex, seatPos) {
           <select data-seat-profile-select="${playerIndex}">${profileOptions}</select>
           <button data-action="apply-profile" data-seat="${playerIndex}">Use</button>
         </div>
-        <button class="setup-plus-btn" data-action="add-profile" data-seat="${playerIndex}">+</button>
+        <button class="setup-plus-btn" data-action="add-profile" data-seat="${playerIndex}" aria-label="Add profile">${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>
       </div>
     `;
   } else if (!hasDeck) {
@@ -2080,7 +2105,7 @@ function renderCommanderGridSeat(state, playerIndex, seatPos) {
           <select data-seat-deck-select="${playerIndex}">${deckOptions}</select>
           <button data-action="apply-deck" data-seat="${playerIndex}">Use</button>
         </div>
-        <button class="setup-plus-btn" data-action="add-deck" data-seat="${playerIndex}">+</button>
+        <button class="setup-plus-btn" data-action="add-deck" data-seat="${playerIndex}" aria-label="Add deck">${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>
         <input type="text" data-seat-input="deckName" data-seat="${playerIndex}" value="${seat.deckName || ""}" placeholder="Deck name">
         <input type="text" data-seat-deck-search="${playerIndex}" placeholder="Search commander">
         <div class="setup-search-results" id="search-results-${playerIndex}"></div>
@@ -2171,8 +2196,8 @@ function renderCommanderSeatOverlay(state, playerIndex) {
           ${isSingleSeatEditor ? backButton.replace("go-back-profile-seat", "back-to-config") : ""}
           <div class="setup-seat-title">${seat.isDeletingProfile ? "Delete Profile" : seat.isEditingProfile ? "EDIT PLAYER" : "Select Profile"}</div>
           ${profileButtons}
-          ${seat.isDeletingProfile ? "" : `<button class="setup-plus-btn" data-action="add-profile" data-seat="${playerIndex}">+</button>`}
-          ${canDeleteProfiles ? `<button class="setup-minus-btn ${seat.isDeletingProfile ? "active" : ""}" data-action="${seat.isDeletingProfile ? "close-delete-profile" : "open-delete-profile"}" data-seat="${playerIndex}" aria-label="Delete player mode">-</button>` : ""}
+          ${seat.isDeletingProfile ? "" : `<button class="${isSingleSeatEditor ? "setup-plus-btn" : "setup-minus-btn"}" data-action="add-profile" data-seat="${playerIndex}" aria-label="Add profile">${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>`}
+          ${canDeleteProfiles && isSingleSeatEditor ? `<button class="setup-minus-btn ${seat.isDeletingProfile ? "active" : ""}" data-action="${seat.isDeletingProfile ? "close-delete-profile" : "open-delete-profile"}" data-seat="${playerIndex}" aria-label="Delete player mode">${getIconMarkup("Minus", "setup-inline-icon setup-minus-icon")}</button>` : ""}
         `}
       </div>
     `;
@@ -2356,9 +2381,9 @@ function renderCommanderSeatOverlay(state, playerIndex) {
         <div class="setup-seat-body">
           ${deckGrid}
         </div>
-        ${seat.isDeletingDeck ? "" : `<button class="setup-plus-btn" data-action="add-deck" data-seat="${playerIndex}">+</button>`}
+        ${seat.isDeletingDeck ? "" : `<button class="${isSingleSeatEditor ? "setup-plus-btn" : "setup-minus-btn"}" data-action="add-deck" data-seat="${playerIndex}" aria-label="Add deck">${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>`}
         ${seat.isDeletingDeck || !isSingleSeatEditor ? "" : `<button class="setup-edit-btn" data-action="open-edit-deck" data-seat="${playerIndex}" aria-label="Edit deck">${getIconMarkup("Edit", "setup-inline-icon")}</button>`}
-        ${canDeleteDecks ? `<button class="setup-minus-btn ${seat.isDeletingDeck ? "active" : ""}" data-action="${seat.isDeletingDeck ? "close-delete-deck" : "open-delete-deck"}" data-seat="${playerIndex}" aria-label="Delete deck mode">-</button>` : ""}
+        ${canDeleteDecks && isSingleSeatEditor ? `<button class="setup-minus-btn ${seat.isDeletingDeck ? "active" : ""}" data-action="${seat.isDeletingDeck ? "close-delete-deck" : "open-delete-deck"}" data-seat="${playerIndex}" aria-label="Delete deck mode">${getIconMarkup("Minus", "setup-inline-icon setup-minus-icon")}</button>` : ""}
         ${seat.isDeletingDeck || !allowBorrowDeck ? "" : `<button class="setup-borrow-btn" data-action="open-borrow-deck" data-seat="${playerIndex}" aria-label="Borrow deck">Borrow</button>`}
       `}
     </div>
@@ -2416,6 +2441,7 @@ function renderCommanderGridOnGame(state) {
       info.innerHTML = renderCommanderSeatOverlay(state, playerIndex);
       bindSetupSeatBodyDrag(playerEl, playerIndex);
       updateScrollableFadeState(info);
+      syncSetupDeckGridMetrics(info);
     }
   });
 
@@ -2456,6 +2482,7 @@ function renderCommanderGridOnGame(state) {
 
   updateCommanderOverlayAnchors();
   updateScrollableFadeState(document);
+  syncSetupDeckGridMetrics(document);
 }
 
 function syncSetupSeatPreviewPlayer(state, seatIndex) {
@@ -2488,21 +2515,72 @@ function refreshSetupSeatOverlay(seatIndex) {
   bg.style.backgroundImage = players[seatIndex].image ? `url(${players[seatIndex].image})` : "none";
   bindSetupSeatBodyDrag(playerEl, seatIndex);
   updateScrollableFadeState(info);
+  syncSetupDeckGridMetrics(info);
   refreshSetupArtGridLayout(info);
   updateCommanderOverlayAnchors();
   return true;
 }
 
 function updateScrollableFadeState(root = document) {
+  const updateScrollFade = (el) => {
+    if (!el) return;
+    const isScrollable = (el.scrollHeight - el.clientHeight) > 2;
+    const isScrolled = el.scrollTop > 2;
+    el.classList.toggle("is-scrollable", isScrollable);
+    el.classList.toggle("is-scrolled", isScrollable && isScrolled);
+    el.classList.toggle("is-bottomed", !isScrollable || (el.scrollTop + el.clientHeight >= el.scrollHeight - 2));
+  };
+
   const apply = () => {
-    root.querySelectorAll(".setup-profile-list").forEach((list) => {
-      const isScrollable = (list.scrollHeight - list.clientHeight) > 2;
-      list.classList.toggle("is-scrollable", isScrollable);
+    root.querySelectorAll(".setup-profile-list, .history-list, .history-detail-shell, .game-log-list").forEach((list) => {
+      updateScrollFade(list);
+      if (list.dataset.fadeBound === "1") return;
+      list.dataset.fadeBound = "1";
+      list.addEventListener("scroll", () => updateScrollFade(list), { passive: true });
+    });
+    root.querySelectorAll(".setup-seat-body, .setup-deck-grid").forEach((el) => {
+      updateScrollFade(el);
+      if (el.dataset.fadeBound === "1") return;
+      el.dataset.fadeBound = "1";
+      el.addEventListener("scroll", () => updateScrollFade(el), { passive: true });
     });
   };
 
   apply();
   window.requestAnimationFrame(apply);
+}
+
+function syncSetupDeckGridMetrics(root = document) {
+  const grids = Array.from(root.querySelectorAll(".setup-deck-grid"));
+  if (!grids.length) return;
+
+  const measureGrid = (grid) => {
+    const firstThumb = grid.querySelector(".setup-deck-thumb");
+    if (!firstThumb) {
+      grid.style.removeProperty("--setup-deck-row-size");
+      return;
+    }
+    const width = firstThumb.getBoundingClientRect().width;
+    if (width > 0) grid.style.setProperty("--setup-deck-row-size", `${width}px`);
+  };
+
+  grids.forEach((grid) => {
+    measureGrid(grid);
+    if (grid.dataset.sizeBound === "1") return;
+    grid.dataset.sizeBound = "1";
+
+    if ("ResizeObserver" in window) {
+      const observer = new ResizeObserver(() => measureGrid(grid));
+      observer.observe(grid);
+      const firstThumb = grid.querySelector(".setup-deck-thumb");
+      if (firstThumb) observer.observe(firstThumb);
+    }
+
+    grid.querySelectorAll("img").forEach((img) => {
+      if (img.complete) return;
+      img.addEventListener("load", () => measureGrid(grid), { once: true });
+    });
+  });
 }
 
 function refreshSetupArtGridLayout(root = document) {
@@ -2678,6 +2756,9 @@ function renderStartSetupScreen() {
   const startScreen = document.getElementById("start-screen");
   if (!container || !startScreen) return;
   const state = ensureSetupState();
+  pauseBtn.classList.add("hidden");
+  pauseBtn.classList.remove("active");
+  setPauseButtonIcon(false);
   document.body.classList.toggle("profile-editor-open", isProfileEditorMode(state));
   renderStartScreenBackdrop();
   startScreen.classList.remove("hidden");
@@ -2707,6 +2788,7 @@ function renderStartSetupScreen() {
   }
 
   updateScrollableFadeState(container);
+  syncSetupDeckGridMetrics(document);
   refreshSetupArtGridLayout(document);
 }
 
@@ -2921,8 +3003,12 @@ function setupStartScreen() {
         state.matchLength = normalizeDuelMatchLength(state.matchLength);
         state.startingLife = 20;
         if (state.startingPlayerIndex > 1) state.startingPlayerIndex = 0;
-      } else if (state.startingLife === 20) {
-        state.startingLife = 40;
+      } else {
+        state.playerCount = 4;
+        if (state.startingLife === 20) {
+          state.startingLife = 40;
+        }
+        state.startingPlayerIndex = Math.min(state.startingPlayerIndex, state.playerCount - 1);
       }
       renderStartSetupScreen();
       return;
@@ -4515,6 +4601,16 @@ function updateCommanderOverlayAnchors() {
     if (`${anchor || ""}`.endsWith("right")) return "top-rail-right";
     return "top-rail-right";
   };
+  const forceAnchorSide = (anchor, side = "right") => {
+    const normalizedSide = side === "left" ? "left" : "right";
+    if (`${anchor || ""}`.startsWith("top-rail")) {
+      return normalizedSide === "left" ? "top-rail-left" : "top-rail-right";
+    }
+    if (`${anchor || ""}`.startsWith("bottom-")) {
+      return normalizedSide === "left" ? "bottom-left" : "bottom-right";
+    }
+    return normalizedSide === "left" ? "top-left" : "top-right";
+  };
 
   const pauseIsVisible =
     !!pauseBtn &&
@@ -4754,15 +4850,33 @@ function updateCommanderOverlayAnchors() {
 
       const isSingleSeatEditor = playerEl.classList.contains("single-seat-editor");
       if (isSingleSeatEditor) {
-        if (overlayEditBtn) overlayEditBtn.dataset.anchor = "bottom-left";
-        if (overlayPlusBtn) overlayPlusBtn.dataset.anchor = "bottom-left";
-        if (overlayMinusBtn) overlayMinusBtn.dataset.anchor = "bottom-left";
-        if (overlayBorrowBtn) overlayBorrowBtn.dataset.anchor = "bottom-left";
-        if (overlayBackBtn) overlayBackBtn.dataset.anchor = "bottom-right";
-        if (overlayCancelBtn) overlayCancelBtn.dataset.anchor = "bottom-right";
+        if (overlayEditBtn) overlayEditBtn.dataset.anchor = "bottom-right";
+        if (overlayPlusBtn) overlayPlusBtn.dataset.anchor = "bottom-right";
+        if (overlayMinusBtn) overlayMinusBtn.dataset.anchor = "bottom-right";
+        if (overlayBorrowBtn) overlayBorrowBtn.dataset.anchor = "bottom-right";
+        if (overlayBackBtn) overlayBackBtn.dataset.anchor = "bottom-left";
+        if (overlayCancelBtn) overlayCancelBtn.dataset.anchor = "bottom-left";
         if (commanderEl) commanderEl.dataset.anchor = "top-left";
         if (poisonEl) poisonEl.dataset.anchor = "top-right";
-        setupRailAnchor = "bottom-left";
+        setupRailAnchor = "bottom-right";
+      }
+
+      const shouldMirrorLeftRailSeat =
+        !isSingleSeatEditor &&
+        playerEl.dataset.setupRailSide === "left";
+      if (shouldMirrorLeftRailSeat) {
+        if (overlayEditBtn) overlayEditBtn.dataset.anchor = forceAnchorSide(overlayEditBtn.dataset.anchor, "left");
+        if (overlayPlusBtn) overlayPlusBtn.dataset.anchor = forceAnchorSide(overlayPlusBtn.dataset.anchor, "left");
+        if (overlayMinusBtn) overlayMinusBtn.dataset.anchor = forceAnchorSide(overlayMinusBtn.dataset.anchor, "left");
+        if (overlayBorrowBtn) overlayBorrowBtn.dataset.anchor = forceAnchorSide(overlayBorrowBtn.dataset.anchor, "left");
+        if (overlayBackBtn) overlayBackBtn.dataset.anchor = forceAnchorSide(overlayBackBtn.dataset.anchor, "right");
+        if (overlayCancelBtn) overlayCancelBtn.dataset.anchor = forceAnchorSide(overlayCancelBtn.dataset.anchor, "right");
+        setupRailAnchor =
+          overlayBorrowBtn?.dataset.anchor ||
+          overlayMinusBtn?.dataset.anchor ||
+          overlayPlusBtn?.dataset.anchor ||
+          overlayEditBtn?.dataset.anchor ||
+          setupRailAnchor;
       }
 
       const shouldOpposeBackArrowRail =
@@ -4786,6 +4900,39 @@ function updateCommanderOverlayAnchors() {
         overlayBackBtn.dataset.anchor = flipHorizontalAnchor(setupRailAnchor);
       }
 
+      const shouldFlipMirroredSetupSeat =
+        (selectedPlayerCount === 2 && seatPos === 0)
+        || (selectedPlayerCount === 3 && (seatPos === 0 || seatPos === 1));
+      if (shouldFlipMirroredSetupSeat) {
+        if (overlayEditBtn) overlayEditBtn.dataset.anchor = flipHorizontalAnchor(overlayEditBtn.dataset.anchor);
+        if (overlayPlusBtn) overlayPlusBtn.dataset.anchor = flipHorizontalAnchor(overlayPlusBtn.dataset.anchor);
+        if (overlayMinusBtn) overlayMinusBtn.dataset.anchor = flipHorizontalAnchor(overlayMinusBtn.dataset.anchor);
+        if (overlayBorrowBtn) overlayBorrowBtn.dataset.anchor = flipHorizontalAnchor(overlayBorrowBtn.dataset.anchor);
+        if (overlayBackBtn) overlayBackBtn.dataset.anchor = flipHorizontalAnchor(overlayBackBtn.dataset.anchor);
+        if (overlayCancelBtn) overlayCancelBtn.dataset.anchor = flipHorizontalAnchor(overlayCancelBtn.dataset.anchor);
+        setupRailAnchor =
+          overlayBorrowBtn?.dataset.anchor ||
+          overlayMinusBtn?.dataset.anchor ||
+          overlayPlusBtn?.dataset.anchor ||
+          overlayEditBtn?.dataset.anchor ||
+          setupRailAnchor;
+      }
+
+      const shouldForceMirroredSeatClusters =
+        (selectedPlayerCount === 2 && seatPos === 0)
+        || (selectedPlayerCount === 3 && (seatPos === 0 || seatPos === 1));
+      if (shouldForceMirroredSeatClusters) {
+        const controlAnchor = shouldOpposeBackArrowRail ? "top-rail-left" : "bottom-left";
+        const backAnchor = shouldOpposeBackArrowRail ? "top-rail-right" : "bottom-right";
+        if (overlayEditBtn) overlayEditBtn.dataset.anchor = controlAnchor;
+        if (overlayPlusBtn) overlayPlusBtn.dataset.anchor = controlAnchor;
+        if (overlayMinusBtn) overlayMinusBtn.dataset.anchor = controlAnchor;
+        if (overlayBorrowBtn) overlayBorrowBtn.dataset.anchor = controlAnchor;
+        if (overlayBackBtn) overlayBackBtn.dataset.anchor = backAnchor;
+        if (overlayCancelBtn) overlayCancelBtn.dataset.anchor = backAnchor;
+        setupRailAnchor = controlAnchor;
+      }
+
       const isBottomSpecialFive = selectedPlayerCount === 5 && seatPos === 4;
       if (isBottomSpecialFive) {
         if (overlayEditBtn) overlayEditBtn.dataset.anchor = "top-rail-right";
@@ -4797,7 +4944,23 @@ function updateCommanderOverlayAnchors() {
         setupRailAnchor = "top-rail-right";
       }
 
-      playerEl.dataset.setupRailSide = `${setupRailAnchor || ""}`.endsWith("left") ? "left" : "right";
+      if (!isSingleSeatEditor) {
+        if (overlayBackBtn) overlayBackBtn.dataset.anchor = "top-left";
+        if (overlayCancelBtn) overlayCancelBtn.dataset.anchor = "top-left";
+        if (overlayEditBtn) overlayEditBtn.dataset.anchor = "top-rail-right";
+        if (overlayPlusBtn) overlayPlusBtn.dataset.anchor = "top-rail-right";
+        if (overlayMinusBtn) overlayMinusBtn.dataset.anchor = "top-rail-right";
+        if (overlayBorrowBtn) overlayBorrowBtn.dataset.anchor = "top-rail-right";
+        setupRailAnchor = "top-rail-right";
+      }
+
+      const resolvedSetupRailAnchor =
+        overlayBorrowBtn?.dataset.anchor ||
+        overlayMinusBtn?.dataset.anchor ||
+        overlayPlusBtn?.dataset.anchor ||
+        overlayEditBtn?.dataset.anchor ||
+        setupRailAnchor;
+      playerEl.dataset.setupRailSide = `${resolvedSetupRailAnchor || ""}`.endsWith("left") ? "left" : "right";
     }
   });
 }
@@ -5001,6 +5164,9 @@ function renderHistoryDuelSeriesDetail(group) {
   const entries = Array.isArray(group?.entries) ? group.entries : [];
   const latestEntry = group?.latestEntry || entries[entries.length - 1];
   if (!latestEntry) return "";
+  const duelBestOfChip = latestEntry?.mode === "magic"
+    ? ` <span class="history-series-chip">Bo${normalizeDuelMatchLength(latestEntry.duelMatchLength)}</span>`
+    : "";
 
   const wins = getHistoryGroupScore(entries);
   const gameRows = entries.map((entry, index) => {
@@ -5056,7 +5222,7 @@ function renderHistoryDuelSeriesDetail(group) {
       <h2>Game History</h2>
       <div class="history-detail-shell">
         <div class="history-summary-copy history-summary-copy-detail">
-          <div class="history-summary-names">${latestEntry.players.map(player => escapeHtml(player.name)).join(" | ")}</div>
+          <div class="history-summary-names">${latestEntry.players.map(player => escapeHtml(player.name)).join(" | ")}${duelBestOfChip}</div>
           <div class="history-summary-date">${escapeHtml(formatHistoryDateTime(latestEntry.endedAt))}</div>
         </div>
         <div class="history-series-score">${wins[0]} - ${wins[1]}</div>
@@ -5070,6 +5236,9 @@ function renderHistoryDuelSeriesDetail(group) {
 
 function renderHistoryEntryDetail(entry) {
   if (!entry) return "";
+  const duelBestOfChip = entry?.mode === "magic"
+    ? ` <span class="history-series-chip">Bo${normalizeDuelMatchLength(entry.duelMatchLength)}</span>`
+    : "";
   return `
     <div class="setup-panel setup-panel-wide history-detail-panel">
       <button class="setup-icon-circle-btn history-back-btn" data-action="back-from-history-detail" aria-label="Back">
@@ -5078,7 +5247,7 @@ function renderHistoryEntryDetail(entry) {
       <h2>Game History</h2>
       <div class="history-detail-shell">
         <div class="history-summary-copy history-summary-copy-detail">
-          <div class="history-summary-names">${entry.players.map(player => escapeHtml(player.name)).join(" | ")}</div>
+          <div class="history-summary-names">${entry.players.map(player => escapeHtml(player.name)).join(" | ")}${duelBestOfChip}</div>
           <div class="history-summary-date">${escapeHtml(formatHistoryDateTime(entry.endedAt))}</div>
         </div>
         <div class="history-summary-commanders">
@@ -5170,7 +5339,7 @@ function renderStartHistoryScreen() {
       <button class="setup-icon-circle-btn history-back-btn" data-action="back-from-history" aria-label="Back" ${state.historyDeleteMode ? "disabled" : ""}>
         ${getIconMarkup("Back", "setup-back-icon")}
       </button>
-      <button class="setup-minus-btn history-delete-btn ${state.historyDeleteMode ? "active" : ""}" data-action="${state.historyDeleteMode ? "close-history-delete" : "open-history-delete"}" aria-label="Delete log mode">-</button>
+      <button class="setup-minus-btn history-delete-btn ${state.historyDeleteMode ? "active" : ""}" data-action="${state.historyDeleteMode ? "close-history-delete" : "open-history-delete"}" aria-label="Delete log mode">${getIconMarkup("Minus", "setup-inline-icon setup-minus-icon")}</button>
       <h2>Game History</h2>
       <div class="history-list">
         ${entriesMarkup}
@@ -5181,11 +5350,15 @@ function renderStartHistoryScreen() {
 
 function renderStartHistoryStep() {
   const entriesMarkup = matchHistory.length
-    ? matchHistory.map(entry => `
+    ? matchHistory.map(entry => {
+      const duelBestOfChip = entry?.mode === "magic"
+        ? ` <span class="history-series-chip">Bo${normalizeDuelMatchLength(entry.duelMatchLength)}</span>`
+        : "";
+      return `
       <details class="history-entry">
         <summary class="history-entry-summary">
           <div class="history-summary-copy">
-            <div class="history-summary-names">${entry.players.map(player => escapeHtml(player.name)).join(" · ")}</div>
+            <div class="history-summary-names">${entry.players.map(player => escapeHtml(player.name)).join(" · ")}${duelBestOfChip}</div>
             <div class="history-summary-date">${escapeHtml(formatHistoryDateTime(entry.endedAt))}</div>
           </div>
           <div class="history-summary-commanders">
@@ -5231,7 +5404,8 @@ function renderStartHistoryStep() {
           <div class="history-final-line">${escapeHtml(entry.finalMessage || "")}</div>
         </div>
       </details>
-    `).join("")
+    `;
+    }).join("")
     : `<div class="history-empty">No completed games yet.</div>`;
 
   return `
@@ -5474,9 +5648,9 @@ function openDamageMenu(targetIndex) {
 
       <div class="damage-footer ${shouldCompactDamageFooter ? "damage-footer-compact" : ""}">
         <div class="damage-controls">
-          <button class="sign-element" onclick="changeDamage(-1)">-</button>
+          <button class="sign-element" onclick="changeDamage(-1)" aria-label="Decrease damage">${getIconMarkup("Minus", "setup-inline-icon setup-minus-icon")}</button>
           <span id="damage-value">0</span>
-          <button class="sign-element" onclick="changeDamage(1)">+</button>
+          <button class="sign-element" onclick="changeDamage(1)" aria-label="Increase damage">${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>
         </div>
 
         <div class="damage-actions">

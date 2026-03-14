@@ -129,7 +129,7 @@ body {
 .history-detail-shell::-webkit-scrollbar-thumb,
 .game-log-list::-webkit-scrollbar-thumb {
   background: var(--shared-scrollbar-color);
-  border-radius: var(--shared-scrollbar-radius);
+  border-radius: var(--shared-scrollbar-radius) !important;
   border: 2px solid transparent;
   background-clip: padding-box;
 }
@@ -927,6 +927,9 @@ body.profile-editor-open #game {
   width: 12vw;
   color: white;
   background-color: transparent;
+  display: grid;
+  place-items: center;
+  padding: 0;
 }
 
 .pass-btn {
@@ -994,6 +997,11 @@ body.profile-editor-open #game {
   background-size: cover;
   filter: saturate(0.95) blur(2px);
   transform: scale(1.06);
+}
+
+.start-screen-bg-tile-full {
+  grid-column: 1 / -1;
+  grid-row: 1 / -1;
 }
 
 #start-screen.setup-open {
@@ -1073,7 +1081,7 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
 
 .setup-start-logo {
   display: block;
-  width: clamp(112px, 16vmin, 170px);
+  width: clamp(112px, 20vmin, 300px);
   height: auto;
   filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.38));
 }
@@ -1329,8 +1337,6 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   padding-right: 4px;
   scrollbar-width: thin;
   scrollbar-color: var(--main-color) transparent;
-  mask-image: linear-gradient(to bottom, transparent 0, black 22px, black calc(100% - 22px), transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 22px, black calc(100% - 22px), transparent 100%);
 }
 
 .history-list::-webkit-scrollbar,
@@ -1454,8 +1460,6 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   padding-right: 4px;
   scrollbar-width: thin;
   scrollbar-color: var(--main-color) transparent;
-  mask-image: linear-gradient(to bottom, transparent 0, black 22px, black calc(100% - 22px), transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 22px, black calc(100% - 22px), transparent 100%);
 }
 
 .history-entry-body {
@@ -1729,6 +1733,15 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   max-width: calc(100% - 72px);
 }
 
+@media (max-width: 640px) {
+  #game[data-players="1"] .player.single-seat-editor .setup-profile-list,
+  #game[data-players="1"] .player.single-seat-editor .setup-deck-grid,
+  #game[data-players="1"] .player.single-seat-editor .setup-empty-state {
+    width: calc(100% - 24px);
+    max-width: calc(100% - 24px);
+  }
+}
+
 #game[data-players="1"] .player.single-seat-editor .setup-profile-btn {
   padding: 0.5em 0.95em;
   font-size: clamp(18px, 2.6vmin, 24px) !important;
@@ -1742,19 +1755,16 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-seat-title-row {
-  position: relative;
   display: flex;
   align-items: center;
   justify-content: center;
+  gap: 10px;
   width: min(100%, calc(100vw - 132px));
   align-self: center;
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-seat-title-edit-btn {
-  position: absolute;
-  right: 0;
-  top: 50%;
-  transform: translateY(-50%);
+  flex: 0 0 auto;
   width: 38px;
   height: 38px;
   border-radius: 999px;
@@ -1825,11 +1835,11 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
 
 #game[data-players="1"] .player.single-seat-editor .setup-deck-grid {
   grid-template-columns: repeat(3, minmax(0, 1fr));
-  grid-template-rows: repeat(auto-fill, clamp(82px, 12vh, 118px));
-  grid-auto-rows: clamp(82px, 12vh, 118px);
-  column-gap: 6px;
-  row-gap: 0;
+  column-gap: 8px;
+  row-gap: 2px;
   margin-top: 2%;
+  min-height: 0;
+  overflow-y: visible;
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel {
@@ -1914,9 +1924,12 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
 .setup-deck-grid {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(clamp(54px, 15vw, 78px), 1fr));
+  grid-auto-rows: var(--setup-deck-row-size, auto);
   gap: 8px;
-  width: calc(100% - 88px);
-  max-width: calc(100% - 88px);
+  width: 100%;
+  max-width: 100%;
+  flex: 1 1 auto;
+  min-height: 100%;
   align-content: start;
   overflow-y: auto;
   overflow-x: hidden;
@@ -1980,6 +1993,13 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
 
 .setup-deck-thumb.active img {
   transform: scale(0.98);
+}
+
+#game[data-players="2"] .setup-deck-grid,
+#game[data-players="3"] .setup-deck-grid,
+#game[data-players="4"] .setup-deck-grid {
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: clamp(4px, 0.8vmin, 6px);
 }
 
 #game[data-players="5"] .setup-deck-grid,
@@ -2046,10 +2066,12 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
 
 .setup-seat-body {
   position: relative;
-  width: 100%;
+  width: calc(100% - 88px);
+  max-width: calc(100% - 88px);
   flex: 1 1 0;
   display: flex;
-  align-items: flex-start;
+  align-items: stretch;
+  align-self: stretch;
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
@@ -2057,8 +2079,64 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   touch-action: none;
-  mask-image: linear-gradient(to bottom, transparent 0, black 22px, black 100%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 22px, black 100%);
+  padding-bottom: 0;
+}
+
+.setup-deck-grid,
+.setup-profile-list,
+.history-list,
+.history-detail-shell,
+.game-log-list,
+.setup-seat-body > .setup-empty-state {
+  --seat-fade-top: 0px;
+  --seat-fade-bottom: 20px;
+  mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black var(--seat-fade-top),
+    black calc(100% - var(--seat-fade-bottom)),
+    transparent 100%
+  );
+  -webkit-mask-image: linear-gradient(
+    to bottom,
+    transparent 0,
+    black var(--seat-fade-top),
+    black calc(100% - var(--seat-fade-bottom)),
+    transparent 100%
+  );
+}
+
+.setup-deck-grid.is-scrolled,
+.setup-profile-list.is-scrolled,
+.history-list.is-scrolled,
+.history-detail-shell.is-scrolled,
+.game-log-list.is-scrolled,
+.setup-seat-body.is-scrolled > .setup-empty-state {
+  --seat-fade-top: 22px;
+}
+
+.setup-deck-grid.is-bottomed,
+.setup-profile-list.is-bottomed,
+.history-list.is-bottomed,
+.history-detail-shell.is-bottomed,
+.game-log-list.is-bottomed,
+.setup-seat-body.is-bottomed > .setup-empty-state {
+  --seat-fade-bottom: 0px;
+}
+
+.player[data-setup-rail-side="left"] .setup-seat-body {
+  margin-left: auto;
+  margin-right: 0;
+}
+
+.player[data-setup-rail-side="right"] .setup-seat-body {
+  margin-right: auto;
+  margin-left: 0;
+}
+
+.setup-seat-body > .setup-deck-grid {
+  align-self: stretch;
+  min-height: 100%;
 }
 
 .setup-seat-overlay-searching {
@@ -2080,11 +2158,6 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   -webkit-overflow-scrolling: touch;
   touch-action: none;
   padding-right: 4px;
-}
-
-.setup-profile-list.is-scrollable {
-  mask-image: linear-gradient(to bottom, transparent 0, black 22px, black calc(100% - 22px), transparent 100%);
-  -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 22px, black calc(100% - 22px), transparent 100%);
 }
 
 .setup-profile-list-full {
@@ -2190,6 +2263,8 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   line-height: 0.9 !important;
   padding: 0;
   color: #fff;
+  display: grid;
+  place-items: center;
 }
 
 .setup-minus-btn {
@@ -2202,6 +2277,8 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   padding: 0;
   color: #fff;
   background: var(--main-color);
+  display: grid;
+  place-items: center;
 }
 
 .setup-minus-btn.active {
@@ -2269,6 +2346,26 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   height: 50%;
   display: block;
   filter: brightness(0) invert(1);
+}
+
+.setup-plus-icon {
+  width: 58%;
+  height: 58%;
+}
+
+.setup-minus-icon {
+  width: 58%;
+  height: 45%;
+}
+
+.sign-element .setup-plus-icon {
+  width: 58%;
+  height: 58%;
+}
+
+.sign-element .setup-minus-icon {
+  width: 58%;
+  height: 58%;
 }
 
 .poison-corner[data-anchor="top-left"],
@@ -3515,7 +3612,7 @@ body[data-players="6"] #game-log-panel {
   display: flex;
   align-items: center;
   justify-content: center;
-  gap: 3.4vmin;
+  gap: 2.2vmin;
 }
 
 .damage-footer.damage-footer-compact {
@@ -3551,8 +3648,14 @@ body[data-players="6"] #game-log-panel {
 
 .damage-menu .sign-element {
   font-size: clamp(28px, 7vmin, 84px);
-  width: auto;
-  min-width: 2.5ch;
+  width: clamp(40px, 8.4vmin, 72px);
+  min-width: 0;
+}
+
+.damage-menu .sign-element .setup-plus-icon,
+.damage-menu .sign-element .setup-minus-icon {
+  transform: scale(1.8);
+  transform-origin: center;
 }
 
 
@@ -3560,7 +3663,7 @@ body[data-players="6"] #game-log-panel {
   width: auto;
   margin: 0;
   display: flex;
-  gap: 2.5vmin;
+  gap: 1.6vmin;
   align-items: center;
 }
 

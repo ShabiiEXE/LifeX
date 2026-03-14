@@ -1,4 +1,4 @@
-const APP_SHELL_CACHE = "life-tracker-app-shell-v15";
+const APP_SHELL_CACHE = "life-tracker-app-shell-v16";
 const APP_SHELL_CACHE_PREFIX = "life-tracker-app-shell-";
 const COMMANDER_IMAGE_CACHE = "life-tracker-commander-images-v1";
 const MAX_CACHED_IMAGES = 180;
@@ -18,11 +18,13 @@ const CRITICAL_APP_SHELL_ASSETS = [
   "./icons/GameLog.svg",
   "./icons/Edit.svg",
   "./icons/JudyArrowHead.png",
+  "./icons/Minus.svg",
   "./icons/Monarch.svg",
   "./icons/Ok.svg",
   "./icons/Pause.svg",
   "./icons/Play.svg",
   "./icons/Poison.svg",
+  "./icons/Plus.svg",
   "./icons/profile.svg",
   "./fonts/GoogleSansCode-Bold.woff",
   "./fonts/GoogleSansCode-BoldItalic.woff",
@@ -38,6 +40,7 @@ const CRITICAL_APP_SHELL_ASSETS = [
   "./fonts/GoogleSansCode-SemiBoldItalic.woff",
   "./img/default_back0.png",
   "./img/default_back1.png",
+  "./img/menu_back.png",
   "./icons/QR.svg",
   "./icons/buttonshape.svg"
 ];
