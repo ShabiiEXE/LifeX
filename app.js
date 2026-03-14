@@ -67,6 +67,7 @@ const STORAGE_KEY = "lifeTrackerState";
 const PROFILE_STORAGE_KEY = "lifeTrackerProfilesV1";
 const DECK_STORAGE_KEY = "lifeTrackerDecksV1";
 const MATCH_HISTORY_STORAGE_KEY = "lifeTrackerMatchHistoryV1";
+const PERSISTENT_STATS_STORAGE_KEY = "lifeTrackerPersistentStatsV1";
 const RESUME_SESSIONS_STORAGE_KEY = "lifeTrackerResumeSessionsV1";
 const DEVICE_ID_STORAGE_KEY = "lifeXDeviceIdV1";
 const QR_TRANSFER_PREFIX = "LIFEX1:";
@@ -86,6 +87,7 @@ let setupState = null;
 let profileLibrary = [];
 let deckLibrary = [];
 let matchHistory = [];
+let persistentStats = null;
 let resumeSessions = [];
 let scryfallSearchToken = 0;
 let setupGridPreviewActive = false;
@@ -214,6 +216,7 @@ function resetDuelSeriesState(matchLength = 1) {
    ========================= */
 const INLINE_ICON_MARKUP = {
   Cancel: `<svg viewBox="0 0 1735.39 1735.4" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1689.28,1466.63c61.48,61.48,61.48,161.17,0,222.65-30.75,30.75-71.04,46.12-111.33,46.12s-80.58-15.37-111.32-46.12l-598.93-598.93-598.94,598.93c-61.48,61.49-161.17,61.49-222.65,0-30.74-30.74-46.11-71.03-46.11-111.33s15.37-80.58,46.11-111.32l598.93-598.93L46.11,268.77c-61.48-61.49-61.48-161.17,0-222.66C76.85,15.37,117.14,0,157.43,0s80.59,15.37,111.33,46.11l598.94,598.94L1466.63,46.11c61.48-61.48,161.16-61.48,222.65,0,30.74,30.74,46.11,71.04,46.11,111.33s-15.37,80.59-46.11,111.33l-598.93,598.93,598.93,598.93Z"/></svg>`,
+  Delete: `<svg viewBox="0 0 2578.87 2513.38" class="icon-img" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M1990.23,2513.38H600.37c-54.12,0-106.71-10.63-156.28-31.6-47.81-20.22-90.72-49.15-127.54-85.96-36.82-36.82-65.74-79.73-85.96-127.54-20.97-49.58-31.6-102.16-31.6-156.28V812.72c0-77.32,62.68-140,140-140s140,62.68,140,140v1299.27c0,66.93,54.45,121.39,121.38,121.39h1389.86c66.93,0,121.39-54.46,121.39-121.39V812.72c0-77.32,62.68-140,140-140s140,62.68,140,140v1299.27c0,54.13-10.63,106.71-31.6,156.28-20.22,47.81-49.15,90.73-85.96,127.54-36.82,36.82-79.73,65.74-127.54,85.96-49.58,20.97-102.16,31.6-156.28,31.6Z"/><rect x="0" y="275.42" width="2578.87" height="279.38" rx="139.69" ry="139.69"/><rect x="1209.93" y="1372.7" width="1075.32" height="181.94" rx="90.97" ry="90.97" transform="translate(3211.26 -283.92) rotate(90)"/><rect x="757.65" y="1372.7" width="1075.32" height="181.94" rx="90.97" ry="90.97" transform="translate(2758.97 168.36) rotate(90)"/><rect x="309.28" y="1372.7" width="1075.32" height="181.94" rx="90.97" ry="90.97" transform="translate(2310.61 616.73) rotate(90)"/><path d="M1169.15,0h240.57c109.93,0,199.18,89.25,199.18,199.18v99.03h-638.93v-99.03c0-109.93,89.25-199.18,199.18-199.18Z"/></g></svg>`,
   GameLog: `<svg viewBox="0 0 2118.07 2721.76" class="icon-img" aria-hidden="true" focusable="false"><g fill="currentColor"><rect x=".97" y="1468.51" width="1193.66" height="218.02" rx="109.01" ry="109.01"/><rect x=".97" y="1930.88" width="1453.55" height="218.02" rx="109.01" ry="109.01"/><path d="M1978.07,2721.76H140c-77.32,0-140-62.68-140-140s62.68-140,140-140h1698.07v-1367.47c0-28.75-5.58-56.8-16.58-83.36-11-26.57-26.89-50.34-47.22-70.67l-576.45-576.45c-20.33-20.33-44.11-36.22-70.67-47.22-26.56-11-54.61-16.58-83.36-16.58H140C62.68,280,0,217.32,0,140S62.68,0,140,0h903.78c65.71,0,129.81,12.75,190.51,37.9,60.71,25.15,115.05,61.46,161.51,107.92l576.45,576.45c46.46,46.46,82.77,100.81,107.92,161.51s37.9,124.8,37.9,190.51v1507.47c0,77.32-62.68,140-140,140Z"/></g></svg>`,
   Monarch: `<svg viewBox="0 0 3003 1922.35" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M2490.04,1922.35H512.97c-64.29,0-120.32-43.79-135.85-106.18L4.16,318.06c-14.78-59.36,10.69-121.43,62.9-153.31,52.21-31.88,119.06-26.17,165.11,14.09l700.55,612.51L1382.53,66.2C1408.06,25.04,1453.06,0,1501.5,0s93.45,25.04,118.98,66.2l449.82,725.15,700.55-612.51c58.21-50.89,146.65-44.96,197.55,13.25,50.89,58.21,44.96,146.65-13.24,197.55l-824.72,721.08c-25.69,22.46-58.49,34.6-92.15,34.61-6.89,0-13.81-.51-20.73-1.54-40.65-6.08-76.58-29.73-98.25-64.66l-417.81-673.54-417.81,673.54c-21.67,34.93-57.59,58.57-98.25,64.66-40.65,6.08-81.93-6.01-112.87-33.06l-488.98-427.53,238.79,959.16h1867.65c77.32,0,140,62.68,140,140s-62.68,140-140,140Z"/></svg>`,
   Edit: `<svg viewBox="0 0 2040.37 2035.6" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1642.63,397.39c30.58,30.58,45.87,70.66,45.87,110.74,0,40.08-15.28,80.15-45.86,110.73L271.76,1989.73c-56,56-143.85,60.72-205.22,14.17-7.39-5.2-14.31-11.03-20.68-17.4-28.33-28.33-45.86-67.49-45.86-110.73v-744.09c0-86.49,70.11-156.6,156.6-156.6,43.25,0,82.4,17.53,110.74,45.87s45.86,67.49,45.86,110.73v373.66L1421.16,397.39c61.16-61.16,160.31-61.16,221.47,0Z"/><rect fill="currentColor" x="1727.49" y="0" width="312.88" height="312.88" rx="156.44" ry="156.44" transform="translate(441.17 1377.96) rotate(-45)"/></svg>`,
@@ -435,6 +438,184 @@ function resetMatchStats() {
   }));
 }
 
+function createEmptyPersistentGlobalStats() {
+  return {
+    numberOfMatches: 0,
+    totalPlayTime: 0,
+    totalTurns: 0,
+    numberOfWins: 0,
+    totalWinTurns: 0
+  };
+}
+
+function createEmptyPersistentProfileStats(name = "") {
+  return {
+    name: `${name || ""}`.trim(),
+    numberOfMatches: 0,
+    totalPlayTime: 0,
+    totalTurns: 0,
+    numberOfWins: 0,
+    totalWinTurns: 0,
+    totalDamage: 0,
+    totalHealing: 0,
+    enemyScores: {},
+    targetScores: {}
+  };
+}
+
+function createEmptyPersistentStatsStore() {
+  return {
+    processedEntryKeys: [],
+    importedSnapshotsByDevice: {},
+    global: createEmptyPersistentGlobalStats(),
+    profiles: {}
+  };
+}
+
+function normalizeNumericScoreMap(scoreMap) {
+  const source = scoreMap && typeof scoreMap === "object" ? scoreMap : {};
+  return Object.fromEntries(
+    Object.entries(source)
+      .map(([name, value]) => [`${name || ""}`.trim(), Number.isFinite(value) ? value : 0])
+      .filter(([name, value]) => name && value !== 0)
+  );
+}
+
+function normalizePersistentGlobalStats(stats) {
+  return {
+    numberOfMatches: Number.isFinite(stats?.numberOfMatches) ? stats.numberOfMatches : 0,
+    totalPlayTime: Number.isFinite(stats?.totalPlayTime) ? stats.totalPlayTime : 0,
+    totalTurns: Number.isFinite(stats?.totalTurns) ? stats.totalTurns : 0,
+    numberOfWins: Number.isFinite(stats?.numberOfWins) ? stats.numberOfWins : 0,
+    totalWinTurns: Number.isFinite(stats?.totalWinTurns) ? stats.totalWinTurns : 0
+  };
+}
+
+function normalizePersistentProfileStats(stats, fallbackName = "") {
+  return {
+    name: `${stats?.name || fallbackName || ""}`.trim(),
+    numberOfMatches: Number.isFinite(stats?.numberOfMatches) ? stats.numberOfMatches : 0,
+    totalPlayTime: Number.isFinite(stats?.totalPlayTime) ? stats.totalPlayTime : 0,
+    totalTurns: Number.isFinite(stats?.totalTurns) ? stats.totalTurns : 0,
+    numberOfWins: Number.isFinite(stats?.numberOfWins) ? stats.numberOfWins : 0,
+    totalWinTurns: Number.isFinite(stats?.totalWinTurns) ? stats.totalWinTurns : 0,
+    totalDamage: Number.isFinite(stats?.totalDamage) ? stats.totalDamage : 0,
+    totalHealing: Number.isFinite(stats?.totalHealing) ? stats.totalHealing : 0,
+    enemyScores: normalizeNumericScoreMap(stats?.enemyScores),
+    targetScores: normalizeNumericScoreMap(stats?.targetScores)
+  };
+}
+
+function normalizePersistentStatsSnapshot(snapshot) {
+  const sourceProfiles = snapshot?.profiles && typeof snapshot.profiles === "object"
+    ? snapshot.profiles
+    : {};
+  return {
+    sourceDeviceId: `${snapshot?.sourceDeviceId || ""}`.trim(),
+    global: normalizePersistentGlobalStats(snapshot?.global),
+    profiles: Object.fromEntries(
+      Object.entries(sourceProfiles)
+        .map(([key, value]) => {
+          const normalizedKey = normalizeLibraryName(key);
+          if (!normalizedKey) return null;
+          return [normalizedKey, normalizePersistentProfileStats(value, value?.name || key)];
+        })
+        .filter(Boolean)
+    )
+  };
+}
+
+function normalizePersistentStatsStore(store) {
+  const normalized = createEmptyPersistentStatsStore();
+  const source = store && typeof store === "object" ? store : {};
+  normalized.processedEntryKeys = Array.isArray(source.processedEntryKeys)
+    ? Array.from(new Set(
+      source.processedEntryKeys
+        .map(value => `${value || ""}`.trim())
+        .filter(Boolean)
+    ))
+    : [];
+  normalized.global = normalizePersistentGlobalStats(source.global);
+
+  const sourceProfiles = source.profiles && typeof source.profiles === "object" ? source.profiles : {};
+  normalized.profiles = Object.fromEntries(
+    Object.entries(sourceProfiles)
+      .map(([key, value]) => {
+        const normalizedKey = normalizeLibraryName(key);
+        if (!normalizedKey) return null;
+        return [normalizedKey, normalizePersistentProfileStats(value, value?.name || key)];
+      })
+      .filter(Boolean)
+  );
+
+  const importedSnapshotsByDevice = source.importedSnapshotsByDevice && typeof source.importedSnapshotsByDevice === "object"
+    ? source.importedSnapshotsByDevice
+    : {};
+  normalized.importedSnapshotsByDevice = Object.fromEntries(
+    Object.entries(importedSnapshotsByDevice)
+      .map(([key, value]) => {
+        const deviceKey = `${key || ""}`.trim();
+        if (!deviceKey) return null;
+        return [deviceKey, normalizePersistentStatsSnapshot(value)];
+      })
+      .filter(Boolean)
+  );
+
+  return normalized;
+}
+
+function getPersistentProfileStatsBucket(profileName, createIfMissing = true) {
+  const normalizedProfileName = normalizeLibraryName(profileName);
+  if (!normalizedProfileName) return null;
+  if (!persistentStats.profiles[normalizedProfileName] && createIfMissing) {
+    persistentStats.profiles[normalizedProfileName] = createEmptyPersistentProfileStats(profileName);
+  }
+  const bucket = persistentStats.profiles[normalizedProfileName] || null;
+  if (bucket && `${profileName || ""}`.trim()) {
+    bucket.name = `${profileName || ""}`.trim();
+  }
+  return bucket;
+}
+
+function applyPersistentGlobalDelta(target, delta) {
+  target.numberOfMatches += Number.isFinite(delta?.numberOfMatches) ? delta.numberOfMatches : 0;
+  target.totalPlayTime += Number.isFinite(delta?.totalPlayTime) ? delta.totalPlayTime : 0;
+  target.totalTurns += Number.isFinite(delta?.totalTurns) ? delta.totalTurns : 0;
+  target.numberOfWins += Number.isFinite(delta?.numberOfWins) ? delta.numberOfWins : 0;
+  target.totalWinTurns += Number.isFinite(delta?.totalWinTurns) ? delta.totalWinTurns : 0;
+}
+
+function applyPersistentProfileDelta(target, delta) {
+  target.numberOfMatches += Number.isFinite(delta?.numberOfMatches) ? delta.numberOfMatches : 0;
+  target.totalPlayTime += Number.isFinite(delta?.totalPlayTime) ? delta.totalPlayTime : 0;
+  target.totalTurns += Number.isFinite(delta?.totalTurns) ? delta.totalTurns : 0;
+  target.numberOfWins += Number.isFinite(delta?.numberOfWins) ? delta.numberOfWins : 0;
+  target.totalWinTurns += Number.isFinite(delta?.totalWinTurns) ? delta.totalWinTurns : 0;
+  target.totalDamage += Number.isFinite(delta?.totalDamage) ? delta.totalDamage : 0;
+  target.totalHealing += Number.isFinite(delta?.totalHealing) ? delta.totalHealing : 0;
+  Object.entries(normalizeNumericScoreMap(delta?.enemyScores)).forEach(([name, value]) => {
+    target.enemyScores[name] = (target.enemyScores[name] || 0) + value;
+  });
+  Object.entries(normalizeNumericScoreMap(delta?.targetScores)).forEach(([name, value]) => {
+    target.targetScores[name] = (target.targetScores[name] || 0) + value;
+  });
+}
+
+function subtractNumericScoreMaps(nextMap, prevMap) {
+  const result = {};
+  const allKeys = new Set([
+    ...Object.keys(normalizeNumericScoreMap(nextMap)),
+    ...Object.keys(normalizeNumericScoreMap(prevMap))
+  ]);
+  allKeys.forEach((key) => {
+    const delta = (Number(nextMap?.[key]) || 0) - (Number(prevMap?.[key]) || 0);
+    if (delta !== 0) {
+      result[key] = delta;
+    }
+  });
+  return result;
+}
+
 /* =========================
    Storage / Persistence
    ========================= */
@@ -576,6 +757,132 @@ function loadMatchHistory() {
 function saveMatchHistory() {
   matchHistory = trimMatchHistoryByCommanderCap(matchHistory);
   localStorage.setItem(MATCH_HISTORY_STORAGE_KEY, JSON.stringify(matchHistory));
+}
+
+function loadPersistentStats() {
+  return normalizePersistentStatsStore(
+    safeJsonParse(localStorage.getItem(PERSISTENT_STATS_STORAGE_KEY), createEmptyPersistentStatsStore())
+  );
+}
+
+function savePersistentStats() {
+  localStorage.setItem(PERSISTENT_STATS_STORAGE_KEY, JSON.stringify(persistentStats));
+}
+
+function buildPersistentStatsSnapshot() {
+  return {
+    sourceDeviceId: deviceId,
+    global: normalizePersistentGlobalStats(persistentStats.global),
+    profiles: Object.fromEntries(
+      Object.entries(persistentStats.profiles)
+        .map(([key, value]) => [key, normalizePersistentProfileStats(value, value?.name || key)])
+    )
+  };
+}
+
+function recordPersistentStatsForEntry(entry) {
+  const historyKey = getHistoryShareKey(entry);
+  if (!historyKey) return false;
+  if (persistentStats.processedEntryKeys.includes(historyKey)) return false;
+
+  persistentStats.processedEntryKeys.push(historyKey);
+  applyPersistentGlobalDelta(persistentStats.global, {
+    numberOfMatches: 1,
+    totalPlayTime: Number.isFinite(entry?.totalMatchSeconds) ? entry.totalMatchSeconds : 0,
+    totalTurns: Number.isFinite(entry?.turnCount) ? entry.turnCount : 0,
+    numberOfWins: Number.isInteger(entry?.winnerIndex) && entry.winnerIndex >= 0 ? 1 : 0,
+    totalWinTurns: Number.isInteger(entry?.winnerIndex) && entry.winnerIndex >= 0 && Number.isFinite(entry?.turnCount) ? entry.turnCount : 0
+  });
+
+  const playersInEntry = Array.isArray(entry?.players) ? entry.players : [];
+  playersInEntry.forEach((player) => {
+    const playerName = `${player?.name || ""}`.trim();
+    const bucket = getPersistentProfileStatsBucket(playerName);
+    if (!bucket) return;
+
+    applyPersistentProfileDelta(bucket, {
+      numberOfMatches: 1,
+      totalPlayTime: Number.isFinite(player?.totalTime) ? player.totalTime : 0,
+      totalTurns: Number.isFinite(entry?.turnCount) ? entry.turnCount : 0,
+      numberOfWins: player?.isWinner ? 1 : 0,
+      totalWinTurns: player?.isWinner && Number.isFinite(entry?.turnCount) ? entry.turnCount : 0,
+      totalDamage: Number.isFinite(player?.stats?.damageDealt) ? player.stats.damageDealt : 0,
+      totalHealing: Number.isFinite(player?.stats?.healingDone) ? player.stats.healingDone : 0
+    });
+
+    const opponents = playersInEntry.filter(opponent =>
+      normalizeLibraryName(opponent?.name) !== normalizeLibraryName(playerName)
+    );
+    const opponentCount = Math.max(1, opponents.length);
+    opponents.forEach((opponent) => {
+      const opponentName = `${opponent?.name || ""}`.trim();
+      if (!opponentName) return;
+      bucket.enemyScores[opponentName] = (bucket.enemyScores[opponentName] || 0) + ((player?.stats?.damageDealt || 0) / opponentCount);
+      bucket.targetScores[opponentName] = (bucket.targetScores[opponentName] || 0) + ((opponent?.stats?.damageDealt || 0) / opponentCount);
+    });
+  });
+
+  savePersistentStats();
+  return true;
+}
+
+function syncPersistentStatsFromHistory() {
+  let changed = false;
+  matchHistory.forEach((entry) => {
+    if (recordPersistentStatsForEntry(entry)) {
+      changed = true;
+    }
+  });
+  if (changed) {
+    savePersistentStats();
+  }
+}
+
+function mergeImportedPersistentStats(statsPayload) {
+  const incomingSnapshot = normalizePersistentStatsSnapshot(statsPayload);
+  const sourceDeviceId = incomingSnapshot.sourceDeviceId;
+  if (!sourceDeviceId || sourceDeviceId === deviceId) return;
+
+  const previousSnapshot = normalizePersistentStatsSnapshot(
+    persistentStats.importedSnapshotsByDevice[sourceDeviceId] || {
+      sourceDeviceId,
+      global: createEmptyPersistentGlobalStats(),
+      profiles: {}
+    }
+  );
+
+  applyPersistentGlobalDelta(persistentStats.global, {
+    numberOfMatches: incomingSnapshot.global.numberOfMatches - previousSnapshot.global.numberOfMatches,
+    totalPlayTime: incomingSnapshot.global.totalPlayTime - previousSnapshot.global.totalPlayTime,
+    totalTurns: incomingSnapshot.global.totalTurns - previousSnapshot.global.totalTurns,
+    numberOfWins: incomingSnapshot.global.numberOfWins - previousSnapshot.global.numberOfWins,
+    totalWinTurns: incomingSnapshot.global.totalWinTurns - previousSnapshot.global.totalWinTurns
+  });
+
+  const allProfileKeys = new Set([
+    ...Object.keys(previousSnapshot.profiles),
+    ...Object.keys(incomingSnapshot.profiles)
+  ]);
+  allProfileKeys.forEach((profileKey) => {
+    const nextStats = normalizePersistentProfileStats(incomingSnapshot.profiles[profileKey], profileKey);
+    const prevStats = normalizePersistentProfileStats(previousSnapshot.profiles[profileKey], profileKey);
+    const bucket = getPersistentProfileStatsBucket(nextStats.name || prevStats.name || profileKey);
+    if (!bucket) return;
+    applyPersistentProfileDelta(bucket, {
+      numberOfMatches: nextStats.numberOfMatches - prevStats.numberOfMatches,
+      totalPlayTime: nextStats.totalPlayTime - prevStats.totalPlayTime,
+      totalTurns: nextStats.totalTurns - prevStats.totalTurns,
+      numberOfWins: nextStats.numberOfWins - prevStats.numberOfWins,
+      totalWinTurns: nextStats.totalWinTurns - prevStats.totalWinTurns,
+      totalDamage: nextStats.totalDamage - prevStats.totalDamage,
+      totalHealing: nextStats.totalHealing - prevStats.totalHealing,
+      enemyScores: subtractNumericScoreMaps(nextStats.enemyScores, prevStats.enemyScores),
+      targetScores: subtractNumericScoreMaps(nextStats.targetScores, prevStats.targetScores)
+    });
+  });
+
+  persistentStats.importedSnapshotsByDevice[sourceDeviceId] = incomingSnapshot;
+  savePersistentStats();
 }
 
 function loadResumeSessions() {
@@ -1347,9 +1654,9 @@ function renderQrPanel(state) {
             ${state.qrImageUrl ? `<img class="qr-image" src="${state.qrImageUrl}" alt="Transfer QR">` : `<div class="qr-placeholder">QR too large, use copy/share Code.</div>`}
             <textarea class="qr-payload" readonly>${escapeHtml(state.qrSharePayload || "")}</textarea>
             <div class="setup-footer qr-menu-actions qr-menu-actions-inline">
+              <button class="setup-icon-circle-btn qr-back-btn" data-action="back-qr-menu" aria-label="Back">${getIconMarkup("Back", "setup-inline-icon")}</button>
               <button data-action="copy-qr-payload">Copy</button>
               <button data-action="native-share-qr">Share</button>
-              <button class="setup-icon-circle-btn qr-back-btn" data-action="back-qr-menu" aria-label="Back">${getIconMarkup("Back", "setup-inline-icon")}</button>
             </div>
           </div>
         ` : ""}
@@ -1358,9 +1665,9 @@ function renderQrPanel(state) {
             <video id="qr-scan-video" class="qr-scan-video" autoplay playsinline muted></video>
             <textarea class="qr-payload" data-qr-input="scan-payload" placeholder="Paste your Code here if camera is unavailable.">${escapeHtml(state.qrInput || "")}</textarea>
             <div class="setup-footer qr-menu-actions qr-menu-actions-inline">
-              <button data-action="import-qr-payload">Import</button>
               <button class="setup-icon-circle-btn qr-back-btn" data-action="back-qr-menu" aria-label="Back">${getIconMarkup("Back", "setup-inline-icon")}</button>
-            </div>
+              <button data-action="import-qr-payload">Import</button>
+              </div>
           </div>
         ` : ""}
       </div>
@@ -1433,6 +1740,8 @@ function buildQrTransferBundle(includeGames = false) {
           .filter(deck => deck.name)
           .map(deck => ({
             name: deck.name,
+            commanderName: deck.commanderName,
+            deckName: deck.deckName,
             artRef: deck.artRef
           }));
         return {
@@ -1441,7 +1750,8 @@ function buildQrTransferBundle(includeGames = false) {
         };
       })
       .filter(Boolean),
-    games
+    games,
+    stats: buildPersistentStatsSnapshot()
   };
 }
 
@@ -1881,6 +2191,11 @@ function mergeImportedTransferData(payload) {
   deckLibrary.sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
   matchHistory.sort((a, b) => (b.endedAt || 0) - (a.endedAt || 0));
   matchHistory = trimMatchHistoryByCommanderCap(matchHistory);
+  if (payload.stats) {
+    mergeImportedPersistentStats(payload.stats);
+  } else {
+    syncPersistentStatsFromHistory();
+  }
 
   saveProfileLibrary();
   saveDeckLibrary();
@@ -2149,13 +2464,14 @@ function renderCommanderSeatOverlay(state, playerIndex) {
   const isSingleSeatEditor = isSingleSeatProfileEditorMode();
   const artStyle = hasDeck ? `style="background-image:url('${seat.image.replace(/'/g, "\\'")}')"` : "";
   const selectedDeckName = getSeatDeckLabel(seat);
+  const historySummaryStats = isSingleSeatEditor ? buildMatchSummaryStats() : null;
   const profileStats = isSingleSeatEditor ? buildProfileHistoryStats(seat.profileName) : null;
-  const profileStatsMarkup = isSingleSeatEditor && hasProfile && !seat.isDeletingDeck && !seat.isBorrowingDeck && !seat.isAddingDeck && !seat.isEditingDeck
+  const profileStatsMarkup = isSingleSeatEditor && hasProfile && !seat.isBorrowingDeck && !seat.isAddingDeck && !seat.isEditingDeck
     ? renderStatsSummaryGrid([
       { label: "Number of Matches", value: String(profileStats.numberOfMatches) },
       { label: "Total Play Time", value: formatTime(profileStats.totalPlayTime) },
       { label: "Number of Wins", value: String(profileStats.numberOfWins) },
-      { label: "Average Turn Time", value: profileStats.averageTurnTime ? formatTime(profileStats.averageTurnTime) : "-" },
+      { label: "Average Turn Time", value: formatAverageDuration(profileStats.averageTurnTime) },
       { label: "Average Turn Win", value: formatAverageTurnWin(profileStats.averageTurnWin) },
       { label: "Total Damage", value: String(profileStats.totalDamage) },
       { label: "Total Healing", value: String(profileStats.totalHealing) },
@@ -2199,7 +2515,7 @@ function renderCommanderSeatOverlay(state, playerIndex) {
       : "";
 
     return `
-      <div class="setup-seat-overlay ${seat.isAddingProfile ? "setup-seat-overlay-searching" : ""}">
+      <div class="setup-seat-overlay ${seat.isAddingProfile ? "setup-seat-overlay-searching" : ""} ${isSingleSeatEditor && !seat.isAddingProfile && !seat.isEditingProfile ? "setup-profile-picker-mode" : ""}">
         ${seat.isAddingProfile || seat.isEditingProfile ? `
           ${backButton.replace("go-back-profile-seat", seat.isEditingProfile ? "close-edit-profile" : "close-add-profile").replace("Back to player selection", seat.isEditingProfile ? "Back from profile editing" : "Back from profile creation")}
           <div class="setup-seat-header">
@@ -2207,11 +2523,22 @@ function renderCommanderSeatOverlay(state, playerIndex) {
           </div>
           ${addProfilePanel}
         ` : `
-          ${isSingleSeatEditor ? backButton.replace("go-back-profile-seat", "back-to-config") : ""}
+          ${isSingleSeatEditor
+            ? backButton
+                .replace("go-back-profile-seat", "back-to-config")
+                .replace('aria-label="Back to player selection"', `aria-label="${seat.isDeletingProfile ? "Back disabled while deleting profiles" : "Back to config"}"${seat.isDeletingProfile ? " disabled" : ""}`)
+            : ""}
           <div class="setup-seat-title">${seat.isDeletingProfile ? "Delete Profile" : seat.isEditingProfile ? "EDIT PLAYER" : "Select Profile"}</div>
+          ${isSingleSeatEditor ? renderStatsSummaryGrid([
+            { label: "Number of Matches", value: String(historySummaryStats.numberOfMatches) },
+            { label: "Total Play Time", value: formatTime(historySummaryStats.totalPlayTime) },
+            { label: "Average Game Time", value: formatAverageDuration(historySummaryStats.averageGameTime) },
+            { label: "Average Turn Time", value: formatAverageDuration(historySummaryStats.averageTurnTime) },
+            { label: "Average Turn Win", value: formatAverageTurnWin(historySummaryStats.averageTurnWin) }
+          ], "setup-profile-picker-stats") : ""}
           ${profileButtons}
-          ${seat.isDeletingProfile ? "" : `<button class="${isSingleSeatEditor ? "setup-plus-btn" : "setup-minus-btn"}" data-action="add-profile" data-seat="${playerIndex}" aria-label="Add profile">${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>`}
-          ${canDeleteProfiles && isSingleSeatEditor ? `<button class="setup-minus-btn ${seat.isDeletingProfile ? "active" : ""}" data-action="${seat.isDeletingProfile ? "close-delete-profile" : "open-delete-profile"}" data-seat="${playerIndex}" aria-label="Delete player mode">${getIconMarkup("Minus", "setup-inline-icon setup-minus-icon")}</button>` : ""}
+          <button class="${isSingleSeatEditor ? "setup-plus-btn" : "setup-minus-btn"}" data-action="add-profile" data-seat="${playerIndex}" aria-label="Add profile" ${seat.isDeletingProfile ? "disabled" : ""}>${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>
+          ${canDeleteProfiles && isSingleSeatEditor ? `<button class="setup-minus-btn ${seat.isDeletingProfile ? "active" : ""}" data-action="${seat.isDeletingProfile ? "close-delete-profile" : "open-delete-profile"}" data-seat="${playerIndex}" aria-label="Delete player mode">${getIconMarkup("Delete", "setup-inline-icon")}</button>` : ""}
         `}
       </div>
     `;
@@ -2362,12 +2689,16 @@ function renderCommanderSeatOverlay(state, playerIndex) {
       </button>
     `
     : backButton;
+  const renderedDeckBackButton = seat.isDeletingDeck
+    ? deckBackButton
+        .replace('aria-label="Back to player selection"', 'aria-label="Back disabled while deleting decks" disabled')
+    : deckBackButton;
 
   return `
     <div class="setup-seat-overlay ${hasDeck ? "setup-seat-ready" : ""} ${(seat.isAddingDeck || seat.isEditingDeckArt) ? "setup-seat-overlay-searching" : ""}">
-      ${seat.isDeletingDeck ? "" : deckBackButton}
+      ${renderedDeckBackButton}
       <div class="setup-seat-header">
-        ${isSingleSeatEditor && !seat.isDeletingDeck && !seat.isBorrowingDeck && !seat.isAddingDeck && !seat.isEditingDeck
+        ${isSingleSeatEditor && !seat.isBorrowingDeck && !seat.isAddingDeck && !seat.isEditingDeck
           ? (
             seat.isEditingSeatName
               ? `
@@ -2380,26 +2711,28 @@ function renderCommanderSeatOverlay(state, playerIndex) {
               `
               : `
                 <div class="setup-seat-title-row">
-                  <div class="setup-seat-title setup-seat-title-selected">${escapeHtml(seat.profileName)}</div>
-                  <button class="setup-seat-title-edit-btn" data-action="open-edit-seat-name" data-seat="${playerIndex}" aria-label="Edit player name">
-                    ${getIconMarkup("Edit", "setup-inline-icon")}
-                  </button>
+                  <div class="setup-seat-title setup-seat-title-selected">${seat.isDeletingDeck ? "Delete Deck" : escapeHtml(seat.profileName)}</div>
+                  ${seat.isDeletingDeck ? "" : `
+                    <button class="setup-seat-title-edit-btn" data-action="open-edit-seat-name" data-seat="${playerIndex}" aria-label="Edit player name">
+                      ${getIconMarkup("Edit", "setup-inline-icon")}
+                    </button>
+                  `}
                 </div>
               `
           )
-          : `<div class="setup-seat-title ${(!seat.isDeletingDeck && !seat.isBorrowingDeck) ? "setup-seat-title-selected" : ""}">${seat.isDeletingDeck ? "DELETE DECK" : seat.isBorrowingDeck ? `Borrow Deck${seat.borrowProfileId ? ` from ${borrowProfileName}` : ""}` : seat.isEditingDeck ? "Edit Deck" : escapeHtml(seat.profileName)}</div>`
+          : `<div class="setup-seat-title ${(!seat.isBorrowingDeck) ? "setup-seat-title-selected" : ""}">${seat.isBorrowingDeck ? `Borrow Deck${seat.borrowProfileId ? ` from ${borrowProfileName}` : ""}` : seat.isEditingDeck ? "Edit Deck" : escapeHtml(seat.profileName)}</div>`
         }
-        ${(seat.isAddingDeck || seat.isDeletingDeck || seat.isBorrowingDeck || seat.isEditingDeck) ? "" : (selectedDeckName ? `<div class="setup-meta setup-seat-subtitle">${selectedDeckName}</div>` : "")}
+        ${(seat.isAddingDeck || seat.isBorrowingDeck || seat.isEditingDeck) ? "" : (selectedDeckName ? `<div class="setup-meta setup-seat-subtitle">${selectedDeckName}</div>` : "")}
       </div>
       ${profileStatsMarkup}
       ${seat.isAddingDeck ? addPanel : seat.isEditingDeck ? deckEditPanel : seat.isBorrowingDeck ? borrowPanel : `
         <div class="setup-seat-body">
           ${deckGrid}
         </div>
-        ${seat.isDeletingDeck ? "" : `<button class="${isSingleSeatEditor ? "setup-plus-btn" : "setup-minus-btn"}" data-action="add-deck" data-seat="${playerIndex}" aria-label="Add deck">${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>`}
-        ${seat.isDeletingDeck || !isSingleSeatEditor ? "" : `<button class="setup-edit-btn" data-action="open-edit-deck" data-seat="${playerIndex}" aria-label="Edit deck">${getIconMarkup("Edit", "setup-inline-icon")}</button>`}
-        ${canDeleteDecks && isSingleSeatEditor ? `<button class="setup-minus-btn ${seat.isDeletingDeck ? "active" : ""}" data-action="${seat.isDeletingDeck ? "close-delete-deck" : "open-delete-deck"}" data-seat="${playerIndex}" aria-label="Delete deck mode">${getIconMarkup("Minus", "setup-inline-icon setup-minus-icon")}</button>` : ""}
-        ${seat.isDeletingDeck || !allowBorrowDeck ? "" : `<button class="setup-borrow-btn" data-action="open-borrow-deck" data-seat="${playerIndex}" aria-label="Borrow deck">Borrow</button>`}
+        <button class="${isSingleSeatEditor ? "setup-plus-btn" : "setup-minus-btn"}" data-action="add-deck" data-seat="${playerIndex}" aria-label="Add deck" ${seat.isDeletingDeck ? "disabled" : ""}>${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>
+        ${!isSingleSeatEditor ? "" : `<button class="setup-edit-btn" data-action="open-edit-deck" data-seat="${playerIndex}" aria-label="Edit deck" ${seat.isDeletingDeck ? "disabled" : ""}>${getIconMarkup("Edit", "setup-inline-icon")}</button>`}
+        ${canDeleteDecks && isSingleSeatEditor ? `<button class="setup-minus-btn ${seat.isDeletingDeck ? "active" : ""}" data-action="${seat.isDeletingDeck ? "close-delete-deck" : "open-delete-deck"}" data-seat="${playerIndex}" aria-label="Delete deck mode">${getIconMarkup("Delete", "setup-inline-icon")}</button>` : ""}
+        ${!allowBorrowDeck ? "" : `<button class="setup-borrow-btn" data-action="open-borrow-deck" data-seat="${playerIndex}" aria-label="Borrow deck" ${seat.isDeletingDeck ? "disabled" : ""}>Borrow</button>`}
       `}
     </div>
   `;
@@ -2779,6 +3112,7 @@ function renderStartSetupScreen() {
   pauseBtn.classList.remove("active");
   setPauseButtonIcon(false);
   document.body.classList.toggle("profile-editor-open", isProfileEditorMode(state));
+  document.body.classList.toggle("history-open", state.step === "history");
   renderStartScreenBackdrop();
   startScreen.classList.remove("hidden");
   container.classList.remove("hidden");
@@ -2913,7 +3247,8 @@ async function clearPwaCacheForDebug() {
   const keepKeys = new Set([
     PROFILE_STORAGE_KEY,
     DECK_STORAGE_KEY,
-    MATCH_HISTORY_STORAGE_KEY
+    MATCH_HISTORY_STORAGE_KEY,
+    PERSISTENT_STATS_STORAGE_KEY
   ]);
 
   try {
@@ -3249,7 +3584,6 @@ function setupStartScreen() {
       if (!deleteMatchHistoryEntry(historyId)) return;
       state.historyView = "list";
       state.historyEntryId = "";
-      state.historyDeleteMode = false;
       renderStartSetupScreen();
       return;
     }
@@ -3400,7 +3734,6 @@ function setupStartScreen() {
     if (action === "delete-profile" && Number.isInteger(seat)) {
       const profileId = btn.dataset.profileId || "";
       if (!deleteProfileById(profileId)) return;
-      state.seats[seat].isDeletingProfile = false;
       state.forceDeckSelection = hasAnySelectedProfile(state);
       renderStartSetupScreen();
       return;
@@ -3657,7 +3990,6 @@ function setupStartScreen() {
     if (action === "delete-deck" && Number.isInteger(seat)) {
       const deckId = btn.dataset.deckId || "";
       if (!deleteDeckById(deckId)) return;
-      state.seats[seat].isDeletingDeck = false;
       state.seats[seat].isBorrowingDeck = false;
       state.seats[seat].borrowProfileId = "";
       state.forceDeckSelection = isProfileEditorMode(state) ? true : !allSetupSeatsReady(state);
@@ -4876,15 +5208,15 @@ function updateCommanderOverlayAnchors() {
 
       const isSingleSeatEditor = playerEl.classList.contains("single-seat-editor");
       if (isSingleSeatEditor) {
-        if (overlayEditBtn) overlayEditBtn.dataset.anchor = "bottom-right";
-        if (overlayPlusBtn) overlayPlusBtn.dataset.anchor = "bottom-right";
-        if (overlayMinusBtn) overlayMinusBtn.dataset.anchor = "bottom-right";
-        if (overlayBorrowBtn) overlayBorrowBtn.dataset.anchor = "bottom-right";
-        if (overlayBackBtn) overlayBackBtn.dataset.anchor = "bottom-left";
-        if (overlayCancelBtn) overlayCancelBtn.dataset.anchor = "bottom-left";
+        if (overlayEditBtn) overlayEditBtn.dataset.anchor = "top-right";
+        if (overlayPlusBtn) overlayPlusBtn.dataset.anchor = "top-right";
+        if (overlayMinusBtn) overlayMinusBtn.dataset.anchor = "top-right";
+        if (overlayBorrowBtn) overlayBorrowBtn.dataset.anchor = "top-right";
+        if (overlayBackBtn) overlayBackBtn.dataset.anchor = "top-left";
+        if (overlayCancelBtn) overlayCancelBtn.dataset.anchor = "top-left";
         if (commanderEl) commanderEl.dataset.anchor = "top-left";
         if (poisonEl) poisonEl.dataset.anchor = "top-right";
-        setupRailAnchor = "bottom-right";
+        setupRailAnchor = "top-right";
       }
 
       const shouldMirrorLeftRailSeat =
@@ -5110,6 +5442,7 @@ function archiveCompletedGame(finalCauseLabel, finalMessage) {
   const entry = buildMatchHistoryEntry(finalCauseLabel, finalMessage);
   matchHistory.unshift(entry);
   matchHistory = trimMatchHistoryByCommanderCap(matchHistory);
+  recordPersistentStatsForEntry(entry);
   saveMatchHistory();
 }
 
@@ -5204,24 +5537,25 @@ function formatAverageTurnWin(turnValue) {
   return `Turn ${Number.isInteger(rounded) ? rounded : rounded.toFixed(1)}`;
 }
 
-function buildMatchSummaryStats(entries = matchHistory) {
-  const safeEntries = Array.isArray(entries) ? entries : [];
-  const winningEntries = safeEntries.filter(entry =>
-    Number.isInteger(entry?.winnerIndex) &&
-    entry.winnerIndex >= 0 &&
-    Number.isFinite(entry?.turnCount) &&
-    entry.turnCount > 0
-  );
+function formatAverageDuration(secondsValue) {
+  if (!Number.isFinite(secondsValue) || secondsValue <= 0) return "-";
+  return formatTime(Math.round(secondsValue));
+}
 
-  const totalTurnsToWin = winningEntries.reduce((sum, entry) => sum + (entry.turnCount || 0), 0);
-
+function buildMatchSummaryStats() {
+  const globalStats = normalizePersistentGlobalStats(persistentStats?.global);
   return {
-    numberOfMatches: safeEntries.length,
-    totalPlayTime: safeEntries.reduce((sum, entry) => sum + (entry?.totalMatchSeconds || 0), 0),
-    averageGameTime: safeEntries.length
-      ? (safeEntries.reduce((sum, entry) => sum + (entry?.totalMatchSeconds || 0), 0) / safeEntries.length)
+    numberOfMatches: globalStats.numberOfMatches,
+    totalPlayTime: globalStats.totalPlayTime,
+    averageGameTime: globalStats.numberOfMatches > 0
+      ? (globalStats.totalPlayTime / globalStats.numberOfMatches)
       : null,
-    averageTurnWin: winningEntries.length ? (totalTurnsToWin / winningEntries.length) : null
+    averageTurnTime: globalStats.totalTurns > 0
+      ? (globalStats.totalPlayTime / globalStats.totalTurns)
+      : null,
+    averageTurnWin: globalStats.numberOfWins > 0
+      ? (globalStats.totalWinTurns / globalStats.numberOfWins)
+      : null
   };
 }
 
@@ -5240,51 +5574,21 @@ function buildProfileHistoryStats(profileName) {
       targetOf: ""
     };
   }
-
-  let numberOfMatches = 0;
-  let totalPlayTime = 0;
-  let numberOfWins = 0;
-  let totalWinTurns = 0;
-  let totalDamage = 0;
-  let totalHealing = 0;
-  const enemyScores = new Map();
-  const targetScores = new Map();
-
-  matchHistory.forEach((entry) => {
-    const playersInEntry = Array.isArray(entry?.players) ? entry.players : [];
-    const me = playersInEntry.find(player => normalizeLibraryName(player?.name) === normalizedProfileName);
-    if (!me) return;
-
-    numberOfMatches += 1;
-    totalPlayTime += me.totalTime || 0;
-    totalDamage += me.stats?.damageDealt || 0;
-    totalHealing += me.stats?.healingDone || 0;
-
-    if (me.isWinner && Number.isFinite(entry?.turnCount) && entry.turnCount > 0) {
-      numberOfWins += 1;
-      totalWinTurns += entry.turnCount;
-    }
-
-    const opponents = playersInEntry.filter(player => normalizeLibraryName(player?.name) !== normalizedProfileName);
-    const opponentCount = Math.max(1, opponents.length);
-    opponents.forEach((opponent) => {
-      const opponentName = `${opponent?.name || ""}`.trim();
-      if (!opponentName) return;
-      enemyScores.set(opponentName, (enemyScores.get(opponentName) || 0) + ((me.stats?.damageDealt || 0) / opponentCount));
-      targetScores.set(opponentName, (targetScores.get(opponentName) || 0) + ((opponent.stats?.damageDealt || 0) / opponentCount));
-    });
-  });
+  const profileStats = normalizePersistentProfileStats(
+    persistentStats?.profiles?.[normalizedProfileName],
+    profileName
+  );
 
   return {
-    numberOfMatches,
-    totalPlayTime,
-    numberOfWins,
-    averageTurnTime: numberOfMatches ? (totalPlayTime / numberOfMatches) : null,
-    averageTurnWin: numberOfWins ? (totalWinTurns / numberOfWins) : null,
-    totalDamage,
-    totalHealing,
-    enemy: getTopScoreName(enemyScores),
-    targetOf: getTopScoreName(targetScores)
+    numberOfMatches: profileStats.numberOfMatches,
+    totalPlayTime: profileStats.totalPlayTime,
+    numberOfWins: profileStats.numberOfWins,
+    averageTurnTime: profileStats.totalTurns > 0 ? (profileStats.totalPlayTime / profileStats.totalTurns) : null,
+    averageTurnWin: profileStats.numberOfWins > 0 ? (profileStats.totalWinTurns / profileStats.numberOfWins) : null,
+    totalDamage: profileStats.totalDamage,
+    totalHealing: profileStats.totalHealing,
+    enemy: getTopScoreName(new Map(Object.entries(profileStats.enemyScores || {}))),
+    targetOf: getTopScoreName(new Map(Object.entries(profileStats.targetScores || {})))
   };
 }
 
@@ -5357,10 +5661,13 @@ function renderHistoryDuelSeriesDetail(group) {
 
   return `
     <div class="setup-panel setup-panel-wide history-detail-panel">
-      <button class="setup-icon-circle-btn history-back-btn" data-action="back-from-history-detail" aria-label="Back">
-        ${getIconMarkup("Back", "setup-back-icon")}
-      </button>
-      <h2>Game History</h2>
+      <div class="history-topbar">
+        <button class="setup-icon-circle-btn history-back-btn" data-action="back-from-history-detail" aria-label="Back">
+          ${getIconMarkup("Back", "setup-back-icon")}
+        </button>
+        <h2>Game History</h2>
+        <div class="history-topbar-spacer" aria-hidden="true"></div>
+      </div>
       <div class="history-detail-shell">
         <div class="history-summary-copy history-summary-copy-detail">
           <div class="history-summary-names">${latestEntry.players.map(player => escapeHtml(player.name)).join(" | ")}${duelBestOfChip}</div>
@@ -5382,10 +5689,13 @@ function renderHistoryEntryDetail(entry) {
     : "";
   return `
     <div class="setup-panel setup-panel-wide history-detail-panel">
-      <button class="setup-icon-circle-btn history-back-btn" data-action="back-from-history-detail" aria-label="Back">
-        ${getIconMarkup("Back", "setup-back-icon")}
-      </button>
-      <h2>Game History</h2>
+      <div class="history-topbar">
+        <button class="setup-icon-circle-btn history-back-btn" data-action="back-from-history-detail" aria-label="Back">
+          ${getIconMarkup("Back", "setup-back-icon")}
+        </button>
+        <h2>Game History</h2>
+        <div class="history-topbar-spacer" aria-hidden="true"></div>
+      </div>
       <div class="history-detail-shell">
         <div class="history-summary-copy history-summary-copy-detail">
           <div class="history-summary-names">${entry.players.map(player => escapeHtml(player.name)).join(" | ")}${duelBestOfChip}</div>
@@ -5442,7 +5752,7 @@ function renderHistoryEntryDetail(entry) {
 function renderStartHistoryScreen() {
   const state = ensureSetupState();
   const groups = buildHistoryGroups();
-  const summaryStats = buildMatchSummaryStats(matchHistory);
+  const summaryStats = buildMatchSummaryStats();
   const selectedGroup = groups.find(group => group.id === state.historyEntryId) || null;
   if (state.historyView === "detail" && selectedGroup) {
     if (selectedGroup.type === "duel-series") {
@@ -5478,15 +5788,18 @@ function renderStartHistoryScreen() {
 
   return `
     <div class="setup-panel setup-panel-wide history-list-panel">
-      <button class="setup-icon-circle-btn history-back-btn" data-action="back-from-history" aria-label="Back" ${state.historyDeleteMode ? "disabled" : ""}>
-        ${getIconMarkup("Back", "setup-back-icon")}
-      </button>
-      <button class="setup-minus-btn history-delete-btn ${state.historyDeleteMode ? "active" : ""}" data-action="${state.historyDeleteMode ? "close-history-delete" : "open-history-delete"}" aria-label="Delete log mode">${getIconMarkup("Minus", "setup-inline-icon setup-minus-icon")}</button>
-      <h2>Game History</h2>
+      <div class="history-topbar">
+        <button class="setup-icon-circle-btn history-back-btn" data-action="back-from-history" aria-label="Back" ${state.historyDeleteMode ? "disabled" : ""}>
+          ${getIconMarkup("Back", "setup-back-icon")}
+        </button>
+        <h2>${state.historyDeleteMode ? "Delete Games" : "Game History"}</h2>
+        <button class="setup-icon-circle-btn history-delete-btn ${state.historyDeleteMode ? "active" : ""}" data-action="${state.historyDeleteMode ? "close-history-delete" : "open-history-delete"}" aria-label="Delete log mode">${getIconMarkup("Delete", "setup-inline-icon")}</button>
+      </div>
       ${renderStatsSummaryGrid([
         { label: "Number of Matches", value: String(summaryStats.numberOfMatches) },
         { label: "Total Play Time", value: formatTime(summaryStats.totalPlayTime) },
-        { label: "Average Game Time", value: summaryStats.averageGameTime ? formatTime(summaryStats.averageGameTime) : "-" },
+        { label: "Average Game Time", value: formatAverageDuration(summaryStats.averageGameTime) },
+        { label: "Average Turn Time", value: formatAverageDuration(summaryStats.averageTurnTime) },
         { label: "Average Turn Win", value: formatAverageTurnWin(summaryStats.averageTurnWin) }
       ], "history-top-stats")}
       <div class="history-list">
@@ -6206,7 +6519,7 @@ function changeDamage(amount) {
   triggerHaptic("step");
 }
 
-function closeDamageMode() {
+function closeDamageMode({ skipRender = false } = {}) {
   isDamageMode = false;
   if (isGameOver) {
     pauseBtn.classList.add("hidden");
@@ -6226,7 +6539,9 @@ function closeDamageMode() {
   resetMassDamagePreviewUI();
   resetDamageValueColorUI();
   updateDamageControlsUI();
-  render();
+  if (!skipRender) {
+    render();
+  }
 }
 
 function getDamageValueColorClass() {
@@ -6661,9 +6976,11 @@ function confirmDamage() {
     }
   });
 
-  checkGameEnd();
-  closeDamageMode();
-  autoPassIfActivePlayerDead();
+  const didEndGame = checkGameEnd();
+  closeDamageMode({ skipRender: didEndGame });
+  if (!didEndGame) {
+    autoPassIfActivePlayerDead();
+  }
   cleanupDamageArrow();
   triggerHaptic("impact");
 }
@@ -7672,6 +7989,8 @@ function updateOrientationLock() {
 profileLibrary = loadProfileLibrary();
 deckLibrary = loadDeckLibrary();
 matchHistory = loadMatchHistory();
+persistentStats = loadPersistentStats();
+syncPersistentStatsFromHistory();
 resumeSessions = loadResumeSessions();
 void hydrateMissingDeckImages({ limit: 50 });
 

@@ -1,4 +1,4 @@
-const APP_SHELL_CACHE = "life-tracker-app-shell-v16";
+const APP_SHELL_CACHE = "life-tracker-app-shell-v17";
 const APP_SHELL_CACHE_PREFIX = "life-tracker-app-shell-";
 const COMMANDER_IMAGE_CACHE = "life-tracker-commander-images-v1";
 const MAX_CACHED_IMAGES = 180;
@@ -17,6 +17,7 @@ const CRITICAL_APP_SHELL_ASSETS = [
   "./icons/Cancel.svg",
   "./icons/GameLog.svg",
   "./icons/Edit.svg",
+  "./icons/delete.svg",
   "./icons/JudyArrowHead.png",
   "./icons/Minus.svg",
   "./icons/Monarch.svg",

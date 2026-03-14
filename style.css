@@ -267,6 +267,10 @@ body.profile-editor-open #game-screen {
   padding: 0;
 }
 
+body.history-open #game-screen {
+  padding: 0;
+}
+
 #game.blurred {
   filter: blur(2.5px);
   pointer-events: none;
@@ -281,6 +285,11 @@ body.profile-editor-open #game-screen {
 }
 
 body.profile-editor-open #game {
+  height: 100dvh;
+  gap: 0;
+}
+
+body.history-open #game {
   height: 100dvh;
   gap: 0;
 }
@@ -1028,6 +1037,10 @@ body.setup-grid-mode.profile-editor-open #start-screen.setup-open {
   padding: 0;
 }
 
+body.history-open #start-screen.setup-open {
+  padding: 0;
+}
+
 #player-buttons {
   position: relative;
   z-index: 1;
@@ -1049,6 +1062,14 @@ body.setup-grid-mode #player-buttons {
 body.setup-grid-mode.profile-editor-open #player-buttons {
   width: 100vw;
   max-width: 100vw;
+  margin-top: 0;
+}
+
+body.history-open #player-buttons {
+  width: 100vw;
+  max-width: 100vw;
+  max-height: 100dvh;
+  height: 100dvh;
   margin-top: 0;
 }
 
@@ -1144,8 +1165,8 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
 .qr-close-btn {
   position: absolute;
   top: 10px;
-  right: 10px;
-  left: auto;
+  left: 10px;
+  right: auto;
 }
 
 .qr-status {
@@ -1256,11 +1277,13 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
 }
 
 .setup-panel h2 {
-  font-size: clamp(20px, 3vmin, 30px);
+  font-size: clamp(25px, 3vmin, 35px);
+  margin-top: 1%;
 }
 
 .setup-panel h3 {
-  font-size: clamp(17px, 2.2vmin, 20px);
+  font-size: clamp(25px, 3vmin, 35px);
+  margin-top: 1%;
   color: rgba(255, 255, 255, 0.9);
 }
 
@@ -1368,6 +1391,55 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   position: relative;
 }
 
+body.history-open .history-list-panel,
+body.history-open .history-detail-panel {
+  width: 100vw;
+  max-width: 100vw;
+  height: 100dvh;
+  position: relative;
+  border-radius: 0;
+  border: 0;
+  background: transparent;
+  padding: clamp(18px, 3vmin, 30px);
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+body.history-open .history-list-panel::before,
+body.history-open .history-detail-panel::before {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background-image: url("./img/menu_back.png");
+  background-size: 150% auto;
+  background-position: center top;
+  background-repeat: no-repeat;
+  filter: none;
+  z-index: 0;
+}
+
+body.history-open .history-list-panel::after,
+body.history-open .history-detail-panel::after {
+  content: "";
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.64) 0%,
+    rgba(0, 0, 0, 0.78) 12%,
+    rgba(0, 0, 0, 0.9) 28%,
+    rgba(0, 0, 0, 0.96) 52%,
+    rgba(0, 0, 0, 0.98) 100%
+  );
+  z-index: 1;
+}
+
+body.history-open .history-list-panel > *,
+body.history-open .history-detail-panel > * {
+  position: relative;
+  z-index: 2;
+}
+
 .history-back-btn {
   position: absolute;
   top: 12px;
@@ -1380,6 +1452,57 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   right: 12px;
   left: auto;
   z-index: 2;
+}
+
+body.history-open .history-back-btn,
+body.history-open .history-delete-btn {
+  top: max(10px, env(safe-area-inset-top));
+  z-index: 4;
+}
+
+body.history-open .history-back-btn {
+  left: max(18px, env(safe-area-inset-left));
+  right: auto;
+}
+
+body.history-open .history-delete-btn {
+  right: max(18px, env(safe-area-inset-right));
+  left: auto;
+}
+
+.history-delete-btn.active {
+  background: color-mix(in srgb, var(--main-color) 82%, #fff 18%);
+}
+
+.history-topbar {
+  display: grid;
+  grid-template-columns: 44px minmax(0, 1fr) 44px;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  margin-bottom: 12px;
+}
+
+.history-topbar h2 {
+  margin: 0;
+  text-align: center;
+}
+
+.history-topbar .history-back-btn,
+.history-topbar .history-delete-btn,
+.history-topbar-spacer {
+  position: static;
+  width: 44px;
+  height: 44px;
+}
+
+.history-topbar .history-back-btn {
+  justify-self: start;
+}
+
+.history-topbar .history-delete-btn,
+.history-topbar-spacer {
+  justify-self: end;
 }
 
 .history-back-btn .setup-back-icon {
@@ -1467,6 +1590,13 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   scrollbar-color: var(--main-color) transparent;
 }
 
+body.history-open .history-list,
+body.history-open .history-detail-shell {
+  flex: 1 1 auto;
+  max-height: none;
+  min-height: 0;
+}
+
 .history-entry-body {
   border-top: 1px solid rgba(255, 255, 255, 0.08);
   padding: 12px;
@@ -1515,6 +1645,7 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(120px, 1fr));
   gap: 8px;
+  margin-top: 5%;
 }
 
 .stats-summary-card {
@@ -1737,6 +1868,7 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   top: 0;
   left: 0;
   transform: none;
+  filter: none !important;
   background-size: 150% auto;
   background-position: center top;
 }
@@ -1773,8 +1905,8 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   #game[data-players="1"] .player.single-seat-editor .setup-profile-list,
   #game[data-players="1"] .player.single-seat-editor .setup-deck-grid,
   #game[data-players="1"] .player.single-seat-editor .setup-empty-state {
-    width: calc(100% - 24px);
-    max-width: calc(100% - 24px);
+    width: calc(100% - 54px);
+    max-width: calc(100% - 54px);
   }
 }
 
@@ -1787,7 +1919,6 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   font-size: clamp(28px, 4.1vmin, 38px);
   line-height: 1.05;
   text-align: center;
-  width: fit-content;
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-seat-title-row {
@@ -1870,23 +2001,54 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-profile-stats-grid {
-  width: min(100%, calc(100vw - 132px));
   align-self: center;
   margin-top: 8px;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 6px;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 5px;
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-profile-stats-grid .stats-summary-card {
-  padding: 7px 8px;
+  padding: 6px 7px;
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-profile-stats-grid .stats-summary-card span {
-  font-size: 10px;
+  font-size: 9px;
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-profile-stats-grid .stats-summary-card strong {
-  font-size: clamp(12px, 1.8vmin, 17px);
+  font-size: clamp(11px, 1.65vmin, 16px);
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-seat-back-btn[data-anchor] {
+  top: clamp(10px, 1.4vmin, 14px);
+  bottom: auto;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-edit-btn[data-anchor],
+#game[data-players="1"] .player.single-seat-editor .setup-plus-btn[data-anchor],
+#game[data-players="1"] .player.single-seat-editor .setup-minus-btn[data-anchor] {
+  right: clamp(18px, 2.4vmin, 24px);
+  bottom: auto;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-edit-btn[data-anchor] {
+  top: clamp(248px, 34vmin, 332px);
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-minus-btn[data-anchor] {
+  top: calc(clamp(248px, 34vmin, 332px) + 52px);
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-plus-btn[data-anchor] {
+  top: calc(clamp(248px, 34vmin, 332px) + 104px);
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-profile-picker-mode .setup-minus-btn[data-anchor] {
+  top: clamp(248px, 34vmin, 332px);
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-profile-picker-mode .setup-plus-btn[data-anchor] {
+  top: calc(clamp(248px, 34vmin, 332px) + 52px);
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-deck-grid {
@@ -2027,6 +2189,11 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   transform: scale(0.96);
 }
 
+.setup-deck-thumb.is-delete-mode {
+  border-color: color-mix(in srgb, var(--main-color) 72%, rgba(255, 255, 255, 0.24));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--main-color) 28%, transparent);
+}
+
 .setup-deck-thumb:disabled,
 .setup-deck-thumb.is-unavailable {
   opacity: 0.4;
@@ -2122,8 +2289,8 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
 
 .setup-seat-body {
   position: relative;
-  width: calc(100% - 88px);
-  max-width: calc(100% - 88px);
+  width: calc(100% - 48px);
+  max-width: calc(100% - 48px);
   flex: 1 1 0;
   display: flex;
   align-items: stretch;
@@ -2259,6 +2426,11 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   color: var(--main-color-alt);
 }
 
+.setup-profile-btn.is-delete-mode {
+  border-color: color-mix(in srgb, var(--main-color) 72%, rgba(255, 255, 255, 0.24));
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--main-color) 28%, transparent);
+}
+
 .setup-profile-btn:disabled {
   opacity: 0.38;
   cursor: not-allowed;
@@ -2377,6 +2549,19 @@ body.setup-grid-mode.profile-editor-open #player-buttons {
   display: grid;
   place-items: center;
   z-index: 2;
+}
+
+.setup-seat-back-btn:disabled,
+.setup-plus-btn:disabled,
+.setup-edit-btn:disabled {
+  opacity: 0.34;
+  cursor: not-allowed;
+}
+
+.setup-seat-back-btn:disabled .setup-back-icon,
+.setup-plus-btn:disabled .setup-inline-icon,
+.setup-edit-btn:disabled .setup-inline-icon {
+  opacity: 0.72;
 }
 
 .setup-back-icon {
