@@ -559,8 +559,8 @@ body.profile-editor-open #game {
 .monarch-icon {
   display: inline-block;
   margin-left: 0.24em;
-  width: 0.5em;
-  height: 0.5em;
+  width: 0.72em;
+  height: 0.72em;
   filter: invert(29%) sepia(87%) saturate(1516%) hue-rotate(356deg) brightness(94%) contrast(95%);
   text-shadow: 0 0 8px rgba(0, 0, 0, 0.7);
   vertical-align: middle;
