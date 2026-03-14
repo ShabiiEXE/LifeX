@@ -2616,22 +2616,22 @@ function refreshSetupArtGridLayout(root = document) {
 function bindSetupSeatBodyDrag(playerEl, seatIndex) {
   const scrollers = playerEl
     ? Array.from(playerEl.querySelectorAll(".setup-seat-body, .setup-search-results, .setup-profile-list, .setup-deck-grid, .setup-search-art-grid"))
+        .filter((scroller) => {
+          if (!scroller.classList.contains("setup-seat-body")) return true;
+          return !scroller.querySelector(".setup-search-results, .setup-profile-list, .setup-deck-grid, .setup-search-art-grid");
+        })
     : [];
   if (!scrollers.length) return;
 
   const seatRotation = getSeatRotation(selectedPlayerCount, seatIndex);
   const usesSidewaysDrag = Math.abs(seatRotation) === 90;
   scrollers.forEach((scroller) => {
-    const containsDeckGrid = !!scroller.querySelector(".setup-deck-grid");
     bindDragScroll(scroller, {
       usesSidewaysDrag,
       seatRotation,
       reverseSidewaysDrag: usesSidewaysDrag && (
-        (scroller.classList.contains("setup-seat-body") && containsDeckGrid)
         || scroller.classList.contains("setup-profile-list")
         || scroller.classList.contains("setup-deck-grid")
-        || scroller.classList.contains("setup-search-results")
-        || scroller.classList.contains("setup-search-art-grid")
       ),
       ignoreSelectors: "input, select"
     });
@@ -3508,6 +3508,13 @@ function setupStartScreen() {
       if (seatState.deckId === deck.id) {
         seatState.deckName = deck.deckName;
       }
+      seatState.isEditingDeck = false;
+      seatState.isEditingDeckArt = false;
+      seatState.editingDeckId = "";
+      seatState.editingDeckName = "";
+      seatState.pendingSearchCard = null;
+      seatState.searchArtOptions = [];
+      seatState.isLoadingArtOptions = false;
       renderStartSetupScreen();
       return;
     }
