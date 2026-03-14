@@ -68,7 +68,6 @@ const PROFILE_STORAGE_KEY = "lifeTrackerProfilesV1";
 const DECK_STORAGE_KEY = "lifeTrackerDecksV1";
 const MATCH_HISTORY_STORAGE_KEY = "lifeTrackerMatchHistoryV1";
 const RESUME_SESSIONS_STORAGE_KEY = "lifeTrackerResumeSessionsV1";
-const START_MENU_BACKDROP_STORAGE_KEY = "lifeTrackerStartMenuBackdropV1";
 const DEVICE_ID_STORAGE_KEY = "lifeXDeviceIdV1";
 const QR_TRANSFER_PREFIX = "LIFEX1:";
 const SCRYFALL_SEARCH_TIMEOUT_MS = 3200;
@@ -87,7 +86,6 @@ let profileLibrary = [];
 let deckLibrary = [];
 let matchHistory = [];
 let resumeSessions = [];
-let startMenuBackdrop = null;
 let scryfallSearchToken = 0;
 let setupGridPreviewActive = false;
 let hasStartedGame = false;
@@ -144,6 +142,14 @@ function normalizeDuelSeriesState(state) {
 
 function isDuelMode(mode = gameMode) {
   return mode === "magic";
+}
+
+function isSingleSeatProfileEditorMode() {
+  return setupGridPreviewActive && selectedPlayerCount === 1 && !hasStartedGame && !!setupState?.profileEditorMode;
+}
+
+function isProfileEditorMode(state = setupState) {
+  return !!state?.profileEditorMode;
 }
 
 function getCompletedDuelGamesCount() {
@@ -208,8 +214,10 @@ function resetDuelSeriesState(matchLength = 1) {
 const INLINE_ICON_MARKUP = {
   Cancel: `<svg viewBox="0 0 1735.39 1735.4" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1689.28,1466.63c61.48,61.48,61.48,161.17,0,222.65-30.75,30.75-71.04,46.12-111.33,46.12s-80.58-15.37-111.32-46.12l-598.93-598.93-598.94,598.93c-61.48,61.49-161.17,61.49-222.65,0-30.74-30.74-46.11-71.03-46.11-111.33s15.37-80.58,46.11-111.32l598.93-598.93L46.11,268.77c-61.48-61.49-61.48-161.17,0-222.66C76.85,15.37,117.14,0,157.43,0s80.59,15.37,111.33,46.11l598.94,598.94L1466.63,46.11c61.48-61.48,161.16-61.48,222.65,0,30.74,30.74,46.11,71.04,46.11,111.33s-15.37,80.59-46.11,111.33l-598.93,598.93,598.93,598.93Z"/></svg>`,
   Monarch: `<svg viewBox="0 0 2446.54 1706.11" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M281.15,1503.98h1884.24c37.94,0,66.57,34.43,59.66,71.73l-10.49,56.6c-7.92,42.77-45.23,73.8-88.73,73.8H320.7c-43.5,0-80.8-31.03-88.73-73.8l-10.49-56.6c-6.91-37.3,21.72-71.73,59.66-71.73Z"/><path fill="currentColor" d="M2445.24,387.11l-159.32,860.02c-8.29,44.73-47.3,77.18-92.79,77.18H253.41c-45.49,0-84.5-32.45-92.79-77.18L1.3,387.11c-12.65-68.27,70.07-112.27,119.61-63.63l469.86,461.29c49.72,48.82,132.26,36.95,166.22-23.9L1161.24,36.42c27.1-48.56,96.96-48.56,124.06,0l404.25,724.45c33.96,60.85,116.5,72.72,166.22,23.9l469.86-461.29c49.54-48.64,132.26-4.64,119.61,63.63Z"/></svg>`,
+  Edit: `<svg viewBox="0 0 2040.37 2035.6" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1642.63,397.39c30.58,30.58,45.87,70.66,45.87,110.74,0,40.08-15.28,80.15-45.86,110.73L271.76,1989.73c-56,56-143.85,60.72-205.22,14.17-7.39-5.2-14.31-11.03-20.68-17.4-28.33-28.33-45.86-67.49-45.86-110.73v-744.09c0-86.49,70.11-156.6,156.6-156.6,43.25,0,82.4,17.53,110.74,45.87s45.86,67.49,45.86,110.73v373.66L1421.16,397.39c61.16-61.16,160.31-61.16,221.47,0Z"/><rect fill="currentColor" x="1727.49" y="0" width="312.88" height="312.88" rx="156.44" ry="156.44" transform="translate(441.17 1377.96) rotate(-45)"/></svg>`,
   Ok: `<svg viewBox="0 0 2029.21 2029.21" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1014.6,0C454.25,0,0,454.25,0,1014.6s454.25,1014.61,1014.6,1014.61,1014.61-454.26,1014.61-1014.61S1574.95,0,1014.6,0ZM1014.6,1664.59c-358.97,0-649.98-291.01-649.98-649.99S655.63,364.62,1014.6,364.62s649.98,291.01,649.98,649.98-291,649.99-649.98,649.99Z"/></svg>`,
   Play: `<svg viewBox="0 0 1481.73 1698.19" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1389.8,1011.15L285.67,1671.15C159.83,1746.38,0,1655.71,0,1509.1V189.09C0,42.48,159.83-48.19,285.67,27.04l1104.13,660c122.57,73.27,122.57,250.84,0,324.11Z"/></svg>`,
+  Profile: `<svg viewBox="0 0 1930.03 2421.39" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M965.01,0C571.38,0,252.29,319.09,252.29,712.72s319.09,712.73,712.72,712.73,712.73-319.1,712.73-712.73S1358.63,0,965.01,0ZM965.01,1169.31c-252.16,0-456.59-204.42-456.59-456.59s204.42-456.59,456.59-456.59,456.59,204.42,456.59,456.59-204.42,456.59-456.59,456.59Z"/><path fill="currentColor" d="M1899.3,2096.72l-405.9-679.02c-62.57,53.9-133.47,98.4-210.5,131.3l369.71,622.36H277.41l370.51-622.02c-77.34-32.94-148.52-77.56-211.3-131.64L30.72,2096.72c-85.48,143.02,17.55,324.67,184.19,324.67h1500.21c166.63,0,269.68-181.65,184.18-324.67Z"/></svg>`,
   QR: `<svg viewBox="0 0 2663.47 2659.05" class="icon-img" aria-hidden="true" focusable="false"><g fill="currentColor"><path d="M597.62 1739.56H322.83C144.8 1739.56.48 1883.88.48 2061.91v274.79c0 178.03 144.32 322.35 322.35 322.35h274.79c178.03 0 322.35-144.32 322.35-322.35v-274.79c0-178.03-144.32-322.35-322.35-322.35Zm73.98 546.94c0 68.58-55.6 124.18-124.18 124.18H373.03c-68.58 0-124.18-55.6-124.18-124.18v-174.39c0-68.58 55.6-124.18 124.18-124.18h174.39c68.58 0 124.18 55.6 124.18 124.18v174.39Z"/><rect x="1700.26" y="1693.28" width="1601.58" height="319.35" rx="159.68" ry="159.68" transform="rotate(-90 2501.05 1852.955)"/><rect x="0" y="1126.53" width="2088.83" height="319.35" rx="159.68" ry="159.68"/><rect x="1219.55" y="2339.3" width="865.55" height="319.35" rx="159.68" ry="159.68"/><rect x="1219.55" y="1747.45" width="865.55" height="319.35" rx="159.68" ry="159.68"/><rect x="897.2" y="273.1" width="865.55" height="319.35" rx="159.68" ry="159.68" transform="rotate(-90 1329.975 432.775)"/><path d="M597.34 4.94H322.55C144.52 4.94.2 149.26.2 327.29v274.79c0 178.03 144.32 322.35 322.35 322.35h274.79c178.03 0 322.35-144.32 322.35-322.35V327.29c0-178.03-144.32-322.35-322.35-322.35Zm73.98 546.94c0 68.58-55.6 124.18-124.18 124.18H372.75c-68.58 0-124.18-55.6-124.18-124.18V377.49c0-68.58 55.6-124.18 124.18-124.18h174.39c68.58 0 124.18 55.6 124.18 124.18v174.39Z"/><path d="M2341.12 4.94h-274.79c-178.03 0-322.35 144.32-322.35 322.35v274.79c0 178.03 144.32 322.35 322.35 322.35h274.79c178.03 0 322.35-144.32 322.35-322.35V327.29c0-178.03-144.32-322.35-322.35-322.35Zm73.98 546.94c0 68.58-55.6 124.18-124.18 124.18h-174.39c-68.58 0-124.18-55.6-124.18-124.18V377.49c0-68.58 55.6-124.18 124.18-124.18h174.39c68.58 0 124.18 55.6 124.18 124.18v174.39Z"/></g></svg>`
 };
 
@@ -594,86 +602,20 @@ function clearResumeSessions() {
   localStorage.removeItem(RESUME_SESSIONS_STORAGE_KEY);
 }
 
-function buildStartMenuBackdropFromSnapshot(snapshot) {
-  if (!snapshot || !Array.isArray(snapshot.players)) return null;
-  const count = Math.min(6, Math.max(0, snapshot.selectedPlayerCount || snapshot.players.length || 0));
-  if (!count) return null;
-
-  const playersForBackdrop = snapshot.players
-    .slice(0, count)
-    .map((player, index) => ({
-      name: (player?.name || "").trim() || `Player ${index + 1}`,
-      image: (player?.image || "").trim() || getDefaultPlayerBackground(index, snapshot.gameMode)
-    }))
-    .filter(player => !!player.image);
-
-  if (!playersForBackdrop.length) return null;
-
-  return {
-    selectedPlayerCount: count,
-    players: playersForBackdrop
-  };
-}
-
-function loadStartMenuBackdrop() {
-  return buildStartMenuBackdropFromSnapshot(
-    safeJsonParse(localStorage.getItem(START_MENU_BACKDROP_STORAGE_KEY), null)
-  );
-}
-
-function saveStartMenuBackdrop(snapshot) {
-  const backdrop = buildStartMenuBackdropFromSnapshot(snapshot);
-  if (!backdrop) return;
-  startMenuBackdrop = backdrop;
-  localStorage.setItem(START_MENU_BACKDROP_STORAGE_KEY, JSON.stringify(backdrop));
-}
-
-function getPreferredStartMenuBackdrop() {
-  if (hasStartedGame && selectedPlayerCount > 0) {
-    return buildStartMenuBackdropFromSnapshot(getCurrentStateSnapshot());
-  }
-
-  if (resumeSessions.length > 0) {
-    return buildStartMenuBackdropFromSnapshot(resumeSessions[0].snapshot);
-  }
-
-  if (startMenuBackdrop) {
-    return startMenuBackdrop;
-  }
-
-  const lastHistoryEntry = matchHistory[0];
-  if (lastHistoryEntry?.players?.length) {
-    return {
-      selectedPlayerCount: lastHistoryEntry.players.length,
-      players: lastHistoryEntry.players.map((player, index) => ({
-        name: (player?.name || "").trim() || `Player ${index + 1}`,
-        image: (player?.image || "").trim() || getDefaultPlayerBackground(index, lastHistoryEntry.mode)
-      }))
-    };
-  }
-
-  return null;
-}
-
 function renderStartScreenBackdrop() {
   const startScreenBg = document.getElementById("start-screen-bg");
   if (!startScreenBg) return;
 
   const state = ensureSetupState();
-  const isHomeConfigScreen = state.step === "config" && !hasStartedGame && selectedPlayerCount === 0;
-  const shouldShowBackdrop = isHomeConfigScreen;
-  const backdrop = shouldShowBackdrop ? getPreferredStartMenuBackdrop() : null;
-
-  if (!backdrop?.players?.length) {
+  const isHomeConfigScreen = state.step === "config" && !hasStartedGame && !isProfileEditorMode(state);
+  if (!isHomeConfigScreen) {
     startScreenBg.classList.add("hidden");
     startScreenBg.innerHTML = "";
     return;
   }
 
-  const tiles = backdrop.players.slice(0, 4);
-  const filledTiles = Array.from({ length: 4 }, (_, index) => tiles[index % tiles.length]);
-  startScreenBg.innerHTML = filledTiles.map(tile => `
-    <div class="start-screen-bg-tile" style="background-image:url('${escapeHtml(tile.image).replace(/'/g, "\\'")}')"></div>
+  startScreenBg.innerHTML = Array.from({ length: 4 }, () => `
+    <div class="start-screen-bg-tile" style="background-image:url('${DEFAULT_PLAYER_BACKGROUND}')"></div>
   `).join("");
   startScreenBg.classList.remove("hidden");
 }
@@ -690,10 +632,18 @@ function getDefaultSeatState(index) {
     borrowedFromProfileName: "",
     image: getDefaultPlayerBackground(index, "commander"),
     isAddingProfile: false,
+    isEditingProfile: false,
+    editingProfileId: "",
     newProfileName: "",
     hasDuplicateProfileName: false,
+    isEditingSeatName: false,
+    editingSeatName: "",
     isDeletingProfile: false,
     isAddingDeck: false,
+    isEditingDeck: false,
+    isEditingDeckArt: false,
+    editingDeckId: "",
+    editingDeckName: "",
     isDeletingDeck: false,
     isBorrowingDeck: false,
     borrowProfileId: "",
@@ -713,6 +663,7 @@ function createDefaultSetupState() {
     matchLength: 3,
     startingLife: 40,
     startingPlayerIndex: 0,
+    profileEditorMode: false,
     showStarterPicker: false,
     forceDeckSelection: false,
     historyView: "list",
@@ -809,6 +760,40 @@ function clearSeatDeckSelection(seat) {
   seat.pendingSearchCard = null;
   seat.searchArtOptions = [];
   seat.isLoadingArtOptions = false;
+  seat.isEditingDeck = false;
+  seat.isEditingDeckArt = false;
+  seat.editingDeckId = "";
+  seat.editingDeckName = "";
+}
+
+function renameProfileById(profileId, nextName, state = setupState) {
+  const profile = profileLibrary.find(item => item.id === profileId);
+  const cleanName = `${nextName || ""}`.trim();
+  if (!profile || !cleanName) return false;
+
+  const normalizedName = normalizeLibraryName(cleanName);
+  const duplicateExists = profileLibrary.some(item =>
+    item.id !== profileId && normalizeLibraryName(item.name) === normalizedName
+  );
+  if (duplicateExists) return false;
+
+  profile.name = cleanName;
+  profile.lastUsedAt = Date.now();
+  profileLibrary.sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
+  saveProfileLibrary();
+
+  if (state?.seats) {
+    state.seats.forEach((otherSeat) => {
+      if (otherSeat?.profileId === profileId) {
+        otherSeat.profileName = cleanName;
+      }
+      if (otherSeat?.borrowProfileId === profileId) {
+        otherSeat.borrowedFromProfileName = cleanName;
+      }
+    });
+  }
+
+  return true;
 }
 
 function getSeatDeckLabel(seat) {
@@ -979,7 +964,6 @@ function saveState() {
 
   localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
   saveCurrentResumeSession(state);
-  saveStartMenuBackdrop(state);
 }
 
 function loadState() {
@@ -1295,13 +1279,12 @@ function renderStartConfigStep(state) {
 
   return `
     <div class="setup-panel setup-panel-start">
-      <img class="setup-start-logo" src="./icons/favicon.png" alt="Life Tracker logo">
+      <button class="setup-start-logo-btn" data-action="debug-clear-cache" aria-label="Clear app cache">
+        <img class="setup-start-logo" src="./icons/favicon.png" alt="Life Tracker logo">
+      </button>
       <button class="setup-qr-btn setup-icon-circle-btn" data-action="open-qr" aria-label="QR">${getIconMarkup("QR", "setup-inline-icon")}</button>
-      <!-- Reset Button -->
-      <button class="setup-debug-cache-btn" data-action="debug-clear-cache" aria-label="Clear app cache">Clear Cache</button>
-      <!-- -------------------------------------------------------------------------------------------------------------------------- -->
       <div class="setup-group" style="margin-top: 20%;">
-        <h3>Select Mode</h3>
+        <h3 class="start-mode-label">Select Mode</h3>
         <div class="chip-row">${modeOptions}</div>
       </div>
       <div class="setup-group">
@@ -1313,8 +1296,9 @@ function renderStartConfigStep(state) {
         <div class="chip-row">${lifeOptions}</div>
       </div>
       <div class="setup-footer" style="margin-top: 5%;">
-        <button data-action="continue-from-config">Continue</button>
+        <button data-action="continue-from-config">Let's play!</button>
         <button class="setup-start-logs-btn" data-action="open-start-logs" aria-label="Game Logs">${getIconMarkup("GameLog", "setup-inline-icon")}</button>
+        <button class="setup-start-logs-btn" data-action="open-profile-editor" aria-label="Edit Profiles">${getIconMarkup("Profile", "setup-inline-icon")}</button>
       </div>
       ${jumpBackMarkup}
       ${renderQrPanel(state)}
@@ -2011,6 +1995,7 @@ function shouldUseBoardStarterSelection(state = setupState) {
     setupGridPreviewActive &&
     state &&
     state.step === "seats" &&
+    !isProfileEditorMode(state) &&
     !state.forceDeckSelection &&
     allSetupSeatsReady(state)
   );
@@ -2125,6 +2110,9 @@ function renderCommanderGridSeat(state, playerIndex, seatPos) {
 function renderCommanderSeatOverlay(state, playerIndex) {
   const seat = state.seats[playerIndex];
   const profileDecks = getDecksForProfile(seat.profileId);
+  const currentEditingDeck = seat.isEditingDeck
+    ? profileDecks.find(deck => deck.id === seat.editingDeckId) || null
+    : null;
   const borrowProfiles = profileLibrary.filter(profile => profile.id !== seat.profileId);
   const borrowProfileName = borrowProfiles.find(profile => profile.id === seat.borrowProfileId)?.name || "";
   const borrowDecks = getDecksForProfile(seat.borrowProfileId);
@@ -2132,6 +2120,8 @@ function renderCommanderSeatOverlay(state, playerIndex) {
 
   const hasProfile = !!(seat.profileId && (seat.profileName || "").trim());
   const hasDeck = !!(seat.deckId && (seat.cardName || "").trim() && (seat.image || "").trim());
+  const allowBorrowDeck = selectedPlayerCount > 1;
+  const isSingleSeatEditor = isSingleSeatProfileEditorMode();
   const artStyle = hasDeck ? `style="background-image:url('${seat.image.replace(/'/g, "\\'")}')"` : "";
   const selectedDeckName = getSeatDeckLabel(seat);
   const backButton = `
@@ -2141,13 +2131,17 @@ function renderCommanderSeatOverlay(state, playerIndex) {
   `;
 
   if (!hasProfile) {
-    const profileAction = seat.isDeletingProfile ? "delete-profile" : "select-profile";
+    const profileAction = seat.isDeletingProfile
+      ? "delete-profile"
+      : seat.isEditingProfile
+        ? "select-edit-profile"
+        : "select-profile";
     const canDeleteProfiles = profileLibrary.length > 0;
     const profileButtons = profileLibrary.length
       ? `
         <div class="setup-profile-list">
           ${profileLibrary.map(profile => `
-            <button class="setup-profile-btn ${seat.profileId === profile.id ? "active" : ""} ${seat.isDeletingProfile ? "is-delete-mode" : ""}" data-action="${profileAction}" data-seat="${playerIndex}" data-profile-id="${profile.id}" ${!seat.isDeletingProfile && isProfileSelectedInOtherSeat(state, profile.id, playerIndex) ? "disabled" : ""}>
+            <button class="setup-profile-btn ${(seat.isEditingProfile ? seat.editingProfileId : seat.profileId) === profile.id ? "active" : ""} ${seat.isDeletingProfile ? "is-delete-mode" : ""}" data-action="${profileAction}" data-seat="${playerIndex}" data-profile-id="${profile.id}" ${!seat.isDeletingProfile && !seat.isEditingProfile && isProfileSelectedInOtherSeat(state, profile.id, playerIndex) ? "disabled" : ""}>
               ${profile.name}
             </button>
           `).join("")}
@@ -2158,23 +2152,24 @@ function renderCommanderSeatOverlay(state, playerIndex) {
     const addProfilePanel = seat.isAddingProfile
       ? `
         <div class="setup-add-profile-panel">
-          <div class="setup-seat-title">New Player</div>
+          <div class="setup-seat-title">${seat.isEditingProfile ? "Edit Player" : "New Player"}</div>
           <input type="text" class="${seat.hasDuplicateProfileName ? "setup-input-invalid" : ""}" data-seat-input="newProfileName" data-seat="${playerIndex}" value="${seat.newProfileName || ""}" placeholder="Player name">
-          <button data-action="create-profile" data-seat="${playerIndex}" ${seat.hasDuplicateProfileName ? "disabled" : ""}>Create</button>
+          <button data-action="${seat.isEditingProfile ? "save-profile-edit" : "create-profile"}" data-seat="${playerIndex}" ${seat.hasDuplicateProfileName ? "disabled" : ""}>${seat.isEditingProfile ? "Save" : "Create"}</button>
         </div>
       `
       : "";
 
     return `
       <div class="setup-seat-overlay ${seat.isAddingProfile ? "setup-seat-overlay-searching" : ""}">
-        ${seat.isAddingProfile ? `
-          ${backButton.replace("go-back-profile-seat", "close-add-profile").replace("Back to player selection", "Back from profile creation")}
+        ${seat.isAddingProfile || seat.isEditingProfile ? `
+          ${backButton.replace("go-back-profile-seat", seat.isEditingProfile ? "close-edit-profile" : "close-add-profile").replace("Back to player selection", seat.isEditingProfile ? "Back from profile editing" : "Back from profile creation")}
           <div class="setup-seat-header">
             <div class="setup-seat-title">Select Profile</div>
           </div>
           ${addProfilePanel}
         ` : `
-          <div class="setup-seat-title">${seat.isDeletingProfile ? "DELETE PLAYER" : "Select Profile"}</div>
+          ${isSingleSeatEditor ? backButton.replace("go-back-profile-seat", "back-to-config") : ""}
+          <div class="setup-seat-title">${seat.isDeletingProfile ? "Delete Profile" : seat.isEditingProfile ? "EDIT PLAYER" : "Select Profile"}</div>
           ${profileButtons}
           ${seat.isDeletingProfile ? "" : `<button class="setup-plus-btn" data-action="add-profile" data-seat="${playerIndex}">+</button>`}
           ${canDeleteProfiles ? `<button class="setup-minus-btn ${seat.isDeletingProfile ? "active" : ""}" data-action="${seat.isDeletingProfile ? "close-delete-profile" : "open-delete-profile"}" data-seat="${playerIndex}" aria-label="Delete player mode">-</button>` : ""}
@@ -2183,15 +2178,22 @@ function renderCommanderSeatOverlay(state, playerIndex) {
     `;
   }
 
-  const deckAction = seat.isDeletingDeck ? "delete-deck" : "select-deck";
+  const deckAction = seat.isDeletingDeck
+    ? "delete-deck"
+    : seat.isEditingDeck
+      ? "select-edit-deck"
+      : "select-deck";
   const canDeleteDecks = profileDecks.length > 0;
   const deckGrid = visibleDecks.length
     ? `
       <div class="setup-deck-grid ${seat.isBorrowingDeck ? "setup-deck-grid-full" : ""}">
         ${visibleDecks.map(deck => {
           const isUnavailable = !seat.isDeletingDeck && isDeckSelectedInOtherSeat(state, deck.id, playerIndex);
+          const isActiveDeck = seat.isEditingDeck
+            ? seat.editingDeckId === deck.id
+            : seat.deckId === deck.id;
           return `
-          <button class="setup-deck-thumb ${seat.deckId === deck.id ? "active" : ""} ${seat.isDeletingDeck ? "is-delete-mode" : ""} ${isUnavailable ? "is-unavailable" : ""}" data-action="${deckAction}" data-seat="${playerIndex}" data-deck-id="${deck.id}" ${isUnavailable ? "disabled" : ""}>
+          <button class="setup-deck-thumb ${isActiveDeck ? "active" : ""} ${seat.isDeletingDeck ? "is-delete-mode" : ""} ${isUnavailable ? "is-unavailable" : ""}" data-action="${deckAction}" data-seat="${playerIndex}" data-deck-id="${deck.id}" ${isUnavailable ? "disabled" : ""}>
             <img src="${deck.image}" alt="${deck.cardName}">
           </button>
         `;
@@ -2236,6 +2238,53 @@ function renderCommanderSeatOverlay(state, playerIndex) {
     `
     : "";
 
+  const deckEditPanel = seat.isEditingDeck
+    ? `
+      <div class="setup-add-deck-panel">
+        ${seat.isEditingDeckArt
+          ? `
+            <div class="setup-art-choice-header">
+              <div class="setup-meta">Choose art for ${escapeHtml((currentEditingDeck?.cardName || seat.editingDeckName || "").trim())}</div>
+            </div>
+            ${seat.isLoadingArtOptions
+              ? `<div class="setup-meta">Loading print arts...</div>`
+              : `
+                ${(seat.searchArtOptions || []).length
+                  ? `
+                    <div class="setup-search-art-grid">
+                      ${(seat.searchArtOptions || []).map((option) => `
+                        <button class="setup-search-art-thumb" data-action="select-search-art" data-seat="${playerIndex}" data-art-id="${escapeHtml(option.id)}">
+                          <img src="${option.art}" alt="${escapeHtml(currentEditingDeck?.cardName || seat.editingDeckName || "Commander art")}">
+                          <span>${escapeHtml(option.setLabel || "Print")}</span>
+                        </button>
+                      `).join("")}
+                    </div>
+                  `
+                  : `<div class="setup-meta">No print arts found. Try another search.</div>`
+                }
+              `
+            }
+          `
+          : `
+            <div class="setup-meta setup-deck-edit-copy">Select a deck to edit, then update its custom name or card art.</div>
+            ${seat.editingDeckId ? `
+              <div class="setup-deck-name-editor">
+                <input type="text" data-seat-input="editingDeckName" data-seat="${playerIndex}" value="${escapeHtml(seat.editingDeckName || "")}" placeholder="Deck name">
+                <button class="setup-seat-name-save-btn" data-action="save-deck-edit" data-seat="${playerIndex}" aria-label="Save deck name">
+                  ${getIconMarkup("Ok", "setup-inline-icon")}
+                </button>
+              </div>
+              <div class="setup-footer">
+                <button data-action="open-edit-deck-art" data-seat="${playerIndex}">Change Art</button>
+              </div>
+            ` : `<div class="setup-meta setup-deck-edit-copy">Choose a deck first.</div>`}
+            ${deckGrid}
+          `
+        }
+      </div>
+    `
+    : "";
+
   const borrowPanel = seat.isBorrowingDeck
     ? `
       <div class="setup-seat-body">
@@ -2267,22 +2316,50 @@ function renderCommanderSeatOverlay(state, playerIndex) {
         ${getIconMarkup("Back", "setup-back-icon")}
       </button>
     `
+    : seat.isEditingDeck
+    ? `
+      <button class="setup-seat-back-btn" data-action="${seat.isEditingDeckArt ? "close-edit-deck-art" : "close-edit-deck"}" data-seat="${playerIndex}" aria-label="Back from deck edit">
+        ${getIconMarkup("Back", "setup-back-icon")}
+      </button>
+    `
     : backButton;
 
   return `
-    <div class="setup-seat-overlay ${hasDeck ? "setup-seat-ready" : ""} ${seat.isAddingDeck ? "setup-seat-overlay-searching" : ""}">
+    <div class="setup-seat-overlay ${hasDeck ? "setup-seat-ready" : ""} ${(seat.isAddingDeck || seat.isEditingDeckArt) ? "setup-seat-overlay-searching" : ""}">
       ${seat.isDeletingDeck ? "" : deckBackButton}
       <div class="setup-seat-header">
-        <div class="setup-seat-title ${(!seat.isDeletingDeck && !seat.isBorrowingDeck) ? "setup-seat-title-selected" : ""}">${seat.isDeletingDeck ? "DELETE DECK" : seat.isBorrowingDeck ? `Borrow Deck${seat.borrowProfileId ? ` from ${borrowProfileName}` : ""}` : seat.profileName}</div>
-        ${(seat.isAddingDeck || seat.isDeletingDeck || seat.isBorrowingDeck) ? "" : (selectedDeckName ? `<div class="setup-meta setup-seat-subtitle">${selectedDeckName}</div>` : "")}
+        ${isSingleSeatEditor && !seat.isDeletingDeck && !seat.isBorrowingDeck && !seat.isAddingDeck && !seat.isEditingDeck
+          ? (
+            seat.isEditingSeatName
+              ? `
+                <div class="setup-seat-name-editor is-active">
+                  <input type="text" data-seat-input="editingSeatName" data-seat="${playerIndex}" value="${escapeHtml(seat.editingSeatName || "")}" placeholder="Player name">
+                  <button class="setup-seat-name-save-btn" data-action="save-seat-name" data-seat="${playerIndex}" aria-label="Save player name">
+                    ${getIconMarkup("Ok", "setup-inline-icon")}
+                  </button>
+                </div>
+              `
+              : `
+                <div class="setup-seat-title-row">
+                  <div class="setup-seat-title setup-seat-title-selected">${escapeHtml(seat.profileName)}</div>
+                  <button class="setup-seat-title-edit-btn" data-action="open-edit-seat-name" data-seat="${playerIndex}" aria-label="Edit player name">
+                    ${getIconMarkup("Edit", "setup-inline-icon")}
+                  </button>
+                </div>
+              `
+          )
+          : `<div class="setup-seat-title ${(!seat.isDeletingDeck && !seat.isBorrowingDeck) ? "setup-seat-title-selected" : ""}">${seat.isDeletingDeck ? "DELETE DECK" : seat.isBorrowingDeck ? `Borrow Deck${seat.borrowProfileId ? ` from ${borrowProfileName}` : ""}` : seat.isEditingDeck ? "Edit Deck" : escapeHtml(seat.profileName)}</div>`
+        }
+        ${(seat.isAddingDeck || seat.isDeletingDeck || seat.isBorrowingDeck || seat.isEditingDeck) ? "" : (selectedDeckName ? `<div class="setup-meta setup-seat-subtitle">${selectedDeckName}</div>` : "")}
       </div>
-      ${seat.isAddingDeck ? addPanel : seat.isBorrowingDeck ? borrowPanel : `
+      ${seat.isAddingDeck ? addPanel : seat.isEditingDeck ? deckEditPanel : seat.isBorrowingDeck ? borrowPanel : `
         <div class="setup-seat-body">
           ${deckGrid}
         </div>
         ${seat.isDeletingDeck ? "" : `<button class="setup-plus-btn" data-action="add-deck" data-seat="${playerIndex}">+</button>`}
+        ${seat.isDeletingDeck || !isSingleSeatEditor ? "" : `<button class="setup-edit-btn" data-action="open-edit-deck" data-seat="${playerIndex}" aria-label="Edit deck">${getIconMarkup("Edit", "setup-inline-icon")}</button>`}
         ${canDeleteDecks ? `<button class="setup-minus-btn ${seat.isDeletingDeck ? "active" : ""}" data-action="${seat.isDeletingDeck ? "close-delete-deck" : "open-delete-deck"}" data-seat="${playerIndex}" aria-label="Delete deck mode">-</button>` : ""}
-        ${seat.isDeletingDeck ? "" : `<button class="setup-borrow-btn" data-action="open-borrow-deck" data-seat="${playerIndex}" aria-label="Borrow deck">Borrow</button>`}
+        ${seat.isDeletingDeck || !allowBorrowDeck ? "" : `<button class="setup-borrow-btn" data-action="open-borrow-deck" data-seat="${playerIndex}" aria-label="Borrow deck">Borrow</button>`}
       `}
     </div>
   `;
@@ -2367,7 +2444,7 @@ function renderCommanderGridOnGame(state) {
       backBtn.innerHTML = getIconMarkup("Back", "btn-icon");
       game.appendChild(backBtn);
     }
-  } else if (!hasAnySelectedProfile(state)) {
+  } else if (!hasAnySelectedProfile(state) && !isSingleSeatProfileEditorMode()) {
     const backBtn = document.createElement("button");
     backBtn.id = "setup-center-back";
     backBtn.className = "setup-center-back";
@@ -2395,7 +2472,7 @@ function syncSetupSeatPreviewPlayer(state, seatIndex) {
 function refreshSetupSeatOverlay(seatIndex) {
   if (!setupGridPreviewActive) return false;
   const state = ensureSetupState();
-  if (shouldUseBoardStarterSelection(state) || (allSetupSeatsReady(state) && !state.forceDeckSelection)) {
+  if (!isProfileEditorMode(state) && (shouldUseBoardStarterSelection(state) || (allSetupSeatsReady(state) && !state.forceDeckSelection))) {
     renderStartSetupScreen();
     return true;
   }
@@ -2411,6 +2488,7 @@ function refreshSetupSeatOverlay(seatIndex) {
   bg.style.backgroundImage = players[seatIndex].image ? `url(${players[seatIndex].image})` : "none";
   bindSetupSeatBodyDrag(playerEl, seatIndex);
   updateScrollableFadeState(info);
+  refreshSetupArtGridLayout(info);
   updateCommanderOverlayAnchors();
   return true;
 }
@@ -2425,6 +2503,36 @@ function updateScrollableFadeState(root = document) {
 
   apply();
   window.requestAnimationFrame(apply);
+}
+
+function refreshSetupArtGridLayout(root = document) {
+  const grids = Array.from(
+    root.querySelectorAll('#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel .setup-search-art-grid, .player.single-seat-editor .setup-add-deck-panel .setup-search-art-grid')
+  );
+  if (!grids.length) return;
+
+  grids.forEach((grid) => {
+    const rerenderGrid = () => {
+      const scrollTop = grid.scrollTop;
+      const previousDisplay = grid.style.display;
+      grid.style.display = "none";
+      void grid.offsetHeight;
+      grid.style.display = previousDisplay || "grid";
+      grid.scrollTop = scrollTop;
+    };
+
+    window.requestAnimationFrame(() => {
+      rerenderGrid();
+      window.requestAnimationFrame(rerenderGrid);
+    });
+
+    grid.querySelectorAll("img").forEach((img) => {
+      if (img.complete) return;
+      img.addEventListener("load", () => {
+        window.requestAnimationFrame(rerenderGrid);
+      }, { once: true });
+    });
+  });
 }
 
 function bindSetupSeatBodyDrag(playerEl, seatIndex) {
@@ -2570,6 +2678,7 @@ function renderStartSetupScreen() {
   const startScreen = document.getElementById("start-screen");
   if (!container || !startScreen) return;
   const state = ensureSetupState();
+  document.body.classList.toggle("profile-editor-open", isProfileEditorMode(state));
   renderStartScreenBackdrop();
   startScreen.classList.remove("hidden");
   container.classList.remove("hidden");
@@ -2598,6 +2707,7 @@ function renderStartSetupScreen() {
   }
 
   updateScrollableFadeState(container);
+  refreshSetupArtGridLayout(document);
 }
 
 function renderDuelSeriesOverlay(playerIndex) {
@@ -2967,6 +3077,21 @@ function setupStartScreen() {
       return;
     }
 
+    if (action === "open-profile-editor") {
+      state.mode = "commander";
+      state.playerCount = 1;
+      state.step = "seats";
+      state.startingPlayerIndex = 0;
+      state.profileEditorMode = true;
+      state.showStarterPicker = false;
+      state.forceDeckSelection = true;
+      if (state.startingLife === 20) {
+        state.startingLife = 40;
+      }
+      renderStartSetupScreen();
+      return;
+    }
+
     if (action === "resume-saved-game") {
       const resumeId = btn.dataset.resumeId || "";
       const entry = resumeSessions.find(item => item.id === resumeId);
@@ -3025,6 +3150,7 @@ function setupStartScreen() {
     }
 
     if (action === "continue-from-config") {
+      state.profileEditorMode = false;
       state.step = "seats";
       state.showStarterPicker = false;
       state.forceDeckSelection = state.mode === "commander";
@@ -3033,9 +3159,38 @@ function setupStartScreen() {
     }
 
     if (action === "back-to-config") {
+      state.profileEditorMode = false;
       state.step = "config";
+      if (state.mode === "commander") {
+        state.playerCount = 4;
+        if (state.startingLife === 20) {
+          state.startingLife = 40;
+        }
+      }
       state.showStarterPicker = false;
       state.forceDeckSelection = false;
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "open-edit-seat-name" && Number.isInteger(seat)) {
+      const seatState = state.seats[seat];
+      seatState.isEditingSeatName = true;
+      seatState.editingSeatName = (seatState.profileName || "").trim();
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "save-seat-name" && Number.isInteger(seat)) {
+      const seatState = state.seats[seat];
+      const profileId = seatState.profileId || "";
+      const name = (seatState.editingSeatName || "").trim();
+      if (!profileId || !name) return;
+      if (!renameProfileById(profileId, name, state)) {
+        return;
+      }
+      seatState.isEditingSeatName = false;
+      seatState.editingSeatName = "";
       renderStartSetupScreen();
       return;
     }
@@ -3073,6 +3228,8 @@ function setupStartScreen() {
 
     if (action === "add-profile" && Number.isInteger(seat)) {
       state.seats[seat].isAddingProfile = true;
+      state.seats[seat].isEditingProfile = false;
+      state.seats[seat].editingProfileId = "";
       state.seats[seat].isDeletingProfile = false;
       state.seats[seat].newProfileName = "";
       state.seats[seat].hasDuplicateProfileName = false;
@@ -3088,15 +3245,49 @@ function setupStartScreen() {
       return;
     }
 
+    if (action === "open-edit-profile" && Number.isInteger(seat)) {
+      state.seats[seat].isEditingProfile = true;
+      state.seats[seat].isAddingProfile = true;
+      state.seats[seat].isDeletingProfile = false;
+      state.seats[seat].editingProfileId = "";
+      state.seats[seat].newProfileName = "";
+      state.seats[seat].hasDuplicateProfileName = false;
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "close-edit-profile" && Number.isInteger(seat)) {
+      state.seats[seat].isEditingProfile = false;
+      state.seats[seat].isAddingProfile = false;
+      state.seats[seat].editingProfileId = "";
+      state.seats[seat].newProfileName = "";
+      state.seats[seat].hasDuplicateProfileName = false;
+      renderStartSetupScreen();
+      return;
+    }
+
     if (action === "open-delete-profile" && Number.isInteger(seat)) {
       state.seats[seat].isDeletingProfile = true;
       state.seats[seat].isAddingProfile = false;
+      state.seats[seat].isEditingProfile = false;
+      state.seats[seat].editingProfileId = "";
       renderStartSetupScreen();
       return;
     }
 
     if (action === "close-delete-profile" && Number.isInteger(seat)) {
       state.seats[seat].isDeletingProfile = false;
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "select-edit-profile" && Number.isInteger(seat)) {
+      const profileId = btn.dataset.profileId || "";
+      const profile = profileLibrary.find(item => item.id === profileId);
+      if (!profile) return;
+      state.seats[seat].editingProfileId = profile.id;
+      state.seats[seat].newProfileName = profile.name;
+      state.seats[seat].hasDuplicateProfileName = false;
       renderStartSetupScreen();
       return;
     }
@@ -3144,6 +3335,129 @@ function setupStartScreen() {
       state.seats[seat].borrowProfileId = "";
       state.seats[seat].searchResults = [];
       state.forceDeckSelection = true;
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "save-profile-edit" && Number.isInteger(seat)) {
+      const seatState = state.seats[seat];
+      const profileId = seatState.editingProfileId || "";
+      const name = (seatState.newProfileName || "").trim();
+      if (!profileId || !name) return;
+      if (!renameProfileById(profileId, name, state)) {
+        seatState.hasDuplicateProfileName = true;
+        renderStartSetupScreen();
+        return;
+      }
+      seatState.isEditingProfile = false;
+      seatState.isAddingProfile = false;
+      seatState.editingProfileId = "";
+      seatState.newProfileName = "";
+      seatState.hasDuplicateProfileName = false;
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "open-edit-deck" && Number.isInteger(seat)) {
+      const seatState = state.seats[seat];
+      seatState.isEditingDeck = true;
+      seatState.isEditingDeckArt = false;
+      seatState.isAddingDeck = false;
+      seatState.isDeletingDeck = false;
+      seatState.isBorrowingDeck = false;
+      seatState.borrowProfileId = "";
+      seatState.editingDeckId = "";
+      seatState.editingDeckName = "";
+      seatState.pendingSearchCard = null;
+      seatState.searchArtOptions = [];
+      seatState.isLoadingArtOptions = false;
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "close-edit-deck" && Number.isInteger(seat)) {
+      const seatState = state.seats[seat];
+      seatState.isEditingDeck = false;
+      seatState.isEditingDeckArt = false;
+      seatState.editingDeckId = "";
+      seatState.editingDeckName = "";
+      seatState.pendingSearchCard = null;
+      seatState.searchArtOptions = [];
+      seatState.isLoadingArtOptions = false;
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "select-edit-deck" && Number.isInteger(seat)) {
+      const seatState = state.seats[seat];
+      const deckId = btn.dataset.deckId || "";
+      const deck = deckLibrary.find(item => item.id === deckId && item.ownerProfileId === seatState.profileId);
+      if (!deck) return;
+      seatState.deckId = deck.id;
+      seatState.deckName = deck.deckName || "";
+      seatState.cardName = deck.cardName || "";
+      seatState.artId = normalizeCommanderArtId(deck.artId);
+      seatState.borrowedFromProfileId = "";
+      seatState.borrowedFromProfileName = "";
+      seatState.image = deck.image || DEFAULT_PLAYER_BACKGROUND;
+      seatState.editingDeckId = deck.id;
+      seatState.editingDeckName = deck.deckName || deck.cardName || "";
+      seatState.isEditingDeckArt = false;
+      seatState.pendingSearchCard = null;
+      seatState.searchArtOptions = [];
+      seatState.isLoadingArtOptions = false;
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "save-deck-edit" && Number.isInteger(seat)) {
+      const seatState = state.seats[seat];
+      const deckId = seatState.editingDeckId || "";
+      const deck = deckLibrary.find(item => item.id === deckId && item.ownerProfileId === seatState.profileId);
+      const nextDeckName = (seatState.editingDeckName || "").trim();
+      if (!deck || !nextDeckName) return;
+      deck.deckName = nextDeckName;
+      deck.lastUsedAt = Date.now();
+      saveDeckLibrary();
+      if (seatState.deckId === deck.id) {
+        seatState.deckName = deck.deckName;
+      }
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "open-edit-deck-art" && Number.isInteger(seat)) {
+      const seatState = state.seats[seat];
+      const deckId = seatState.editingDeckId || "";
+      const deck = deckLibrary.find(item => item.id === deckId && item.ownerProfileId === seatState.profileId);
+      if (!deck) return;
+      seatState.isEditingDeckArt = true;
+      seatState.pendingSearchCard = {
+        id: normalizeCommanderArtId(deck.artId) || deck.id,
+        name: deck.cardName || deck.deckName || "",
+        art: deck.image || "",
+        printsUri: ""
+      };
+      seatState.searchArtOptions = [];
+      seatState.isLoadingArtOptions = true;
+      renderStartSetupScreen();
+      const selectedCardId = seatState.pendingSearchCard.id;
+      const artOptions = await fetchCommanderPrintArts(seatState.pendingSearchCard);
+      if (!seatState.isEditingDeck || !seatState.isEditingDeckArt) return;
+      if (!seatState.pendingSearchCard || seatState.pendingSearchCard.id !== selectedCardId) return;
+      seatState.searchArtOptions = artOptions;
+      seatState.isLoadingArtOptions = false;
+      void warmCommanderImageCacheUrls(artOptions.map(option => option.art));
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "close-edit-deck-art" && Number.isInteger(seat)) {
+      const seatState = state.seats[seat];
+      seatState.isEditingDeckArt = false;
+      seatState.pendingSearchCard = null;
+      seatState.searchArtOptions = [];
+      seatState.isLoadingArtOptions = false;
       renderStartSetupScreen();
       return;
     }
@@ -3204,7 +3518,7 @@ function setupStartScreen() {
       state.seats[seat].pendingSearchCard = null;
       state.seats[seat].searchArtOptions = [];
       state.seats[seat].isLoadingArtOptions = false;
-      state.forceDeckSelection = false;
+      state.forceDeckSelection = isProfileEditorMode(state) ? true : false;
       if (!refreshSetupSeatOverlay(seat)) {
         renderStartSetupScreen();
       }
@@ -3234,7 +3548,7 @@ function setupStartScreen() {
       state.seats[seat].isDeletingDeck = false;
       state.seats[seat].isBorrowingDeck = false;
       state.seats[seat].borrowProfileId = "";
-      state.forceDeckSelection = !allSetupSeatsReady(state);
+      state.forceDeckSelection = isProfileEditorMode(state) ? true : !allSetupSeatsReady(state);
       renderStartSetupScreen();
       return;
     }
@@ -3305,7 +3619,7 @@ function setupStartScreen() {
       seatState.pendingSearchCard = null;
       seatState.searchArtOptions = [];
       seatState.isLoadingArtOptions = false;
-      state.forceDeckSelection = false;
+      state.forceDeckSelection = isProfileEditorMode(state) ? true : false;
       renderStartSetupScreen();
       return;
     }
@@ -3364,7 +3678,7 @@ function setupStartScreen() {
         seatState.pendingSearchCard = null;
         seatState.searchArtOptions = [];
         seatState.isLoadingArtOptions = false;
-        state.forceDeckSelection = false;
+        state.forceDeckSelection = isProfileEditorMode(state) ? true : false;
         renderStartSetupScreen();
         return;
       }
@@ -3386,12 +3700,34 @@ function setupStartScreen() {
 
     if (action === "select-search-art" && Number.isInteger(seat)) {
       const seatState = state.seats[seat];
-      if (!seatState.profileId || !seatState.isAddingDeck || !seatState.pendingSearchCard) return;
+      if (!seatState.profileId || !seatState.pendingSearchCard) return;
+      const artId = btn.dataset.artId || "";
+      const selectedArt = (seatState.searchArtOptions || []).find(option => option.id === artId);
+      if (seatState.isEditingDeck && seatState.isEditingDeckArt) {
+        const deckId = seatState.editingDeckId || "";
+        const deck = deckLibrary.find(item => item.id === deckId && item.ownerProfileId === seatState.profileId);
+        if (!deck) return;
+        deck.artId = normalizeCommanderArtId(selectedArt?.printId || seatState.pendingSearchCard.id);
+        deck.artRef = normalizeCommanderArtRef(selectedArt?.artRef);
+        deck.image = selectedArt?.art || seatState.pendingSearchCard.art || deck.image;
+        deck.lastUsedAt = Date.now();
+        void warmCommanderImageCacheUrls([deck.image]);
+        saveDeckLibrary();
+        if (seatState.deckId === deck.id) {
+          seatState.artId = deck.artId;
+          seatState.image = deck.image;
+        }
+        seatState.isEditingDeckArt = false;
+        seatState.pendingSearchCard = null;
+        seatState.searchArtOptions = [];
+        seatState.isLoadingArtOptions = false;
+        renderStartSetupScreen();
+        return;
+      }
+      if (!seatState.isAddingDeck) return;
       if (profileAlreadyHasDeck(seatState.profileId, seatState.pendingSearchCard.name)) {
         return;
       }
-      const artId = btn.dataset.artId || "";
-      const selectedArt = (seatState.searchArtOptions || []).find(option => option.id === artId);
       const fallbackArt = seatState.pendingSearchCard.art || "";
       const deck = {
         id: `${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
@@ -3423,7 +3759,7 @@ function setupStartScreen() {
       seatState.pendingSearchCard = null;
       seatState.searchArtOptions = [];
       seatState.isLoadingArtOptions = false;
-      state.forceDeckSelection = false;
+      state.forceDeckSelection = isProfileEditorMode(state) ? true : false;
       renderStartSetupScreen();
       return;
     }
@@ -3761,6 +4097,9 @@ svg.innerHTML = "";
       div.classList.add("judy-mode");
       applyJudyThemeVars(div);
     }
+    if (isSingleSeatProfileEditorMode()) {
+      div.classList.add("single-seat-editor");
+    }
 
     if (index === damageSourceIndex && isDamageMode) {
       div.classList.add("damage-source");
@@ -4001,6 +4340,12 @@ function updateGridLayout() {
     bg.style.height = "";
   });
 
+  if (count === 1) {
+    game.style.gridTemplateColumns = "1fr";
+    game.style.gridTemplateRows = "1fr";
+    transformPlayer(0, 0, 100);
+  }
+
   if (count === 2) {
     game.style.gridTemplateColumns = "1fr";
     game.style.gridTemplateRows = "repeat(2, 1fr)";
@@ -4204,6 +4549,7 @@ function updateCommanderOverlayAnchors() {
     const playerEl = document.getElementById(`player${index}`);
     const commanderEl = playerEl?.querySelector(".commander-corner");
     const poisonEl = playerEl?.querySelector(".poison-corner");
+    const overlayEditBtn = playerEl?.querySelector(".setup-edit-btn");
     const overlayPlusBtn = playerEl?.querySelector(".setup-plus-btn");
     const overlayMinusBtn = playerEl?.querySelector(".setup-minus-btn");
     const overlayBorrowBtn = playerEl?.querySelector(".setup-borrow-btn");
@@ -4367,6 +4713,7 @@ function updateCommanderOverlayAnchors() {
 
       if (overlayBackBtn) overlayBackBtn.dataset.anchor = commanderEl.dataset.anchor;
       if (overlayCancelBtn) overlayCancelBtn.dataset.anchor = commanderEl.dataset.anchor;
+      if (overlayEditBtn) overlayEditBtn.dataset.anchor = poisonEl.dataset.anchor;
       if (overlayPlusBtn) overlayPlusBtn.dataset.anchor = poisonEl.dataset.anchor;
       if (overlayMinusBtn) overlayMinusBtn.dataset.anchor = poisonEl.dataset.anchor;
       if (overlayBorrowBtn) overlayBorrowBtn.dataset.anchor = poisonEl.dataset.anchor;
@@ -4377,6 +4724,7 @@ function updateCommanderOverlayAnchors() {
       if (shouldFlipSetupControls) {
         if (overlayBackBtn) overlayBackBtn.dataset.anchor = flipHorizontalAnchor(overlayBackBtn.dataset.anchor);
         if (overlayCancelBtn) overlayCancelBtn.dataset.anchor = flipHorizontalAnchor(overlayCancelBtn.dataset.anchor);
+        if (overlayEditBtn) overlayEditBtn.dataset.anchor = flipHorizontalAnchor(overlayEditBtn.dataset.anchor);
         if (overlayPlusBtn) overlayPlusBtn.dataset.anchor = flipHorizontalAnchor(overlayPlusBtn.dataset.anchor);
         if (overlayMinusBtn) overlayMinusBtn.dataset.anchor = flipHorizontalAnchor(overlayMinusBtn.dataset.anchor);
         if (overlayBorrowBtn) overlayBorrowBtn.dataset.anchor = flipHorizontalAnchor(overlayBorrowBtn.dataset.anchor);
@@ -4401,13 +4749,28 @@ function updateCommanderOverlayAnchors() {
         overlayBorrowBtn?.dataset.anchor ||
         overlayMinusBtn?.dataset.anchor ||
         overlayPlusBtn?.dataset.anchor ||
+        overlayEditBtn?.dataset.anchor ||
         poisonEl.dataset.anchor;
+
+      const isSingleSeatEditor = playerEl.classList.contains("single-seat-editor");
+      if (isSingleSeatEditor) {
+        if (overlayEditBtn) overlayEditBtn.dataset.anchor = "bottom-left";
+        if (overlayPlusBtn) overlayPlusBtn.dataset.anchor = "bottom-left";
+        if (overlayMinusBtn) overlayMinusBtn.dataset.anchor = "bottom-left";
+        if (overlayBorrowBtn) overlayBorrowBtn.dataset.anchor = "bottom-left";
+        if (overlayBackBtn) overlayBackBtn.dataset.anchor = "bottom-right";
+        if (overlayCancelBtn) overlayCancelBtn.dataset.anchor = "bottom-right";
+        if (commanderEl) commanderEl.dataset.anchor = "top-left";
+        if (poisonEl) poisonEl.dataset.anchor = "top-right";
+        setupRailAnchor = "bottom-left";
+      }
 
       const shouldOpposeBackArrowRail =
         selectedPlayerCount === 2 ||
         (selectedPlayerCount === 3 && playerEl.classList.contains("seat-special-3"));
 
       if (shouldOpposeBackArrowRail) {
+        if (overlayEditBtn) overlayEditBtn.dataset.anchor = toTopRailAnchor(overlayEditBtn.dataset.anchor);
         if (overlayPlusBtn) overlayPlusBtn.dataset.anchor = toTopRailAnchor(overlayPlusBtn.dataset.anchor);
         if (overlayMinusBtn) overlayMinusBtn.dataset.anchor = toTopRailAnchor(overlayMinusBtn.dataset.anchor);
         if (overlayBorrowBtn) overlayBorrowBtn.dataset.anchor = toTopRailAnchor(overlayBorrowBtn.dataset.anchor);
@@ -4415,6 +4778,7 @@ function updateCommanderOverlayAnchors() {
           overlayBorrowBtn?.dataset.anchor ||
           overlayMinusBtn?.dataset.anchor ||
           overlayPlusBtn?.dataset.anchor ||
+          overlayEditBtn?.dataset.anchor ||
           setupRailAnchor;
       }
 
@@ -4424,6 +4788,7 @@ function updateCommanderOverlayAnchors() {
 
       const isBottomSpecialFive = selectedPlayerCount === 5 && seatPos === 4;
       if (isBottomSpecialFive) {
+        if (overlayEditBtn) overlayEditBtn.dataset.anchor = "top-rail-right";
         if (overlayPlusBtn) overlayPlusBtn.dataset.anchor = "top-rail-right";
         if (overlayMinusBtn) overlayMinusBtn.dataset.anchor = "top-rail-right";
         if (overlayBorrowBtn) overlayBorrowBtn.dataset.anchor = "top-rail-right";
@@ -6506,7 +6871,7 @@ function updateEndScreenActions() {
     primaryBtn.textContent = "Next Game";
     primaryBtn.classList.toggle("hidden", isSeriesCompleteAfterCurrentGame);
     menuBtn.textContent = "Back to Menu";
-    menuBtn.classList.toggle("hidden", !isSeriesCompleteAfterCurrentGame);
+    menuBtn.classList.remove("hidden");
     return;
   }
 
@@ -6986,7 +7351,6 @@ profileLibrary = loadProfileLibrary();
 deckLibrary = loadDeckLibrary();
 matchHistory = loadMatchHistory();
 resumeSessions = loadResumeSessions();
-startMenuBackdrop = loadStartMenuBackdrop();
 void hydrateMissingDeckImages({ limit: 50 });
 
 if ("serviceWorker" in navigator) {
@@ -7160,7 +7524,7 @@ window.addEventListener("beforeunload", saveState);
 window.addEventListener("pagehide", saveState);
 
 
-window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
+//window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
 
 // Console helpers for quick troubleshooting:
 // start2(), start3(), start4(), start5(), start6(), startPlayers(n)

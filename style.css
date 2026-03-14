@@ -263,6 +263,10 @@ button {
   min-height: 100vh;
 }
 
+body.profile-editor-open #game-screen {
+  padding: 0;
+}
+
 #game.blurred {
   filter: blur(2.5px);
   pointer-events: none;
@@ -274,6 +278,11 @@ button {
   grid-auto-flow: dense;
   transition: filter 0.3s ease;
   touch-action: none;
+}
+
+body.profile-editor-open #game {
+  height: 100dvh;
+  gap: 0;
 }
 
 #start-screen.setup-open ~ #game-screen #game {
@@ -340,6 +349,7 @@ button {
   --main-color: var(--judy-color);
   --main-color-alt: var(--judy-color-alt);
   --arrow-color: var(--judy-arrow-color);
+  --shared-scrollbar-color: var(--judy-color);
 }
 
 .player.judy-mode button {
@@ -360,6 +370,7 @@ button {
 .player.judy-mode .damage-types button.active,
 .player.judy-mode .damage-actions button,
 .player.judy-mode .setup-profile-btn.active,
+.player.judy-mode .setup-edit-btn,
 .player.judy-mode .setup-minus-btn,
 .player.judy-mode .setup-borrow-btn,
 .player.judy-mode .setup-seat-back-btn,
@@ -1000,6 +1011,10 @@ body.setup-grid-mode #start-screen.setup-open {
   pointer-events: none;
 }
 
+body.setup-grid-mode.profile-editor-open #start-screen.setup-open {
+  padding: 0;
+}
+
 #player-buttons {
   position: relative;
   z-index: 1;
@@ -1016,6 +1031,12 @@ body.setup-grid-mode #player-buttons {
   width: min(94vw, 980px);
   margin-top: clamp(8px, 2vmin, 18px);
   pointer-events: auto;
+}
+
+body.setup-grid-mode.profile-editor-open #player-buttons {
+  width: 100vw;
+  max-width: 100vw;
+  margin-top: 0;
 }
 
 #player-buttons.hidden {
@@ -1038,31 +1059,28 @@ body.setup-grid-mode #player-buttons {
   margin-top: clamp(62px, 9vmin, 98px);
 }
 
-.setup-start-logo {
+.setup-start-logo-btn {
   position: absolute;
   top: clamp(-96px, -12vmin, -68px);
   left: 50%;
   transform: translateX(-50%);
-  width: clamp(112px, 16vmin, 170px);
-  height: auto;
-  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.38));
-  pointer-events: none;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  border-radius: 999px;
   z-index: 999;
 }
 
-.setup-debug-cache-btn {
-  position: absolute;
-  background-color: white !important;
-  color: red!important;
-  top: 10px;
-  right: 10px;
-  min-height: 32px;
-  min-width: 88px;
-  padding: 0.3em 0.6em;
-  font-size: 12px;
-  border-radius: 8px;
-  opacity: 0;
-  z-index: 3;
+.setup-start-logo {
+  display: block;
+  width: clamp(112px, 16vmin, 170px);
+  height: auto;
+  filter: drop-shadow(0 4px 10px rgba(0, 0, 0, 0.38));
+}
+
+.setup-start-logo-btn:focus-visible {
+  outline: 2px solid rgba(255, 255, 255, 0.9);
+  outline-offset: 4px;
 }
 
 .setup-qr-btn {
@@ -1231,6 +1249,10 @@ body.setup-grid-mode #player-buttons {
 .setup-panel h3 {
   font-size: clamp(17px, 2.2vmin, 20px);
   color: rgba(255, 255, 255, 0.9);
+}
+
+.start-mode-label {
+  font-size: clamp(24px, 3.4vmin, 32px) !important;
 }
 
 .setup-panel h4 {
@@ -1662,6 +1684,172 @@ body.setup-grid-mode #player-buttons {
   background: rgba(0, 0, 0, 0.52);
 }
 
+#game[data-players="1"] .player.single-seat-editor {
+  align-items: stretch;
+  justify-content: flex-start;
+  transform: none;
+  border-radius: 0;
+}
+
+#game[data-players="1"] .player.single-seat-editor .bg {
+  width: 100%;
+  height: 58%;
+  top: 0;
+  left: 0;
+  transform: none;
+  background-size: 150% auto;
+  background-position: center top;
+}
+
+#game[data-players="1"] .player.single-seat-editor .bg::after {
+  background: linear-gradient(
+    to bottom,
+    rgba(0, 0, 0, 0.64) 0%,
+    rgba(0, 0, 0, 0.78) 12%,
+    rgba(0, 0, 0, 0.9) 28%,
+    rgba(0, 0, 0, 0.96) 52%,
+    rgba(0, 0, 0, 0.98) 100%
+  );
+}
+
+#game[data-players="1"] .player.single-seat-editor .info_container {
+  align-items: flex-start;
+  justify-content: flex-start;
+  padding-top: max(14px, env(safe-area-inset-top));
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-seat-overlay {
+  padding-top: clamp(18px, 3.2vmin, 26px);
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-profile-list,
+#game[data-players="1"] .player.single-seat-editor .setup-deck-grid,
+#game[data-players="1"] .player.single-seat-editor .setup-empty-state {
+  width: calc(100% - 72px);
+  max-width: calc(100% - 72px);
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-profile-btn {
+  padding: 0.5em 0.95em;
+  font-size: clamp(18px, 2.6vmin, 24px) !important;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-seat-title {
+  font-size: clamp(28px, 4.1vmin, 38px);
+  line-height: 1.05;
+  text-align: center;
+  width: 100%;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-seat-title-row {
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: min(100%, calc(100vw - 132px));
+  align-self: center;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-seat-title-edit-btn {
+  position: absolute;
+  right: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  width: 38px;
+  height: 38px;
+  border-radius: 999px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-seat-name-editor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: min(100%, calc(100vw - 132px));
+  align-self: center;
+  padding: 8px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--main-color) 70%, transparent);
+  background: rgba(0, 0, 0, 0.34);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--main-color) 20%, transparent);
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-deck-name-editor {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 95%;
+  padding: 8px;
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--main-color) 70%, transparent);
+  background: rgba(0, 0, 0, 0.34);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--main-color) 20%, transparent);
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-seat-name-editor input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: clamp(20px, 3vmin, 28px);
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-deck-name-editor input {
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: clamp(20px, 3vmin, 28px);
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-seat-name-editor button {
+  flex: 0 0 auto;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-deck-name-editor button {
+  flex: 0 0 auto;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-seat-name-save-btn {
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  padding: 0;
+  display: grid;
+  place-items: center;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-seat-subtitle {
+  font-size: clamp(20px, 2.9vmin, 28px);
+  line-height: 1.1;
+  margin-top: 3%;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-deck-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(auto-fill, clamp(82px, 12vh, 118px));
+  grid-auto-rows: clamp(82px, 12vh, 118px);
+  column-gap: 6px;
+  row-gap: 0;
+  margin-top: 2%;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel {
+  padding-top: 12px;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-deck-thumb {
+  border-radius: 14px;
+  padding: 2px;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-deck-thumb img {
+  border-radius: 12px;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-footer button {
+  min-height: 52px;
+  font-size: clamp(19px, 2.4vmin, 26px);
+}
+
 .setup-seat-overlay {
   position: relative;
   width: 100%;
@@ -1818,6 +2006,7 @@ body.setup-grid-mode #player-buttons {
   flex: 1 1 auto;
   min-height: 0;
   padding-top: 28px;
+  overflow: hidden;
 }
 
 .setup-add-profile-panel {
@@ -1868,34 +2057,8 @@ body.setup-grid-mode #player-buttons {
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   touch-action: none;
-  scrollbar-width: thin;
-  scrollbar-color: var(--main-color) transparent;
   mask-image: linear-gradient(to bottom, transparent 0, black 22px, black 100%);
   -webkit-mask-image: linear-gradient(to bottom, transparent 0, black 22px, black 100%);
-}
-
-.player[data-setup-rail-side="right"] .setup-seat-body {
-  direction: rtl;
-}
-
-.player[data-setup-rail-side="right"] .setup-seat-body > * {
-  direction: ltr;
-}
-
-.setup-seat-body::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.setup-seat-body::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.setup-seat-body::-webkit-scrollbar-thumb {
-  background: var(--main-color);
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
 }
 
 .setup-seat-overlay-searching {
@@ -1917,8 +2080,6 @@ body.setup-grid-mode #player-buttons {
   -webkit-overflow-scrolling: touch;
   touch-action: none;
   padding-right: 4px;
-  scrollbar-width: thin;
-  scrollbar-color: var(--main-color) transparent;
 }
 
 .setup-profile-list.is-scrollable {
@@ -1951,22 +2112,6 @@ body.setup-grid-mode #player-buttons {
 .player[data-setup-rail-side="right"] .setup-profile-list {
   margin-right: auto;
   margin-left: 0;
-}
-
-.setup-profile-list::-webkit-scrollbar {
-  width: 8px;
-  height: 8px;
-}
-
-.setup-profile-list::-webkit-scrollbar-track {
-  background: transparent;
-}
-
-.setup-profile-list::-webkit-scrollbar-thumb {
-  background: var(--main-color);
-  border-radius: 999px;
-  border: 2px solid transparent;
-  background-clip: padding-box;
 }
 
 .setup-profile-btn {
@@ -2063,6 +2208,18 @@ body.setup-grid-mode #player-buttons {
   background: var(--main-color);
 }
 
+.setup-edit-btn {
+  position: absolute;
+  width: 40px;
+  height: 40px;
+  border-radius: 999px;
+  padding: 0;
+  color: #fff;
+  background: var(--main-color);
+  display: grid;
+  place-items: center;
+}
+
 .setup-borrow-btn {
   position: absolute;
   min-width: 72px;
@@ -2115,6 +2272,7 @@ body.setup-grid-mode #player-buttons {
 }
 
 .poison-corner[data-anchor="top-left"],
+.setup-edit-btn[data-anchor="top-left"],
 .setup-borrow-btn[data-anchor="top-left"],
 .setup-minus-btn[data-anchor="top-left"],
 .setup-plus-btn[data-anchor="top-left"] {
@@ -2125,6 +2283,7 @@ body.setup-grid-mode #player-buttons {
 }
 
 .poison-corner[data-anchor="top-right"],
+.setup-edit-btn[data-anchor="top-right"],
 .setup-borrow-btn[data-anchor="top-right"],
 .setup-minus-btn[data-anchor="top-right"],
 .setup-plus-btn[data-anchor="top-right"] {
@@ -2135,6 +2294,7 @@ body.setup-grid-mode #player-buttons {
 }
 
 .poison-corner[data-anchor="bottom-left"],
+.setup-edit-btn[data-anchor="bottom-left"],
 .setup-borrow-btn[data-anchor="bottom-left"],
 .setup-minus-btn[data-anchor="bottom-left"],
 .setup-plus-btn[data-anchor="bottom-left"] {
@@ -2145,6 +2305,7 @@ body.setup-grid-mode #player-buttons {
 }
 
 .poison-corner[data-anchor="bottom-right"],
+.setup-edit-btn[data-anchor="bottom-right"],
 .setup-borrow-btn[data-anchor="bottom-right"],
 .setup-minus-btn[data-anchor="bottom-right"],
 .setup-plus-btn[data-anchor="bottom-right"] {
@@ -2278,7 +2439,38 @@ body.setup-grid-mode #player-buttons {
   top: auto;
 }
 
+.setup-edit-btn[data-anchor="top-left"] {
+  left: calc(var(--poison-side-inset) + 92px);
+}
+
+.setup-edit-btn[data-anchor="top-right"] {
+  right: calc(var(--poison-side-inset) + 92px);
+}
+
+.setup-edit-btn[data-anchor="bottom-left"] {
+  left: calc(var(--poison-side-inset) + 92px);
+}
+
+.setup-edit-btn[data-anchor="bottom-right"] {
+  right: calc(var(--poison-side-inset) + 92px);
+}
+
+.setup-edit-btn[data-anchor="top-rail-left"] {
+  left: calc(var(--poison-side-inset) + 92px);
+}
+
+.setup-edit-btn[data-anchor="top-rail-right"] {
+  right: calc(var(--poison-side-inset) + 92px);
+}
+
+.setup-edit-btn[data-anchor="top-rail-left"],
+.setup-edit-btn[data-anchor="top-rail-right"] {
+  top: clamp(15px, 1.9vmin, 18px);
+  bottom: auto;
+}
+
 /* Setup action rail: keep the controls on a clean side stack instead of hugging corners. */
+.setup-edit-btn[data-anchor$="left"],
 .setup-plus-btn[data-anchor$="left"],
 .setup-minus-btn[data-anchor$="left"],
 .setup-borrow-btn[data-anchor$="left"] {
@@ -2286,6 +2478,7 @@ body.setup-grid-mode #player-buttons {
   right: auto;
 }
 
+.setup-edit-btn[data-anchor$="right"],
 .setup-plus-btn[data-anchor$="right"],
 .setup-minus-btn[data-anchor$="right"],
 .setup-borrow-btn[data-anchor$="right"] {
@@ -2293,11 +2486,17 @@ body.setup-grid-mode #player-buttons {
   left: auto;
 }
 
+.setup-edit-btn[data-anchor],
 .setup-plus-btn[data-anchor],
 .setup-minus-btn[data-anchor],
 .setup-borrow-btn[data-anchor] {
   top: auto;
   transform: none;
+}
+
+.setup-edit-btn[data-anchor],
+.setup-edit-btn {
+  bottom: clamp(125px, 10vmin, 126px);
 }
 
 .setup-plus-btn[data-anchor],
@@ -2642,14 +2841,38 @@ body.setup-grid-mode #player-buttons {
   display: grid;
   grid-template-columns: repeat(auto-fill, minmax(clamp(72px, 18vw, 100px), 1fr));
   gap: 8px;
+  flex: 1 1 auto;
   overflow-y: auto;
   overflow-x: hidden;
   min-height: 0;
-  max-height: 100%;
   padding-right: 2px;
   -webkit-overflow-scrolling: touch;
   overscroll-behavior: contain;
   touch-action: none;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel .setup-search-art-grid {
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  grid-template-rows: repeat(auto-fill, clamp(112px, 16vh, 164px));
+  grid-auto-rows: clamp(112px, 16vh, 164px);
+  align-content: start;
+  align-items: start;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel .setup-search-art-thumb {
+  height: 100%;
+  overflow: hidden;
+  gap: 0;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel .setup-search-art-thumb img {
+  width: 100%;
+  height: 100%;
+  border-radius: 10px;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel .setup-search-art-thumb span {
+  display: none;
 }
 
 .setup-search-art-thumb {
@@ -2676,6 +2899,11 @@ body.setup-grid-mode #player-buttons {
   text-align: center;
   color: rgba(255, 255, 255, 0.9);
   line-height: 1.1;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-deck-edit-copy {
+  font-size: clamp(16px, 2.6vmin, 22px);
+  line-height: 1.25;
 }
 
 .setup-art-preview {
