@@ -1908,11 +1908,11 @@ body.history-open .history-detail-shell {
 #game[data-players="1"] .player.single-seat-editor .info_container {
   align-items: flex-start;
   justify-content: flex-start;
-  padding-top: max(14px, env(safe-area-inset-top));
+  padding-top: 0;
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-seat-overlay {
-  padding-top: clamp(18px, 3.2vmin, 26px);
+  padding-top: 10px;
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-profile-list,
