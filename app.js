@@ -2512,11 +2512,12 @@ function renderCommanderSeatOverlay(state, playerIndex) {
   const hasDeck = !!(seat.deckId && (seat.cardName || "").trim() && (seat.image || "").trim());
   const allowBorrowDeck = selectedPlayerCount > 1;
   const isSingleSeatEditor = isSingleSeatProfileEditorMode();
+  const keepSingleSeatDeckLayout = isSingleSeatEditor && hasProfile && !seat.isBorrowingDeck && !seat.isAddingDeck && !seat.isEditingDeckArt;
   const artStyle = hasDeck ? `style="background-image:url('${seat.image.replace(/'/g, "\\'")}')"` : "";
   const selectedDeckName = getSeatDeckLabel(seat);
   const historySummaryStats = isSingleSeatEditor ? buildMatchSummaryStats() : null;
   const profileStats = isSingleSeatEditor ? buildProfileHistoryStats(seat.profileName) : null;
-  const profileStatsMarkup = isSingleSeatEditor && hasProfile && !seat.isBorrowingDeck && !seat.isAddingDeck && !seat.isEditingDeck
+  const profileStatsMarkup = isSingleSeatEditor && hasProfile && !seat.isBorrowingDeck && !seat.isAddingDeck && !seat.isEditingDeckArt
     ? renderStatsSummaryGrid([
       { label: "Number of Matches", value: String(profileStats.numberOfMatches) },
       { label: "Total Play Time", value: formatTime(profileStats.totalPlayTime) },
@@ -2557,7 +2558,6 @@ function renderCommanderSeatOverlay(state, playerIndex) {
     const addProfilePanel = seat.isAddingProfile
       ? `
         <div class="setup-add-profile-panel">
-          <div class="setup-seat-title">${seat.isEditingProfile ? "Edit Player" : "New Player"}</div>
           <input type="text" class="${seat.hasDuplicateProfileName ? "setup-input-invalid" : ""}" data-seat-input="newProfileName" data-seat="${playerIndex}" value="${seat.newProfileName || ""}" placeholder="Player name">
           <button data-action="${seat.isEditingProfile ? "save-profile-edit" : "create-profile"}" data-seat="${playerIndex}" ${seat.hasDuplicateProfileName ? "disabled" : ""}>${seat.isEditingProfile ? "Save" : "Create"}</button>
         </div>
@@ -2569,19 +2569,22 @@ function renderCommanderSeatOverlay(state, playerIndex) {
         ${seat.isAddingProfile || seat.isEditingProfile ? `
           ${backButton.replace("go-back-profile-seat", seat.isEditingProfile ? "close-edit-profile" : "close-add-profile").replace("Back to player selection", seat.isEditingProfile ? "Back from profile editing" : "Back from profile creation")}
           <div class="setup-seat-header">
-            <div class="setup-seat-title">Select Profile</div>
+            <div class="setup-seat-title">${seat.isEditingProfile ? "Edit Player" : "New Player"}</div>
           </div>
           ${addProfilePanel}
         ` : `
           ${isSingleSeatEditor
             ? backButton
                 .replace("go-back-profile-seat", "back-to-config")
-                .replace('aria-label="Back to player selection"', `aria-label="${seat.isDeletingProfile ? "Back disabled while deleting profiles" : "Back to config"}"${seat.isDeletingProfile ? " disabled" : ""}`)
+                .replace(
+                  'aria-label="Back to player selection"',
+                  `aria-label="${seat.isDeletingProfile ? "Back disabled while deleting profiles" : seat.isEditingSeatName ? "Back disabled while editing player name" : "Back to config"}"${seat.isDeletingProfile || seat.isEditingSeatName ? " disabled" : ""}`
+                )
             : ""}
           ${isSingleSeatEditor ? `
             <div class="setup-seat-header">
               <div class="setup-seat-title-row">
-                <div class="setup-seat-title">${seat.isDeletingProfile ? "Delete Profile" : seat.isEditingProfile ? "EDIT PLAYER" : "Select Profile"}</div>
+                <div class="setup-seat-title">${seat.isDeletingProfile ? "Delete Profile" : seat.isEditingProfile ? "EDIT PLAYER" : "View Profile"}</div>
               </div>
             </div>
           ` : `<div class="setup-seat-title">${seat.isDeletingProfile ? "Delete Profile" : seat.isEditingProfile ? "EDIT PLAYER" : "Select Profile"}</div>`}
@@ -2600,22 +2603,27 @@ function renderCommanderSeatOverlay(state, playerIndex) {
     `;
   }
 
+  const canInteractWithDeckGrid = seat.isDeletingDeck || seat.isEditingDeck || seat.isBorrowingDeck || !isSingleSeatEditor;
   const deckAction = seat.isDeletingDeck
     ? "delete-deck"
     : seat.isEditingDeck
       ? "select-edit-deck"
-      : "select-deck";
+      : !canInteractWithDeckGrid
+        ? ""
+        : "select-deck";
   const canDeleteDecks = profileDecks.length > 0;
   const deckGrid = visibleDecks.length
     ? `
-      <div class="setup-deck-grid ${seat.isBorrowingDeck ? "setup-deck-grid-full" : ""}">
+      <div class="setup-deck-grid ${seat.isBorrowingDeck ? "setup-deck-grid-full" : ""} ${seat.isEditingDeck ? "is-edit-mode" : ""} ${seat.isEditingDeck && seat.editingDeckId ? "has-selection" : ""}">
         ${visibleDecks.map(deck => {
           const isUnavailable = !seat.isDeletingDeck && isDeckSelectedInOtherSeat(state, deck.id, playerIndex);
           const isActiveDeck = seat.isEditingDeck
             ? seat.editingDeckId === deck.id
             : seat.deckId === deck.id;
+          const isDisabledDeckThumb = isUnavailable;
+          const isPassiveDeckThumb = !canInteractWithDeckGrid;
           return `
-          <button class="setup-deck-thumb ${isActiveDeck ? "active" : ""} ${seat.isDeletingDeck ? "is-delete-mode" : ""} ${isUnavailable ? "is-unavailable" : ""}" data-action="${deckAction}" data-seat="${playerIndex}" data-deck-id="${deck.id}" ${isUnavailable ? "disabled" : ""}>
+          <button class="setup-deck-thumb ${isActiveDeck ? "active" : ""} ${seat.isDeletingDeck ? "is-delete-mode" : ""} ${seat.isEditingDeck ? "is-edit-mode" : ""} ${isUnavailable ? "is-unavailable" : ""} ${isPassiveDeckThumb ? "is-passive" : ""}" ${deckAction ? `data-action="${deckAction}"` : ""} data-seat="${playerIndex}" data-deck-id="${deck.id}" ${isDisabledDeckThumb ? "disabled" : ""}>
             <img src="${deck.image}" alt="${deck.cardName}">
           </button>
         `;
@@ -2707,6 +2715,25 @@ function renderCommanderSeatOverlay(state, playerIndex) {
     `
     : "";
 
+  const inlineDeckEditPanel = seat.isEditingDeck && seat.editingDeckId && !seat.isEditingDeckArt
+    ? `
+      <div class="setup-add-deck-panel">
+        <div class="setup-meta setup-deck-edit-copy">Select a deck to edit, then update its custom name or card art.</div>
+        <div class="setup-deck-name-editor">
+          <input type="text" data-seat-input="editingDeckName" data-seat="${playerIndex}" value="${escapeHtml(seat.editingDeckName || "")}" placeholder="Deck name">
+          <button class="setup-seat-name-save-btn" data-action="save-deck-edit" data-seat="${playerIndex}" aria-label="Save deck name">
+            ${getIconMarkup("Ok", "setup-inline-icon")}
+          </button>
+        </div>
+        <div class="setup-footer">
+          <button data-action="open-edit-deck-art" data-seat="${playerIndex}">Change Art</button>
+        </div>
+      </div>
+    `
+    : (seat.isEditingDeck && !seat.isEditingDeckArt
+      ? `<div class="setup-meta setup-deck-edit-copy">Select a deck to edit, then update its custom name or card art.</div>`
+      : "");
+
   const borrowPanel = seat.isBorrowingDeck
     ? `
       <div class="setup-seat-body">
@@ -2745,16 +2772,23 @@ function renderCommanderSeatOverlay(state, playerIndex) {
       </button>
     `
     : backButton;
-  const renderedDeckBackButton = seat.isDeletingDeck
+  const renderedDeckBackButton = (seat.isDeletingDeck || seat.isEditingDeck)
     ? deckBackButton
-        .replace('aria-label="Back to player selection"', 'aria-label="Back disabled while deleting decks" disabled')
+        .replace(
+          '<button class="setup-seat-back-btn"',
+          `<button class="setup-seat-back-btn"${seat.isEditingDeck ? ' data-edit-locked="1"' : ""} disabled`
+        )
+        .replace(
+          /aria-label="[^"]*"/,
+          `aria-label="${seat.isEditingDeck ? "Back disabled while editing decks" : "Back disabled while deleting decks"}"`
+        )
     : deckBackButton;
 
   return `
-    <div class="setup-seat-overlay ${hasDeck ? "setup-seat-ready" : ""} ${(seat.isAddingDeck || seat.isEditingDeckArt) ? "setup-seat-overlay-searching" : ""}">
+    <div class="setup-seat-overlay ${hasDeck ? "setup-seat-ready" : ""} ${(seat.isAddingDeck || seat.isEditingDeckArt) ? "setup-seat-overlay-searching" : ""} ${seat.isEditingDeck && !seat.isEditingDeckArt ? "setup-seat-overlay-editing-deck" : ""}">
       ${renderedDeckBackButton}
       <div class="setup-seat-header">
-        ${isSingleSeatEditor && !seat.isBorrowingDeck && !seat.isAddingDeck && !seat.isEditingDeck
+        ${keepSingleSeatDeckLayout
           ? (
             seat.isEditingSeatName
               ? `
@@ -2768,7 +2802,7 @@ function renderCommanderSeatOverlay(state, playerIndex) {
               : `
                 <div class="setup-seat-title-row">
                   <div class="setup-seat-title setup-seat-title-selected">${seat.isDeletingDeck ? "Delete Deck" : escapeHtml(seat.profileName)}</div>
-                  ${seat.isDeletingDeck ? "" : `
+                  ${seat.isDeletingDeck || seat.isEditingDeck ? "" : `
                     <div class="setup-seat-title-actions">
                       <button class="setup-seat-title-edit-btn" data-action="open-edit-seat-name" data-seat="${playerIndex}" aria-label="Edit player name">
                         ${getIconMarkup("Edit", "setup-inline-icon")}
@@ -2781,19 +2815,20 @@ function renderCommanderSeatOverlay(state, playerIndex) {
                 </div>
               `
           )
-          : `<div class="setup-seat-title ${(!seat.isBorrowingDeck) ? "setup-seat-title-selected" : ""}">${seat.isBorrowingDeck ? `Borrow Deck${seat.borrowProfileId ? ` from ${borrowProfileName}` : ""}` : seat.isEditingDeck ? "Edit Deck" : escapeHtml(seat.profileName)}</div>`
+          : `<div class="setup-seat-title ${(!seat.isBorrowingDeck && !seat.isAddingDeck) ? "setup-seat-title-selected" : ""}">${seat.isAddingDeck ? "Add a Deck" : seat.isBorrowingDeck ? `Borrow Deck${seat.borrowProfileId ? ` from ${borrowProfileName}` : ""}` : seat.isEditingDeck ? "Edit Deck" : escapeHtml(seat.profileName)}</div>`
         }
-        ${(seat.isAddingDeck || seat.isBorrowingDeck || seat.isEditingDeck) ? "" : (selectedDeckName ? `<div class="setup-meta setup-seat-subtitle">${selectedDeckName}</div>` : "")}
+        ${(isSingleSeatEditor || seat.isAddingDeck || seat.isBorrowingDeck || seat.isEditingDeck) ? "" : (selectedDeckName ? `<div class="setup-meta setup-seat-subtitle">${selectedDeckName}</div>` : "")}
       </div>
       ${profileStatsMarkup}
-      ${seat.isAddingDeck ? addPanel : seat.isEditingDeck ? deckEditPanel : seat.isBorrowingDeck ? borrowPanel : `
+      ${seat.isAddingDeck ? addPanel : (seat.isEditingDeck && !keepSingleSeatDeckLayout) ? deckEditPanel : seat.isBorrowingDeck ? borrowPanel : `
+        ${inlineDeckEditPanel}
         <div class="setup-seat-body">
           ${deckGrid}
         </div>
-        <button class="${isSingleSeatEditor ? "setup-plus-btn" : "setup-minus-btn"}" data-action="add-deck" data-seat="${playerIndex}" aria-label="Add deck" ${seat.isDeletingDeck ? "disabled" : ""}>${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>
-        ${!isSingleSeatEditor ? "" : `<button class="setup-edit-btn" data-action="open-edit-deck" data-seat="${playerIndex}" aria-label="Edit deck" ${seat.isDeletingDeck ? "disabled" : ""}>${getIconMarkup("Edit", "setup-inline-icon")}</button>`}
-        ${canDeleteDecks && isSingleSeatEditor ? `<button class="setup-minus-btn ${seat.isDeletingDeck ? "active" : ""}" data-action="${seat.isDeletingDeck ? "close-delete-deck" : "open-delete-deck"}" data-seat="${playerIndex}" aria-label="Delete deck mode">${getIconMarkup("Delete", "setup-inline-icon")}</button>` : ""}
-        ${!allowBorrowDeck ? "" : `<button class="setup-borrow-btn" data-action="open-borrow-deck" data-seat="${playerIndex}" aria-label="Borrow deck" ${seat.isDeletingDeck ? "disabled" : ""}>Borrow</button>`}
+        <button class="${isSingleSeatEditor ? "setup-plus-btn" : "setup-minus-btn"}" data-action="add-deck" data-seat="${playerIndex}" aria-label="Add deck" ${seat.isDeletingDeck || seat.isEditingDeck ? "disabled" : ""}>${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>
+        ${!isSingleSeatEditor ? "" : `<button class="setup-edit-btn ${seat.isEditingDeck ? "active" : ""}" data-action="${seat.isEditingDeck ? "close-edit-deck" : "open-edit-deck"}" data-seat="${playerIndex}" aria-label="Edit deck" ${seat.isDeletingDeck ? "disabled" : ""}>${getIconMarkup("Edit", "setup-inline-icon")}</button>`}
+        ${canDeleteDecks && isSingleSeatEditor ? `<button class="setup-minus-btn ${seat.isDeletingDeck ? "active" : ""} ${seat.isEditingDeck ? "is-disabled" : ""}" data-action="${seat.isDeletingDeck ? "close-delete-deck" : "open-delete-deck"}" data-seat="${playerIndex}" aria-label="Delete deck mode" ${seat.isEditingDeck ? "disabled" : ""}>${getIconMarkup("Delete", "setup-inline-icon")}</button>` : ""}
+        ${!allowBorrowDeck ? "" : `<button class="setup-borrow-btn" data-action="open-borrow-deck" data-seat="${playerIndex}" aria-label="Borrow deck" ${seat.isDeletingDeck || seat.isEditingDeck ? "disabled" : ""}>Borrow</button>`}
       `}
     </div>
   `;
@@ -2825,11 +2860,14 @@ function renderCommanderGridOnGame(state) {
 
   players.forEach((p, index) => {
     const seat = state.seats[index] || getDefaultSeatState(index);
+    const isSingleSeatEditor = isSingleSeatProfileEditorMode();
     p.life = state.startingLife;
     p.name = (seat.profileName || "").trim() || `Player ${index + 1}`;
     p.commander = state.mode === "magic" ? "" : ((seat.cardName || "").trim());
     p.commanderArtId = state.mode === "magic" ? "" : normalizeCommanderArtId(seat.artId);
-    p.image = getSeatBackgroundImage(seat, index, state.mode);
+    p.image = isSingleSeatEditor
+      ? (getSingleSeatEditorBackgroundImage(state, index) || getSeatBackgroundImage(seat, index, state.mode))
+      : getSeatBackgroundImage(seat, index, state.mode);
     p.turnTime = 0;
     p.totalTime = 0;
     p.poison = 0;
@@ -2903,7 +2941,9 @@ function syncSetupSeatPreviewPlayer(state, seatIndex) {
   player.name = (seat.profileName || "").trim() || `Player ${seatIndex + 1}`;
   player.commander = state?.mode === "magic" ? "" : ((seat.cardName || "").trim());
   player.commanderArtId = state?.mode === "magic" ? "" : normalizeCommanderArtId(seat?.artId);
-  player.image = getSeatBackgroundImage(seat, seatIndex, state?.mode);
+  player.image = isSingleSeatProfileEditorMode()
+    ? (getSingleSeatEditorBackgroundImage(state, seatIndex) || getSeatBackgroundImage(seat, seatIndex, state?.mode))
+    : getSeatBackgroundImage(seat, seatIndex, state?.mode);
 }
 
 function refreshSetupSeatOverlay(seatIndex) {
@@ -3173,6 +3213,7 @@ function renderStartSetupScreen() {
   pauseBtn.classList.remove("active");
   setPauseButtonIcon(false);
   document.body.classList.toggle("profile-editor-open", isProfileEditorMode(state));
+  document.body.classList.toggle("profile-editor-qr-open", isProfileEditorMode(state) && !!state.qrOpen);
   document.body.classList.toggle("history-open", state.step === "history");
   renderStartScreenBackdrop();
   startScreen.classList.remove("hidden");
@@ -3923,6 +3964,13 @@ function setupStartScreen() {
       const seatState = state.seats[seat];
       seatState.isEditingDeck = false;
       seatState.isEditingDeckArt = false;
+      seatState.deckId = "";
+      seatState.deckName = "";
+      seatState.cardName = "";
+      seatState.artId = "";
+      seatState.borrowedFromProfileId = "";
+      seatState.borrowedFromProfileName = "";
+      seatState.image = DEFAULT_PLAYER_BACKGROUND;
       seatState.editingDeckId = "";
       seatState.editingDeckName = "";
       seatState.pendingSearchCard = null;
@@ -3968,6 +4016,13 @@ function setupStartScreen() {
       }
       seatState.isEditingDeck = false;
       seatState.isEditingDeckArt = false;
+      seatState.deckId = "";
+      seatState.deckName = "";
+      seatState.cardName = "";
+      seatState.artId = "";
+      seatState.borrowedFromProfileId = "";
+      seatState.borrowedFromProfileName = "";
+      seatState.image = DEFAULT_PLAYER_BACKGROUND;
       seatState.editingDeckId = "";
       seatState.editingDeckName = "";
       seatState.pendingSearchCard = null;
@@ -5648,6 +5703,62 @@ function formatAverageDuration(secondsValue) {
   return formatTime(Math.round(secondsValue));
 }
 
+function getMostUsedCommanderBackgroundForProfile(profileName, decks = []) {
+  const normalizedProfileName = normalizeLibraryName(profileName);
+  if (!normalizedProfileName) return "";
+
+  const commanderUsage = new Map();
+  matchHistory.forEach((entry) => {
+    const playersInEntry = Array.isArray(entry?.players) ? entry.players : [];
+    playersInEntry.forEach((player) => {
+      if (normalizeLibraryName(player?.name) !== normalizedProfileName) return;
+      const commanderName = `${player?.commander || ""}`.trim();
+      const commanderImage = `${player?.image || ""}`.trim();
+      if (!commanderName && !commanderImage) return;
+      const usageKey = normalizeLibraryName(commanderName) || commanderImage;
+      if (!usageKey) return;
+      const existing = commanderUsage.get(usageKey) || {
+        count: 0,
+        commanderName,
+        image: commanderImage
+      };
+      existing.count += 1;
+      if (!existing.image && commanderImage) {
+        existing.image = commanderImage;
+      }
+      if (!existing.commanderName && commanderName) {
+        existing.commanderName = commanderName;
+      }
+      commanderUsage.set(usageKey, existing);
+    });
+  });
+
+  const mostUsed = Array.from(commanderUsage.values())
+    .sort((a, b) => b.count - a.count)[0] || null;
+  if (!mostUsed) return "";
+
+  const matchingDeck = (Array.isArray(decks) ? decks : []).find((deck) =>
+    normalizeLibraryName(deck?.cardName) === normalizeLibraryName(mostUsed.commanderName)
+  );
+  return `${matchingDeck?.image || mostUsed.image || ""}`.trim();
+}
+
+function getSingleSeatEditorBackgroundImage(state, seatIndex) {
+  const seat = state?.seats?.[seatIndex] || getDefaultSeatState(seatIndex);
+  const hasProfile = !!(`${seat?.profileId || ""}`.trim() && `${seat?.profileName || ""}`.trim());
+  if (!hasProfile) return `${seat?.image || ""}`.trim();
+
+  const profileDecks = getDecksForProfile(seat.profileId);
+  if (seat.isEditingDeck) {
+    const editingDeck = profileDecks.find((deck) => deck.id === seat.editingDeckId) || null;
+    return `${editingDeck?.image || seat?.image || ""}`.trim();
+  }
+
+  const mostUsedCommanderImage = getMostUsedCommanderBackgroundForProfile(seat.profileName, profileDecks);
+  if (mostUsedCommanderImage) return mostUsedCommanderImage;
+  return `${profileDecks[0]?.image || seat?.image || ""}`.trim();
+}
+
 function getHistoryWinnerPanelImage(entry) {
   const playersInEntry = Array.isArray(entry?.players) ? entry.players : [];
   const winnerPlayer = Number.isInteger(entry?.winnerIndex) && entry.winnerIndex >= 0
@@ -5657,11 +5768,21 @@ function getHistoryWinnerPanelImage(entry) {
   return image || DEFAULT_PLAYER_BACKGROUND;
 }
 
-function renderHistoryPanelBackground(entry) {
+function renderHistorySeatShell(contentMarkup, entry) {
   const image = getHistoryWinnerPanelImage(entry).replace(/"/g, "&quot;");
   return `
-    <div class="history-seat-bg player single-seat-editor setup-seat-player setup-seat-outlined" aria-hidden="true">
+    <div class="history-seat-shell player single-seat-editor setup-seat-player setup-seat-outlined" id="player0" data-seat-pos="0" data-setup-rail-side="right" style="--seat-rot: 0deg; --heal-rise-x: 0.00%; --heal-rise-y: -150.00%;">
       <div class="bg" style="background-image: url(&quot;${image}&quot;); --rot: 0deg; width: 100%; height: 100%;"></div>
+      <div class="commander-corner" data-anchor="top-left"></div>
+      <div class="poison-corner is-empty" style="--seat-rot:0deg" data-anchor="top-right">
+        <img src="./icons/Poison.svg" class="poison-icon icon-img" alt="">
+        <span class="poison">0</span>
+      </div>
+      <div class="info_container" style="transform: rotate(0deg); transform-origin: center center;">
+        <div class="setup-seat-overlay">
+          ${contentMarkup}
+        </div>
+      </div>
     </div>
   `;
 }
@@ -5783,9 +5904,8 @@ function renderHistoryDuelSeriesDetail(group) {
     `;
   }).join("");
 
-  return `
-    <div class="setup-panel setup-panel-wide history-detail-panel">
-      ${renderHistoryPanelBackground(latestEntry)}
+  return renderHistorySeatShell(`
+    <div class="history-detail-panel">
       <div class="history-topbar">
         <button class="setup-icon-circle-btn history-back-btn" data-action="back-from-history-detail" aria-label="Back">
           ${getIconMarkup("Back", "setup-back-icon")}
@@ -5804,7 +5924,7 @@ function renderHistoryDuelSeriesDetail(group) {
         </div>
       </div>
     </div>
-  `;
+  `, latestEntry);
 }
 
 function renderHistoryEntryDetail(entry) {
@@ -5812,9 +5932,8 @@ function renderHistoryEntryDetail(entry) {
   const duelBestOfChip = entry?.mode === "magic"
     ? ` <span class="history-series-chip">Bo${normalizeDuelMatchLength(entry.duelMatchLength)}</span>`
     : "";
-  return `
-    <div class="setup-panel setup-panel-wide history-detail-panel">
-      ${renderHistoryPanelBackground(entry)}
+  return renderHistorySeatShell(`
+    <div class="history-detail-panel">
       <div class="history-topbar">
         <button class="setup-icon-circle-btn history-back-btn" data-action="back-from-history-detail" aria-label="Back">
           ${getIconMarkup("Back", "setup-back-icon")}
@@ -5872,7 +5991,7 @@ function renderHistoryEntryDetail(entry) {
         </div>
       </div>
     </div>
-  `;
+  `, entry);
 }
 
 function renderStartHistoryScreen() {
@@ -5912,9 +6031,8 @@ function renderStartHistoryScreen() {
     }).join("")
     : `<div class="history-empty">No completed games yet.</div>`;
 
-  return `
-    <div class="setup-panel setup-panel-wide history-list-panel">
-      ${renderHistoryPanelBackground(selectedGroup?.type === "duel-series" ? selectedGroup.latestEntry : (groups[0]?.type === "duel-series" ? groups[0].latestEntry : groups[0]?.entry))}
+  return renderHistorySeatShell(`
+    <div class="history-list-panel">
       <div class="history-topbar">
         <button class="setup-icon-circle-btn history-back-btn" data-action="back-from-history" aria-label="Back" ${state.historyDeleteMode ? "disabled" : ""}>
           ${getIconMarkup("Back", "setup-back-icon")}
@@ -5933,7 +6051,7 @@ function renderStartHistoryScreen() {
         ${entriesMarkup}
       </div>
     </div>
-  `;
+  `, selectedGroup?.type === "duel-series" ? selectedGroup.latestEntry : (groups[0]?.type === "duel-series" ? groups[0].latestEntry : groups[0]?.entry));
 }
 
 function renderStartHistoryStep() {
@@ -8309,6 +8427,41 @@ function handleDeviceBackNavigation() {
 
   if (isProfileEditorMode(state)) {
     if (state.step === "seats") {
+      const seatStates = Array.isArray(state.seats) ? state.seats : [];
+      const hasAnyDeckDeletion = seatStates.some(seat => seat?.isDeletingDeck);
+      const hasAnyProfileDeletion = seatStates.some(seat => seat?.isDeletingProfile);
+      const hasAnyDeckArtEdit = seatStates.some(seat => seat?.isEditingDeck && seat?.isEditingDeckArt);
+      const hasAnyDeckEdit = seatStates.some(seat => seat?.isEditingDeck);
+      const hasAnyDeckAdd = seatStates.some(seat => seat?.isAddingDeck);
+      const hasAnyProfileEdit = seatStates.some(seat => seat?.isEditingProfile);
+      const hasAnyProfileAdd = seatStates.some(seat => seat?.isAddingProfile);
+      const hasAnySelectedProfile = seatStates.some(seat => `${seat?.profileId || ""}`.trim());
+
+      if (hasAnyDeckDeletion) {
+        return triggerVisibleAction("close-delete-deck");
+      }
+      if (hasAnyProfileDeletion) {
+        return triggerVisibleAction("close-delete-profile");
+      }
+      if (hasAnyDeckArtEdit) {
+        return triggerVisibleAction("close-edit-deck-art");
+      }
+      if (hasAnyDeckEdit) {
+        return triggerVisibleAction("close-edit-deck");
+      }
+      if (hasAnyDeckAdd) {
+        return triggerVisibleAction("close-add-deck");
+      }
+      if (hasAnyProfileEdit) {
+        return triggerVisibleAction("close-edit-profile");
+      }
+      if (hasAnyProfileAdd) {
+        return triggerVisibleAction("close-add-profile");
+      }
+      if (hasAnySelectedProfile) {
+        return triggerVisibleAction("back-to-config");
+      }
+
       const orderedActions = [
         "close-delete-deck",
         "close-delete-profile",
