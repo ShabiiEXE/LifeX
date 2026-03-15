@@ -3416,6 +3416,25 @@ async function clearPwaCacheForDebug() {
 
   if ("caches" in window) {
     const cacheKeys = await caches.keys();
+    await Promise.all(cacheKeys.map(async (key) => {
+      try {
+        const cache = await caches.open(key);
+        const requests = await cache.keys();
+        await Promise.all(
+          requests
+            .filter((request) => {
+              try {
+                return new URL(request.url).pathname.includes("/custom-art/");
+              } catch {
+                return false;
+              }
+            })
+            .map((request) => cache.delete(request))
+        );
+      } catch {
+        // Ignore per-cache custom-art cleanup failures and continue.
+      }
+    }));
     await Promise.all(cacheKeys.map((key) => caches.delete(key)));
   }
 
