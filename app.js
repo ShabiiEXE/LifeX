@@ -78,6 +78,15 @@ const DEFAULT_MAGIC_PLAYER_BACKGROUNDS = [
   "./img/default_back0.png",
   "./img/default_back1.png"
 ];
+const CUSTOM_COMMANDER_ARTS = [
+  { commanderName: "Bello, Bard of Brambles", artRef: "/custom/bello/", art: "./custom-art/custom_bello.png", setLabel: "Custom Art" },
+  { commanderName: "Krenko, Mob Boss", artRef: "/custom/krenko/", art: "./custom-art/custom_krenko.png", setLabel: "Custom Art" },
+  { commanderName: "High Perfect Morcant", artRef: "/custom/morcant/", art: "./custom-art/custom_morcant.png", setLabel: "Custom Art" },
+  { commanderName: "Nekusar, the Mindrazer", artRef: "/custom/nekusar/", art: "./custom-art/custom_nekuzar.png", setLabel: "Custom Art" },
+  { commanderName: "Prosper, Tome-Bound", artRef: "/custom/prosper/", art: "./custom-art/custom_prosper.png", setLabel: "Custom Art" },
+  { commanderName: "Rith, the Awakener", artRef: "/custom/rith/", art: "./custom-art/custom_rith.png", setLabel: "Custom Art" },
+  { commanderName: "Pako, Arcane Retriever", artRef: "/custom/pako/", art: "./custom-art/custom-pako.png", setLabel: "Custom Art" }
+];
 /* =========================
    Root DOM References
    ========================= */
@@ -1689,9 +1698,11 @@ function renderQrPanel(state) {
 
 function normalizeCommanderArtRef(value) {
   const raw = `${value || ""}`.trim().replace(/^\/+|\/+$/g, "");
-  const match = raw.match(/^([a-z0-9]{2,8})\/([a-z0-9]+)$/i);
-  if (!match) return "";
-  return `/${match[1].toLowerCase()}/${match[2].toLowerCase()}/`;
+  const customMatch = raw.match(/^custom\/([a-z0-9-]+)$/i);
+  if (customMatch) return `/custom/${customMatch[1].toLowerCase()}/`;
+  const scryfallMatch = raw.match(/^([a-z0-9]{2,8})\/([a-z0-9]+)$/i);
+  if (!scryfallMatch) return "";
+  return `/${scryfallMatch[1].toLowerCase()}/${scryfallMatch[2].toLowerCase()}/`;
 }
 
 function getDeckTransferArtRef(deck) {
@@ -1702,8 +1713,25 @@ function buildScryfallArtCropUrlFromRef(ref) {
   const normalizedRef = normalizeCommanderArtRef(ref);
   if (!normalizedRef) return "";
   const [setCode, collectorNumber] = normalizedRef.replace(/^\/+|\/+$/g, "").split("/");
+  if (setCode === "custom") {
+    return CUSTOM_COMMANDER_ARTS.find((item) => item.artRef === normalizedRef)?.art || "";
+  }
   if (!setCode || !collectorNumber) return "";
   return `https://api.scryfall.com/cards/${encodeURIComponent(setCode)}/${encodeURIComponent(collectorNumber)}?format=image&version=art_crop`;
+}
+
+function getCustomCommanderArtOptions(name) {
+  const normalizedName = normalizeLibraryName(name);
+  if (!normalizedName) return [];
+  return CUSTOM_COMMANDER_ARTS
+    .filter((item) => normalizeLibraryName(item.commanderName) === normalizedName)
+    .map((item, index) => ({
+      id: `custom-${index}-${normalizedName}`,
+      printId: "",
+      artRef: item.artRef,
+      art: item.art,
+      setLabel: item.setLabel
+    }));
 }
 
 function buildQrTransferBundle(includeGames = false) {
@@ -3308,6 +3336,7 @@ async function searchScryfallCards(query, { commanderOnly = false } = {}) {
 
 async function fetchCommanderPrintArts(card) {
   if (!card?.name) return [];
+  const customOptions = getCustomCommanderArtOptions(card.name);
   const fallback = card.art
     ? [{
       id: `${card.id || card.name}-base`,
@@ -3347,10 +3376,11 @@ async function fetchCommanderPrintArts(card) {
       })
       .filter(Boolean);
 
-    if (!options.length) return fallback;
-    return options;
+    const mergedOptions = [...customOptions, ...options];
+    if (!mergedOptions.length) return fallback;
+    return mergedOptions;
   } catch {
-    return fallback;
+    return [...customOptions, ...fallback];
   }
 }
 
@@ -7546,15 +7576,21 @@ function ensureGameLogPanel() {
   const startScreen = document.getElementById("start-screen");
   if (!startScreen) return null;
 
+  let highlightsPanel = document.getElementById("game-log-highlights-panel");
+  if (!highlightsPanel) {
+    highlightsPanel = document.createElement("div");
+    highlightsPanel.id = "game-log-highlights-panel";
+    highlightsPanel.className = "hidden";
+    highlightsPanel.innerHTML = `<div id="game-log-highlights" class="game-log-highlights"></div>`;
+    startScreen.appendChild(highlightsPanel);
+  }
+
   let panel = document.getElementById("game-log-panel");
   if (!panel) {
     panel = document.createElement("div");
     panel.id = "game-log-panel";
     panel.className = "hidden";
     panel.innerHTML = `
-      <div class="game-log-header">
-        <h3>Game Log</h3>
-      </div>
       <div id="game-log-list" class="game-log-list"></div>
     `;
     startScreen.appendChild(panel);
@@ -7567,23 +7603,31 @@ function renderGameLogPanel() {
   const panel = ensureGameLogPanel();
   if (!panel) return;
 
+  syncActivePlayerTimer();
+  const highlights = document.getElementById("game-log-highlights");
   const list = panel.querySelector("#game-log-list");
-  if (!list) return;
+  if (!list || !highlights) return;
+  renderGameLogHighlights(highlights);
   renderGameLogIntoList(list);
   bindDragScroll(list);
 }
 
 function closeGameLogPanel() {
   const panel = document.getElementById("game-log-panel");
+  const highlightsPanel = document.getElementById("game-log-highlights-panel");
   if (!panel) return;
   panel.classList.add("hidden");
+  if (highlightsPanel) highlightsPanel.classList.add("hidden");
 }
 
 function toggleGameLogPanel() {
   const panel = ensureGameLogPanel();
+  const highlightsPanel = document.getElementById("game-log-highlights-panel");
   if (!panel) return;
   renderGameLogPanel();
-  panel.classList.toggle("hidden");
+  const willShow = panel.classList.contains("hidden");
+  panel.classList.toggle("hidden", !willShow);
+  if (highlightsPanel) highlightsPanel.classList.toggle("hidden", !willShow);
   triggerHaptic("minimal");
 }
 
@@ -7607,6 +7651,67 @@ function renderGameLogIntoList(listEl) {
       </div>
     `)
     .join("");
+}
+
+function getCurrentGameLogHighlights() {
+  const livePlayers = players.slice(0, selectedPlayerCount);
+  const liveStats = matchStats.slice(0, selectedPlayerCount);
+  const totalGameTime = livePlayers.reduce((sum, player) => sum + (player?.totalTime || 0), 0);
+
+  let mainEnemyName = " - ";
+  let mostDamage = 0;
+  let mostCommanderDamageName = " - ";
+  let mostCommanderDamage = 0;
+  let mostHealName = " - ";
+  let mostHealValue = 0;
+
+  liveStats.forEach((stats, index) => {
+    const playerName = getPlayerNameForLog(livePlayers[index], index);
+    const damageDealt = Number.isFinite(stats?.damageDealt) ? stats.damageDealt : 0;
+    const commanderDamageDealt = Number.isFinite(stats?.commanderDamageDealt) ? stats.commanderDamageDealt : 0;
+    const healingDone = Number.isFinite(stats?.healingDone) ? stats.healingDone : 0;
+
+    if (damageDealt > mostDamage) {
+      mostDamage = damageDealt;
+      mainEnemyName = playerName;
+    }
+
+    if (commanderDamageDealt > mostCommanderDamage) {
+      mostCommanderDamage = commanderDamageDealt;
+      mostCommanderDamageName = playerName;
+    }
+
+    if (healingDone > mostHealValue) {
+      mostHealValue = healingDone;
+      mostHealName = playerName;
+    }
+  });
+
+  if (mostDamage <= 0) {
+    mainEnemyName = " - ";
+  }
+
+  if (mostCommanderDamage <= 0) {
+    mostCommanderDamageName = " - ";
+  }
+
+  if (mostHealValue <= 0) {
+    mostHealName = " - ";
+  }
+
+  return [
+    { label: "Total Time", value: `${formatTime(totalGameTime)} (Turn ${turnNumber})` },
+    { label: "Main Enemy", value: mainEnemyName === " - " ? " - " : `${mainEnemyName} (${mostDamage} damage)` },
+    { label: "Most Commander Damage", value: mostCommanderDamageName === " - " ? " - " : `${mostCommanderDamageName} (Dealt ${mostCommanderDamage} damage)` },
+    { label: "Most Heal", value: mostHealName === " - " ? " - " : `${mostHealName} (${mostHealValue} life gained)` }
+  ];
+}
+
+function renderGameLogHighlights(container) {
+  if (!container) return;
+
+  const cards = getCurrentGameLogHighlights();
+  container.innerHTML = renderStatsSummaryGrid(cards, "game-log-top-stats");
 }
 
 function normalizeEndGameSelections(selections) {

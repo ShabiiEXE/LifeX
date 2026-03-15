@@ -333,6 +333,7 @@ body.history-open #game {
   z-index: 0;
   filter: saturate(0.2) blur(1px) !important;
   transition: filter 0.3s ease;
+  background-position-y:55%;
 }
 
 .player .bg::after {
@@ -1675,6 +1676,7 @@ body.history-open .history-detail-shell {
   border-radius: 10px;
   background: rgba(255, 255, 255, 0.05);
   padding: 8px 10px;
+  text-align: center;
 }
 
 .stats-summary-card span {
@@ -3764,7 +3766,7 @@ body[data-players="6"] #pause-btn.active {
 
 #game-log-panel {
   position: fixed;
-  top: calc(50% + 24vmin);
+  top: calc(50% + 26vmin);
   left: 50%;
   transform: translateX(-50%);
   z-index: 2100;
@@ -3777,6 +3779,8 @@ body[data-players="6"] #pause-btn.active {
   backdrop-filter: blur(10px);
   -webkit-backdrop-filter: blur(10px);
   box-shadow: 0 0 0 1px color-mix(in srgb, var(--main-color) 14%, transparent), 0 18px 42px rgba(0, 0, 0, 0.32);
+  display: flex;
+  flex-direction: column;
 }
 
 .game-log-header {
@@ -3790,12 +3794,43 @@ body[data-players="6"] #pause-btn.active {
   color: white;
 }
 
+#game-log-highlights-panel {
+  position: fixed;
+  top: calc(50% - 47vmin);
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 2100;
+  width: min(87vw, 980px);
+  border-radius: 16px;
+  border: 2px solid rgba(255, 255, 255, 0.28);
+  background: linear-gradient(180deg, rgba(22, 12, 8, 0.92), rgba(10, 10, 10, 0.88));
+  backdrop-filter: blur(10px);
+  -webkit-backdrop-filter: blur(10px);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--main-color) 14%, transparent), 0 18px 42px rgba(0, 0, 0, 0.32);
+  padding: 0.7em 0.8em;
+}
+
+.game-log-highlights {
+  width: 100%;
+}
+
+.game-log-highlights .stats-summary-grid.game-log-top-stats {
+  margin: 0;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.game-log-highlights .stats-summary-grid.game-log-top-stats .stats-summary-card {
+  height: 100%;
+  box-sizing: border-box;
+}
+
 .game-log-list {
   display: flex;
   flex-direction: column;
   gap: 0.35em;
   padding: 0.6em 0.8em 0.8em;
-  max-height: calc(min(44vh, 420px) - 3.1em);
+  flex: 1 1 auto;
+  min-height: 0;
   overflow-y: auto;
   overflow-x: hidden;
   -webkit-overflow-scrolling: touch;
@@ -3892,6 +3927,11 @@ body[data-players="5"] #game-log-panel,
 body[data-players="6"] #game-log-panel {
   top: calc(34% + 21vmin);
   max-height: min(40vh, 360px);
+}
+
+body[data-players="5"] #game-log-highlights-panel,
+body[data-players="6"] #game-log-highlights-panel {
+  top: calc(34% - 24vmin);
 }
 
 /* =========================

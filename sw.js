@@ -1,4 +1,4 @@
-const APP_SHELL_CACHE = "life-tracker-app-shell-v17";
+const APP_SHELL_CACHE = "life-tracker-app-shell-v18";
 const APP_SHELL_CACHE_PREFIX = "life-tracker-app-shell-";
 const COMMANDER_IMAGE_CACHE = "life-tracker-commander-images-v1";
 const MAX_CACHED_IMAGES = 180;
@@ -42,6 +42,13 @@ const CRITICAL_APP_SHELL_ASSETS = [
   "./img/default_back0.png",
   "./img/default_back1.png",
   "./img/menu_back.png",
+  "./custom-art/custom_bello.png",
+  "./custom-art/custom_krenko.png",
+  "./custom-art/custom_morcant.png",
+  "./custom-art/custom_nekuzar.png",
+  "./custom-art/custom_prosper.png",
+  "./custom-art/custom_rith.png",
+  "./custom-art/custom-pako.png",
   "./icons/QR.svg",
   "./icons/buttonshape.svg"
 ];
