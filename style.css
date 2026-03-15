@@ -361,45 +361,31 @@ body.history-open #game {
   --shared-scrollbar-color: var(--judy-color);
 }
 
-.player.judy-mode button {
-  color: #000;
-}
 
-.player.judy-mode .damage-controls .sign-element {
-  color: #fff;
-}
-
+/*
 .player.judy-mode .setup-back-icon,
 .player.judy-mode .setup-inline-icon,
 .player.judy-mode .btn-icon,
 .player.judy-mode .inline-icon {
   filter: none;
 }
+  */
 
-.player.judy-mode .damage-types button.active,
-.player.judy-mode .damage-actions button,
+.player.judy-mode .setup-profile-btn,
 .player.judy-mode .setup-profile-btn.active,
 .player.judy-mode .setup-edit-btn,
 .player.judy-mode .setup-minus-btn,
-.player.judy-mode .setup-borrow-btn,
 .player.judy-mode .setup-seat-back-btn,
 .player.judy-mode .setup-icon-circle-btn,
-.player.judy-mode .pass-btn {
-  color: #000;
-}
-
+.player.judy-mode button, 
 .player.judy-mode .search-result,
 .player.judy-mode .search-result-name,
 .player.judy-mode .search-result-meta {
-  color: #fff;
+  color: rgb(229 181 204);
 }
 
-.player.judy-mode .setup-profile-btn {
-  color: #fff;
-}
-
-.player.judy-mode .setup-profile-btn.active {
-  color: #000;
+.player.judy-mode .pass-btn, .player.judy-mode .damage-menu.actions-below .confirm-btn.confirm-text-btn, .player.judy-mode .setup-borrow-btn {
+  color: white;
 }
 
 .player.impact-shake {
@@ -950,7 +936,7 @@ body.history-open #game {
   font-size: clamp(18px, 3.8vmin, 46px);
   color: white;
   margin-top: 2%;
-  width: min(68%, 320px);
+  width: min(48%, 320px);
   height: clamp(46px, 9vmin, 120px);
   min-height: 42px;
   padding: 0.2em 0.8em;
@@ -1035,6 +1021,8 @@ body.setup-grid-mode #start-screen.setup-open {
 
 body.setup-grid-mode.profile-editor-open #start-screen.setup-open {
   padding: 0;
+  justify-content: flex-start;
+  align-items: stretch;
 }
 
 body.history-open #start-screen.setup-open {
@@ -1062,7 +1050,10 @@ body.setup-grid-mode #player-buttons {
 body.setup-grid-mode.profile-editor-open #player-buttons {
   width: 100vw;
   max-width: 100vw;
+  height: 100dvh;
+  max-height: 100dvh;
   margin-top: 0;
+  pointer-events: none;
 }
 
 body.history-open #player-buttons {
@@ -1513,8 +1504,8 @@ body.history-open .history-delete-btn {
 .history-topbar .history-delete-btn,
 .history-topbar-spacer {
   position: static;
-  width: 44px;
-  height: 44px;
+  width: 38px;
+  height: 38px;
 }
 
 .history-topbar .history-back-btn {
@@ -1908,11 +1899,11 @@ body.history-open .history-detail-shell {
 #game[data-players="1"] .player.single-seat-editor .info_container {
   align-items: flex-start;
   justify-content: flex-start;
-  padding-top: 0;
+  padding-top: 18px;
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-seat-overlay {
-  padding-top: 10px;
+  padding-top: 0;
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-profile-list,
@@ -1944,6 +1935,7 @@ body.history-open .history-detail-shell {
   font-size: clamp(28px, 4.1vmin, 38px);
   line-height: 1.05;
   text-align: center;
+  margin-top: 3%;
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-seat-title-row {
@@ -2028,8 +2020,8 @@ body.history-open .history-detail-shell {
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-seat-name-save-btn {
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border-radius: 999px;
   padding: 0;
   display: grid;
@@ -2049,6 +2041,7 @@ body.history-open .history-detail-shell {
   margin-top: 8px;
   grid-template-columns: repeat(3, minmax(0, 1fr));
   gap: 5px;
+  margin-top: 5%;
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-profile-picker-stats {
@@ -2373,6 +2366,11 @@ body.history-open .history-detail-shell {
   gap: 2px;
   width: 100%;
   padding-right: 44px;
+  position: relative;
+}
+
+#game[data-players="1"] .setup-seat-header {
+  top: clamp(10px, 1.4vmin, 14px);
 }
 
 .setup-seat-subtitle {
@@ -2576,8 +2574,8 @@ body.history-open .history-detail-shell {
 
 .setup-plus-btn {
   position: absolute;
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border-radius: 999px;
   font-size: 20px !important;
   line-height: 0.9 !important;
@@ -2589,8 +2587,8 @@ body.history-open .history-detail-shell {
 
 .setup-minus-btn {
   position: absolute;
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border-radius: 999px;
   font-size: 20px !important;
   line-height: 0.9 !important;
@@ -2607,8 +2605,8 @@ body.history-open .history-detail-shell {
 
 .setup-edit-btn {
   position: absolute;
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border-radius: 999px;
   padding: 0;
   color: #fff;
@@ -2620,7 +2618,7 @@ body.history-open .history-detail-shell {
 .setup-borrow-btn {
   position: absolute;
   min-width: 72px;
-  height: 40px;
+  height: 38px;
   border-radius: 999px;
   font-size: 12px !important;
   line-height: 1 !important;
@@ -2635,8 +2633,8 @@ body.history-open .history-detail-shell {
   padding: 0;
   color: #fff;
   line-height: 0;
-  width: 36px;
-  height: 36px;
+  width: 38px;
+  height: 38px;
   border-radius: 999px;
   display: grid;
   place-items: center;
@@ -2664,8 +2662,8 @@ body.history-open .history-detail-shell {
 }
 
 .setup-icon-circle-btn {
-  width: 40px;
-  height: 40px;
+  width: 38px;
+  height: 38px;
   border-radius: 999px;
   display: grid;
   place-items: center;
@@ -3680,7 +3678,7 @@ body[data-players="6"] #pause-btn.active {
 }
 
 #pause-actions button {
-  font-size: clamp(14px, 2.4vmin, 28px);
+  font-size: clamp(15px, 2.4vmin, 28px);
   padding: 0.55em 1em;
   border-radius: 99px;
   color: white;
@@ -3896,8 +3894,10 @@ body[data-players="6"] #game-log-panel {
 }
 
 .damage-types button {
-  background: white;
-  color: black;
+  background: rgb(48 48 48 / 24%);
+  color: #fff;
+  border-color: var(--main-color);
+  box-shadow: inset 0 0 0 1px var(--main-color);
   padding: 0.6em 0.5em;
   font-size: clamp(14px, 2.4vmin, 26px);
   border-radius: 6px;
@@ -3913,6 +3913,8 @@ body[data-players="6"] #game-log-panel {
 
 .damage-types button.active {
   background: var(--main-color-alt);
+  border-color: var(--main-color-alt);
+  box-shadow: none;
   color: white;
 }
 
@@ -4082,7 +4084,7 @@ body[data-players="6"] #game-log-panel {
   }
 
   .pass-btn {
-    width: min(58%, 220px);
+    width: min(48%, 220px);
     height: clamp(36px, 7vmin, 82px);
     font-size: clamp(12px, 2.6vmin, 24px);
   }

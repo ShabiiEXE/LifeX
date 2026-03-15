@@ -220,7 +220,7 @@ const INLINE_ICON_MARKUP = {
   GameLog: `<svg viewBox="0 0 2118.07 2721.76" class="icon-img" aria-hidden="true" focusable="false"><g fill="currentColor"><rect x=".97" y="1468.51" width="1193.66" height="218.02" rx="109.01" ry="109.01"/><rect x=".97" y="1930.88" width="1453.55" height="218.02" rx="109.01" ry="109.01"/><path d="M1978.07,2721.76H140c-77.32,0-140-62.68-140-140s62.68-140,140-140h1698.07v-1367.47c0-28.75-5.58-56.8-16.58-83.36-11-26.57-26.89-50.34-47.22-70.67l-576.45-576.45c-20.33-20.33-44.11-36.22-70.67-47.22-26.56-11-54.61-16.58-83.36-16.58H140C62.68,280,0,217.32,0,140S62.68,0,140,0h903.78c65.71,0,129.81,12.75,190.51,37.9,60.71,25.15,115.05,61.46,161.51,107.92l576.45,576.45c46.46,46.46,82.77,100.81,107.92,161.51s37.9,124.8,37.9,190.51v1507.47c0,77.32-62.68,140-140,140Z"/></g></svg>`,
   Monarch: `<svg viewBox="0 0 3003 1922.35" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M2490.04,1922.35H512.97c-64.29,0-120.32-43.79-135.85-106.18L4.16,318.06c-14.78-59.36,10.69-121.43,62.9-153.31,52.21-31.88,119.06-26.17,165.11,14.09l700.55,612.51L1382.53,66.2C1408.06,25.04,1453.06,0,1501.5,0s93.45,25.04,118.98,66.2l449.82,725.15,700.55-612.51c58.21-50.89,146.65-44.96,197.55,13.25,50.89,58.21,44.96,146.65-13.24,197.55l-824.72,721.08c-25.69,22.46-58.49,34.6-92.15,34.61-6.89,0-13.81-.51-20.73-1.54-40.65-6.08-76.58-29.73-98.25-64.66l-417.81-673.54-417.81,673.54c-21.67,34.93-57.59,58.57-98.25,64.66-40.65,6.08-81.93-6.01-112.87-33.06l-488.98-427.53,238.79,959.16h1867.65c77.32,0,140,62.68,140,140s-62.68,140-140,140Z"/></svg>`,
   Edit: `<svg viewBox="0 0 2040.37 2035.6" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1642.63,397.39c30.58,30.58,45.87,70.66,45.87,110.74,0,40.08-15.28,80.15-45.86,110.73L271.76,1989.73c-56,56-143.85,60.72-205.22,14.17-7.39-5.2-14.31-11.03-20.68-17.4-28.33-28.33-45.86-67.49-45.86-110.73v-744.09c0-86.49,70.11-156.6,156.6-156.6,43.25,0,82.4,17.53,110.74,45.87s45.86,67.49,45.86,110.73v373.66L1421.16,397.39c61.16-61.16,160.31-61.16,221.47,0Z"/><rect fill="currentColor" x="1727.49" y="0" width="312.88" height="312.88" rx="156.44" ry="156.44" transform="translate(441.17 1377.96) rotate(-45)"/></svg>`,
-  Minus: `<svg viewBox="0 0 100 100" class="icon-img" aria-hidden="true" focusable="false"><rect x="12" y="39" width="76" height="22" rx="11" ry="11" fill="currentColor"/></svg>`,
+  Minus: `<svg viewBox="0 0 100 100" class="icon-img" aria-hidden="true" focusable="false"><rect x="12" y="39" width="60" height="18" rx="11" ry="11" fill="currentColor"/></svg>`,
   Ok: `<svg viewBox="0 0 2029.21 2029.21" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1014.6,0C454.25,0,0,454.25,0,1014.6s454.25,1014.61,1014.6,1014.61,1014.61-454.26,1014.61-1014.61S1574.95,0,1014.6,0ZM1014.6,1664.59c-358.97,0-649.98-291.01-649.98-649.99S655.63,364.62,1014.6,364.62s649.98,291.01,649.98,649.98-291,649.99-649.98,649.99Z"/></svg>`,
   Play: `<svg viewBox="0 0 1481.73 1698.19" class="icon-img" aria-hidden="true" focusable="false"><path fill="currentColor" d="M1389.8,1011.15L285.67,1671.15C159.83,1746.38,0,1655.71,0,1509.1V189.09C0,42.48,159.83-48.19,285.67,27.04l1104.13,660c122.57,73.27,122.57,250.84,0,324.11Z"/></svg>`,
   Plus: `<svg viewBox="0 0 100 100" class="icon-img" aria-hidden="true" focusable="false"><rect x="16" y="42" width="68" height="16" rx="8" ry="8" fill="currentColor"/><rect x="42" y="16" width="16" height="68" rx="8" ry="8" fill="currentColor"/></svg>`,
@@ -2578,7 +2578,13 @@ function renderCommanderSeatOverlay(state, playerIndex) {
                 .replace("go-back-profile-seat", "back-to-config")
                 .replace('aria-label="Back to player selection"', `aria-label="${seat.isDeletingProfile ? "Back disabled while deleting profiles" : "Back to config"}"${seat.isDeletingProfile ? " disabled" : ""}`)
             : ""}
-          <div class="setup-seat-title">${seat.isDeletingProfile ? "Delete Profile" : seat.isEditingProfile ? "EDIT PLAYER" : "Select Profile"}</div>
+          ${isSingleSeatEditor ? `
+            <div class="setup-seat-header">
+              <div class="setup-seat-title-row">
+                <div class="setup-seat-title">${seat.isDeletingProfile ? "Delete Profile" : seat.isEditingProfile ? "EDIT PLAYER" : "Select Profile"}</div>
+              </div>
+            </div>
+          ` : `<div class="setup-seat-title">${seat.isDeletingProfile ? "Delete Profile" : seat.isEditingProfile ? "EDIT PLAYER" : "Select Profile"}</div>`}
           ${isSingleSeatEditor ? renderStatsSummaryGrid([
             { label: "Number of Matches", value: String(historySummaryStats.numberOfMatches) },
             { label: "Total Play Time", value: formatTime(historySummaryStats.totalPlayTime) },
@@ -8219,6 +8225,11 @@ function initExitConfirmGuard() {
   window.addEventListener("popstate", () => {
     if (allowExitAfterConfirm) return;
 
+    if (handleDeviceBackNavigation()) {
+      window.history.pushState({ lifexExitGuard: true }, "", window.location.href);
+      return;
+    }
+
     const shouldExit = window.confirm("Leave LifeX?");
     if (shouldExit) {
       allowExitAfterConfirm = true;
@@ -8229,6 +8240,61 @@ function initExitConfirmGuard() {
     // Re-arm guard if user cancels.
     window.history.pushState({ lifexExitGuard: true }, "", window.location.href);
   });
+}
+
+function isVisibleActionButton(btn) {
+  return !!btn && !btn.disabled && btn.getClientRects().length > 0;
+}
+
+function triggerVisibleAction(action) {
+  const btn = document.querySelector(`button[data-action="${action}"]`);
+  if (!isVisibleActionButton(btn)) return false;
+  btn.click();
+  return true;
+}
+
+function handleDeviceBackNavigation() {
+  const state = ensureSetupState();
+
+  if (state.qrOpen) {
+    if (state.qrView === "share" && state.qrCloseOnShareExit) {
+      return triggerVisibleAction("close-qr");
+    }
+    if (state.qrView === "share" || state.qrView === "scan") {
+      return triggerVisibleAction("back-qr-menu") || triggerVisibleAction("close-qr");
+    }
+    return triggerVisibleAction("close-qr");
+  }
+
+  if (state.step === "history") {
+    if (state.historyDeleteMode) {
+      return triggerVisibleAction("close-history-delete");
+    }
+    if (state.historyView === "detail") {
+      return triggerVisibleAction("back-from-history-detail");
+    }
+    return triggerVisibleAction("back-from-history");
+  }
+
+  if (isProfileEditorMode(state)) {
+    if (state.step === "seats") {
+      const orderedActions = [
+        "close-delete-deck",
+        "close-delete-profile",
+        "close-edit-deck-art",
+        "close-edit-deck",
+        "close-add-deck",
+        "close-edit-profile",
+        "close-add-profile",
+        "go-back-profile-seat",
+        "back-to-config"
+      ];
+      return orderedActions.some(action => triggerVisibleAction(action));
+    }
+    return triggerVisibleAction("back-to-config");
+  }
+
+  return false;
 }
 
 
