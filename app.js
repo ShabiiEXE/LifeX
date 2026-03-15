@@ -79,7 +79,7 @@ const DEFAULT_MAGIC_PLAYER_BACKGROUNDS = [
   "./img/default_back1.png"
 ];
 const CUSTOM_COMMANDER_ARTS = [
-  { commanderName: "Bello, Bard of Brambles", artRef: "/custom/bello/", art: "./custom-art/custom_bello.png", setLabel: "Custom Art" },
+  { commanderName: "Bello, Bard of the Brambles", artRef: "/custom/bello/", art: "./custom-art/custom_bello.png", setLabel: "Custom Art" },
   { commanderName: "Krenko, Mob Boss", artRef: "/custom/krenko/", art: "./custom-art/custom_krenko.png", setLabel: "Custom Art" },
   { commanderName: "High Perfect Morcant", artRef: "/custom/morcant/", art: "./custom-art/custom_morcant.png", setLabel: "Custom Art" },
   { commanderName: "Nekusar, the Mindrazer", artRef: "/custom/nekusar/", art: "./custom-art/custom_nekuzar.png", setLabel: "Custom Art" },
@@ -8610,7 +8610,7 @@ window.addEventListener("beforeunload", saveState);
 window.addEventListener("pagehide", saveState);
 
 
-//window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
+window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
 
 // Console helpers for quick troubleshooting:
 // start2(), start3(), start4(), start5(), start6(), startPlayers(n)
