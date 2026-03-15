@@ -3180,11 +3180,21 @@ function renderStartSetupScreen() {
   startScreen.classList.add("setup-open");
 
   if (state.step === "config") {
+    if (!hasStartedGame) {
+      selectedPlayerCount = 0;
+      game.dataset.players = "0";
+      document.body.dataset.players = "0";
+    }
     exitSetupGridPreview();
     container.innerHTML = renderStartConfigStep(state);
   } else if (state.step === "history") {
     stopQrScanner();
     state.qrOpen = false;
+    if (!hasStartedGame) {
+      selectedPlayerCount = 0;
+      game.dataset.players = "0";
+      document.body.dataset.players = "0";
+    }
     exitSetupGridPreview();
     container.innerHTML = renderStartHistoryScreen();
   } else if (state.step === "seats") {
@@ -5638,6 +5648,24 @@ function formatAverageDuration(secondsValue) {
   return formatTime(Math.round(secondsValue));
 }
 
+function getHistoryWinnerPanelImage(entry) {
+  const playersInEntry = Array.isArray(entry?.players) ? entry.players : [];
+  const winnerPlayer = Number.isInteger(entry?.winnerIndex) && entry.winnerIndex >= 0
+    ? playersInEntry[entry.winnerIndex] || null
+    : playersInEntry.find(player => player?.isWinner) || null;
+  const image = `${winnerPlayer?.image || ""}`.trim();
+  return image || DEFAULT_PLAYER_BACKGROUND;
+}
+
+function renderHistoryPanelBackground(entry) {
+  const image = getHistoryWinnerPanelImage(entry).replace(/"/g, "&quot;");
+  return `
+    <div class="history-seat-bg player single-seat-editor setup-seat-player setup-seat-outlined" aria-hidden="true">
+      <div class="bg" style="background-image: url(&quot;${image}&quot;); --rot: 0deg; width: 100%; height: 100%;"></div>
+    </div>
+  `;
+}
+
 function buildMatchSummaryStats() {
   const globalStats = normalizePersistentGlobalStats(persistentStats?.global);
   return {
@@ -5757,6 +5785,7 @@ function renderHistoryDuelSeriesDetail(group) {
 
   return `
     <div class="setup-panel setup-panel-wide history-detail-panel">
+      ${renderHistoryPanelBackground(latestEntry)}
       <div class="history-topbar">
         <button class="setup-icon-circle-btn history-back-btn" data-action="back-from-history-detail" aria-label="Back">
           ${getIconMarkup("Back", "setup-back-icon")}
@@ -5785,6 +5814,7 @@ function renderHistoryEntryDetail(entry) {
     : "";
   return `
     <div class="setup-panel setup-panel-wide history-detail-panel">
+      ${renderHistoryPanelBackground(entry)}
       <div class="history-topbar">
         <button class="setup-icon-circle-btn history-back-btn" data-action="back-from-history-detail" aria-label="Back">
           ${getIconMarkup("Back", "setup-back-icon")}
@@ -5884,6 +5914,7 @@ function renderStartHistoryScreen() {
 
   return `
     <div class="setup-panel setup-panel-wide history-list-panel">
+      ${renderHistoryPanelBackground(selectedGroup?.type === "duel-series" ? selectedGroup.latestEntry : (groups[0]?.type === "duel-series" ? groups[0].latestEntry : groups[0]?.entry))}
       <div class="history-topbar">
         <button class="setup-icon-circle-btn history-back-btn" data-action="back-from-history" aria-label="Back" ${state.historyDeleteMode ? "disabled" : ""}>
           ${getIconMarkup("Back", "setup-back-icon")}

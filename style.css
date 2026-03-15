@@ -1285,8 +1285,8 @@ body.history-open #player-buttons {
 }
 
 .setup-panel h2 {
-  font-size: clamp(25px, 3vmin, 35px);
-  margin-top: 1%;
+  font-size: clamp(28px, 4.1vmin, 38px);
+  margin-top: 3%;
 }
 
 .setup-panel h3 {
@@ -1417,24 +1417,42 @@ body.history-open .history-detail-panel {
   overflow: hidden;
 }
 
-body.history-open .history-list-panel::before,
-body.history-open .history-detail-panel::before {
-  content: "";
+body.history-open .history-list-panel > *,
+body.history-open .history-detail-panel > * {
+  position: relative;
+  z-index: 2;
+}
+
+.history-seat-bg {
   position: absolute;
   inset: 0;
-  background-image: url("./img/menu_back.png");
+  z-index: 0;
+  pointer-events: none;
+  border-radius: 0;
+  transform: none;
+  --player-scale: 1;
+  display: flex;
+  flex-direction: column;
+  align-items: stretch;
+  justify-content: flex-start;
+  overflow: hidden;
+}
+
+.history-seat-bg .bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100% !important;
+  height: 58% !important;
+  transform: none;
+  transform-origin: center;
   background-size: 150% auto;
   background-position: center top;
   background-repeat: no-repeat;
-  filter: none;
-  z-index: 0;
+  filter: none !important;
 }
 
-body.history-open .history-list-panel::after,
-body.history-open .history-detail-panel::after {
-  content: "";
-  position: absolute;
-  inset: 0;
+.history-seat-bg .bg::after {
   background: linear-gradient(
     to bottom,
     rgba(0, 0, 0, 0.64) 0%,
@@ -1443,13 +1461,6 @@ body.history-open .history-detail-panel::after {
     rgba(0, 0, 0, 0.96) 52%,
     rgba(0, 0, 0, 0.98) 100%
   );
-  z-index: 1;
-}
-
-body.history-open .history-list-panel > *,
-body.history-open .history-detail-panel > * {
-  position: relative;
-  z-index: 2;
 }
 
 .history-back-btn {
@@ -1935,7 +1946,7 @@ body.history-open .history-detail-shell {
   font-size: clamp(28px, 4.1vmin, 38px);
   line-height: 1.05;
   text-align: center;
-  margin-top: 3%;
+  margin-top: 2%;
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-seat-title-row {
