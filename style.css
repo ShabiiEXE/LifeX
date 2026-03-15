@@ -1138,7 +1138,7 @@ body.history-open #player-buttons {
   min-height: 38px;
   border-radius: 999px;
   display: grid;
-  display: none !important; /*HIDE DELETE BUTTON*/
+  /*display: none !important; /*HIDE DELETE BUTTON*/
   place-items: center;
   padding: 0;
   z-index: 3;

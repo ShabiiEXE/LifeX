@@ -15,6 +15,7 @@ const entriesToCopy = [
   "scripts",
   "icons",
   "img",
+  "custom-art",
   "fonts",
   "vendor"
 ];

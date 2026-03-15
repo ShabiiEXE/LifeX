@@ -1,4 +1,4 @@
-const APP_SHELL_CACHE = "life-tracker-app-shell-v18";
+const APP_SHELL_CACHE = "life-tracker-app-shell-v19";
 const APP_SHELL_CACHE_PREFIX = "life-tracker-app-shell-";
 const COMMANDER_IMAGE_CACHE = "life-tracker-commander-images-v1";
 const MAX_CACHED_IMAGES = 180;

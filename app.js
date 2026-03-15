@@ -79,13 +79,13 @@ const DEFAULT_MAGIC_PLAYER_BACKGROUNDS = [
   "./img/default_back1.png"
 ];
 const CUSTOM_COMMANDER_ARTS = [
-  { commanderName: "Bello, Bard of the Brambles", artRef: "/custom/bello/", art: "./custom-art/custom_bello.png", setLabel: "Custom Art" },
-  { commanderName: "Krenko, Mob Boss", artRef: "/custom/krenko/", art: "./custom-art/custom_krenko.png", setLabel: "Custom Art" },
-  { commanderName: "High Perfect Morcant", artRef: "/custom/morcant/", art: "./custom-art/custom_morcant.png", setLabel: "Custom Art" },
-  { commanderName: "Nekusar, the Mindrazer", artRef: "/custom/nekusar/", art: "./custom-art/custom_nekuzar.png", setLabel: "Custom Art" },
-  { commanderName: "Prosper, Tome-Bound", artRef: "/custom/prosper/", art: "./custom-art/custom_prosper.png", setLabel: "Custom Art" },
-  { commanderName: "Rith, the Awakener", artRef: "/custom/rith/", art: "./custom-art/custom_rith.png", setLabel: "Custom Art" },
-  { commanderName: "Pako, Arcane Retriever", artRef: "/custom/pako/", art: "./custom-art/custom-pako.png", setLabel: "Custom Art" }
+  { commanderName: "Bello, Bard of the Brambles", artRef: "/custom/bello1/", art: "./custom-art/custom_bello.png", setLabel: "Custom Art" },
+  { commanderName: "Krenko, Mob Boss", artRef: "/custom/krenko1/", art: "./custom-art/custom_krenko.png", setLabel: "Custom Art" },
+  { commanderName: "High Perfect Morcant", artRef: "/custom/morcant1/", art: "./custom-art/custom_morcant.png", setLabel: "Custom Art" },
+  { commanderName: "Nekusar, the Mindrazer", artRef: "/custom/nekusar1/", art: "./custom-art/custom_nekuzar.png", setLabel: "Custom Art" },
+  { commanderName: "Prosper, Tome-Bound", artRef: "/custom/prosper1/", art: "./custom-art/custom_prosper.png", setLabel: "Custom Art" },
+  { commanderName: "Rith, the Awakener", artRef: "/custom/rith1/", art: "./custom-art/custom_rith.png", setLabel: "Custom Art" },
+  { commanderName: "Pako, Arcane Retriever", artRef: "/custom/pako1/", art: "./custom-art/custom-pako.png", setLabel: "Custom Art" }
 ];
 /* =========================
    Root DOM References
@@ -1714,7 +1714,11 @@ function buildScryfallArtCropUrlFromRef(ref) {
   if (!normalizedRef) return "";
   const [setCode, collectorNumber] = normalizedRef.replace(/^\/+|\/+$/g, "").split("/");
   if (setCode === "custom") {
-    return CUSTOM_COMMANDER_ARTS.find((item) => item.artRef === normalizedRef)?.art || "";
+    return CUSTOM_COMMANDER_ARTS.find((item) => {
+      if (item.artRef === normalizedRef) return true;
+      const legacyRef = item.artRef.replace(/1\/$/, "/");
+      return legacyRef === normalizedRef;
+    })?.art || "";
   }
   if (!setCode || !collectorNumber) return "";
   return `https://api.scryfall.com/cards/${encodeURIComponent(setCode)}/${encodeURIComponent(collectorNumber)}?format=image&version=art_crop`;
