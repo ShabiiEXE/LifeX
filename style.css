@@ -1005,6 +1005,11 @@ body.history-open #game {
   max-width: 220px;
 }
 
+
+.reset-sync-match-data{
+  display: none !Important; /*DELETE BUTT*/
+}
+
 .start-screen-bg {
   position: absolute;
   inset: 0;

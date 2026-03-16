@@ -43,6 +43,16 @@ function createEmptyRoomState(pin = "", password = "") {
   };
 }
 
+function resetMatchDataInState(state) {
+  return {
+    ...state,
+    updatedAt: Date.now(),
+    games: [],
+    historyEntries: [],
+    statsByDevice: {}
+  };
+}
+
 function normalizeTombstones(source) {
   const profiles = Array.isArray(source?.profiles) ? source.profiles : [];
   const decks = Array.isArray(source?.decks) ? source.decks : [];
@@ -428,6 +438,32 @@ export class SyncRoom {
       });
     }
 
+    if (request.method === "POST" && url.pathname.endsWith("/reset-match-data")) {
+      if (!state.pin) {
+        return json({ error: "Room not found." }, { status: 404 });
+      }
+      if (!requestedPassword) {
+        return json({ error: "Wrong room password." }, { status: 401 });
+      }
+      const roomPassword = normalizePassword(state.password);
+      if (!roomPassword) {
+        const migratedState = {
+          ...state,
+          password: requestedPassword,
+          updatedAt: Date.now()
+        };
+        const nextState = resetMatchDataInState(migratedState);
+        await this.saveState(nextState);
+        return json({ ok: true, pin: nextState.pin, updatedAt: nextState.updatedAt });
+      }
+      if (requestedPassword !== roomPassword) {
+        return json({ error: "Wrong room password." }, { status: 401 });
+      }
+      const nextState = resetMatchDataInState(state);
+      await this.saveState(nextState);
+      return json({ ok: true, pin: nextState.pin, updatedAt: nextState.updatedAt });
+    }
+
     if (request.method === "GET" && url.pathname.endsWith("/debug")) {
       const providedSecret = `${request.headers.get("x-debug-sync-secret") || ""}`.trim();
       if (!providedSecret) {
@@ -577,6 +613,21 @@ export default {
           "content-type": "application/json; charset=utf-8"
         },
         body: await request.text()
+      });
+    }
+
+    const resetMatchDataMatch = url.pathname.match(/^\/api\/sync\/(\d{4})\/reset-match-data$/);
+    if (request.method === "POST" && resetMatchDataMatch) {
+      const pin = resetMatchDataMatch[1];
+      const body = await request.text();
+      const id = env.SYNC_ROOM.idFromName(pin);
+      const stub = env.SYNC_ROOM.get(id);
+      return stub.fetch(`https://sync.internal/room/${pin}/reset-match-data`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json; charset=utf-8"
+        },
+        body
       });
     }
 

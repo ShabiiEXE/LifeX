@@ -1122,14 +1122,84 @@ function savePersistentStats(roomId = `${cloudSyncSession?.activeRoomId || ""}`.
   localStorage.setItem(getWorkspaceStorageKey(PERSISTENT_STATS_STORAGE_KEY, roomId), JSON.stringify(persistentStats));
 }
 
-function buildPersistentStatsSnapshot() {
+function buildPersistentStatsSnapshotFromEntries(entries) {
+  const snapshot = {
+    sourceDeviceId: deviceId,
+    global: createEmptyPersistentGlobalStats(),
+    profiles: {}
+  };
+
+  const getSnapshotProfileBucket = (profileName) => {
+    const cleanName = `${profileName || ""}`.trim();
+    const normalizedProfileName = normalizeLibraryName(cleanName);
+    if (!normalizedProfileName) return null;
+    if (!snapshot.profiles[normalizedProfileName]) {
+      snapshot.profiles[normalizedProfileName] = createEmptyPersistentProfileStats(cleanName || profileName);
+    }
+    return snapshot.profiles[normalizedProfileName];
+  };
+
+  (Array.isArray(entries) ? entries : []).forEach((entry) => {
+    if ((entry?.mode || "commander") !== "commander") return;
+
+    applyPersistentGlobalDelta(snapshot.global, {
+      numberOfMatches: 1,
+      totalPlayTime: Number.isFinite(entry?.totalMatchSeconds) ? entry.totalMatchSeconds : 0,
+      totalTurns: Number.isFinite(entry?.turnCount) ? entry.turnCount : 0,
+      numberOfWins: Number.isInteger(entry?.winnerIndex) && entry.winnerIndex >= 0 ? 1 : 0,
+      totalWinTurns: Number.isInteger(entry?.winnerIndex) && entry.winnerIndex >= 0 && Number.isFinite(entry?.turnCount) ? entry.turnCount : 0
+    });
+
+    const playersInEntry = Array.isArray(entry?.players) ? entry.players : [];
+    playersInEntry.forEach((player) => {
+      const playerName = `${player?.name || ""}`.trim();
+      const bucket = getSnapshotProfileBucket(playerName);
+      if (!bucket) return;
+
+      applyPersistentProfileDelta(bucket, {
+        numberOfMatches: 1,
+        totalPlayTime: Number.isFinite(player?.totalTime) ? player.totalTime : 0,
+        totalTurns: Number.isFinite(entry?.turnCount) ? entry.turnCount : 0,
+        numberOfWins: player?.isWinner ? 1 : 0,
+        totalWinTurns: player?.isWinner && Number.isFinite(entry?.turnCount) ? entry.turnCount : 0,
+        totalDamage: Number.isFinite(player?.stats?.damageDealt) ? player.stats.damageDealt : 0,
+        totalHealing: Number.isFinite(player?.stats?.healingDone) ? player.stats.healingDone : 0
+      });
+
+      const opponents = playersInEntry.filter((opponent) =>
+        normalizeLibraryName(opponent?.name) !== normalizeLibraryName(playerName)
+      );
+      const opponentCount = Math.max(1, opponents.length);
+      opponents.forEach((opponent) => {
+        const opponentName = `${opponent?.name || ""}`.trim();
+        if (!opponentName) return;
+        bucket.enemyScores[opponentName] = (bucket.enemyScores[opponentName] || 0) + ((player?.stats?.damageDealt || 0) / opponentCount);
+        bucket.targetScores[opponentName] = (bucket.targetScores[opponentName] || 0) + ((opponent?.stats?.damageDealt || 0) / opponentCount);
+      });
+    });
+  });
+
   return {
     sourceDeviceId: deviceId,
-    global: normalizePersistentGlobalStats(persistentStats.global),
+    global: normalizePersistentGlobalStats(snapshot.global),
     profiles: Object.fromEntries(
-      Object.entries(persistentStats.profiles)
+      Object.entries(snapshot.profiles)
         .map(([key, value]) => [key, normalizePersistentProfileStats(value, value?.name || key)])
     )
+  };
+}
+
+function buildPersistentStatsSnapshot() {
+  const localCommanderEntries = matchHistory.filter((entry) =>
+    (entry?.mode || "commander") === "commander"
+    && `${entry?.createdByDeviceId || ""}`.trim() === deviceId
+  );
+  return buildPersistentStatsSnapshotFromEntries(localCommanderEntries);
+}
+
+function buildCloudPersistentStatsSnapshot() {
+  return {
+    ...buildPersistentStatsSnapshot()
   };
 }
 
@@ -1274,6 +1344,14 @@ function clearStoredGameData() {
   localStorage.removeItem(getWorkspaceStorageKey(MATCH_HISTORY_STORAGE_KEY));
   localStorage.removeItem(getWorkspaceStorageKey(PERSISTENT_STATS_STORAGE_KEY));
   localStorage.removeItem(getWorkspaceStorageKey(SYNC_TOMBSTONES_STORAGE_KEY));
+}
+
+function clearStoredMatchData() {
+  matchHistory = [];
+  persistentStats = createEmptyPersistentStatsStore();
+  clearResumeSessions();
+  localStorage.removeItem(getWorkspaceStorageKey(MATCH_HISTORY_STORAGE_KEY));
+  localStorage.removeItem(getWorkspaceStorageKey(PERSISTENT_STATS_STORAGE_KEY));
 }
 
 function renderStartScreenBackdrop() {
@@ -2106,6 +2184,7 @@ function renderQrPanel(state) {
             <div class="setup-footer qr-menu-actions qr-menu-actions-inline">
               <button class="setup-icon-circle-btn qr-back-btn" data-action="back-qr-menu" aria-label="Back">${getIconMarkup("Back", "setup-inline-icon")}</button>
               <button data-action="join-sync-room">Join</button>
+              ${state.syncConnected ? `<button data-action="reset-sync-match-data" class="reset-sync-match-data">Reset Match Data</button>` : ""}
               ${state.syncConnected ? `<button class="setup-icon-circle-btn qr-back-btn" data-action="disconnect-sync-room" aria-label="Leave sync room">${getIconMarkup("Delete", "setup-inline-icon")}</button>` : ""}
             </div>
           </div>
@@ -2222,7 +2301,7 @@ function buildQrTransferBundle(includeGames = false) {
       .filter(Boolean),
     games,
     historyEntries,
-    stats: buildPersistentStatsSnapshot(),
+    stats: buildCloudPersistentStatsSnapshot(),
     tombstones: normalizeSyncTombstones(syncTombstones)
   };
 }
@@ -2458,6 +2537,51 @@ async function syncCloudRoom(roomOrPin, { silent = false } = {}) {
   } finally {
     cloudSyncInFlightPromise = null;
   }
+}
+
+async function resetCloudRoomMatchData(roomOrPin, { silent = false } = {}) {
+  const room = typeof roomOrPin === "string"
+    ? { pin: roomOrPin, name: "", id: "", password: "" }
+    : (roomOrPin || getPendingCloudSyncRoom());
+  const normalizedPin = normalizeCloudSyncPin(room?.pin);
+  const normalizedPassword = normalizeCloudSyncPassword(room?.password);
+  if (normalizedPin.length !== CLOUD_SYNC_PIN_LENGTH) {
+    if (!silent) setCloudSyncStatus("Enter a 4-digit PIN.");
+    return null;
+  }
+  if (normalizedPassword.length !== CLOUD_SYNC_PIN_LENGTH) {
+    if (!silent) setCloudSyncStatus("Enter a 4-digit password.");
+    return null;
+  }
+  clearStoredMatchData();
+  if (isLocalTestSyncPin(normalizedPin)) {
+    if (!silent) {
+      setCloudSyncStatus(`Cleared match data for ${room?.name || "local test room"} on this device.`);
+    }
+    return { ok: true, local: true };
+  }
+  const response = await fetch(`/api/sync/${encodeURIComponent(normalizedPin)}/reset-match-data`, {
+    method: "POST",
+    headers: {
+      "content-type": "application/json"
+    },
+    body: JSON.stringify({
+      password: normalizedPassword
+    })
+  });
+  if (!response.ok) {
+    throw new Error(
+      response.status === 401
+        ? "Wrong room password."
+        : response.status === 404
+          ? "Room not found."
+          : "Unable to reset room match data."
+    );
+  }
+  if (!silent) {
+    setCloudSyncStatus(`Cleared match data for ${room?.name || "room"} locally and in cloud.`);
+  }
+  return response.json().catch(() => ({ ok: true }));
 }
 
 function startCloudSyncLoop(roomOrPin, { syncNow = true, silent = false } = {}) {
@@ -4597,6 +4721,17 @@ function setupStartScreen() {
       return;
     }
 
+    if (action === "reset-sync-match-data") {
+      const activeRoom = getActiveCloudSyncRoom(state) || getPendingCloudSyncRoom(state);
+      try {
+        await resetCloudRoomMatchData(activeRoom);
+      } catch (error) {
+        setCloudSyncStatus(error instanceof Error ? error.message : "Unable to reset room match data.");
+      }
+      renderStartSetupScreen();
+      return;
+    }
+
     if (action === "import-qr-payload") {
       const payload = `${state.qrInput || ""}`.trim();
       if (!payload) {
@@ -6639,7 +6774,9 @@ function archiveCompletedGame(finalCauseLabel, finalMessage) {
   matchHistory = trimMatchHistoryByCommanderCap(matchHistory);
   recordPersistentStatsForEntry(entry);
   saveMatchHistory();
-  syncActiveCloudRoom({ silent: true });
+  if ((entry?.mode || "commander") === "commander") {
+    syncActiveCloudRoom({ silent: true });
+  }
 }
 
 function deleteMatchHistoryEntry(entryId) {
