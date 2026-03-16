@@ -73,6 +73,7 @@ const DEVICE_ID_STORAGE_KEY = "lifeXDeviceIdV1";
 const CLOUD_SYNC_STORAGE_KEY = "lifeXCloudSyncV1";
 const SYNC_TOMBSTONES_STORAGE_KEY = "lifeXSyncTombstonesV1";
 const QR_TRANSFER_PREFIX = "LIFEX1:";
+const CLOUD_SYNC_ROOM_QR_PREFIX = "LIFEXSYNC1:";
 const SCRYFALL_SEARCH_TIMEOUT_MS = 3200;
 const CLOUD_SYNC_PIN_LENGTH = 4;
 const CLOUD_SYNC_POLL_MS = 15000;
@@ -2026,6 +2027,8 @@ function renderQrPanel(state) {
   const isScan = state.qrView === "scan";
   const isSync = state.qrView === "sync";
   const showBackdrop = isShare && !!state.qrImageUrl;
+  const syncRoomPayload = isSync ? encodeCloudSyncRoomPayload(getPendingCloudSyncRoom(state)) : "";
+  const syncRoomQrDataUrl = syncRoomPayload ? buildLocalQrDataUrl(syncRoomPayload, 280) : "";
   const shareExitAction = state.qrCloseOnShareExit ? "close-qr" : "back-qr-menu";
   const shareExitIcon = state.qrCloseOnShareExit ? "Cancel" : "Back";
   const shareExitLabel = state.qrCloseOnShareExit ? "Close" : "Back";
@@ -2043,7 +2046,6 @@ function renderQrPanel(state) {
         ${isMenu ? `
           <div class="setup-footer qr-menu-actions">
             <button data-action="open-qr-scan">Scan</button>
-            <button data-action="open-qr-share">Share</button>
             <button data-action="open-qr-sync">Sync</button>
           </div>
         ` : ""}
@@ -2074,8 +2076,14 @@ function renderQrPanel(state) {
               ${savedSyncRooms.map((room) => `<option value="${escapeHtml(room.id)}" ${selectedSyncRoomId === room.id ? "selected" : ""}>${escapeHtml(room.name)}</option>`).join("")}
             </select>
             <input class="sync-payload" data-sync-room-name="room-name" maxlength="40" value="${escapeHtml(state.syncRoomName || "")}" placeholder="Playgroup name">
-            <input class="sync-payload" type="password" data-sync-pin="room-pin" inputmode="numeric" maxlength="${CLOUD_SYNC_PIN_LENGTH}" value="${escapeHtml(state.syncPin || "")}" placeholder="4-digit room PIN">
+            <input class="sync-payload" type="text" data-sync-pin="room-pin" inputmode="numeric" maxlength="${CLOUD_SYNC_PIN_LENGTH}" value="${escapeHtml(state.syncPin || "")}" placeholder="4-digit room PIN">
             <input class="sync-payload" type="password" data-sync-password="room-password" inputmode="numeric" maxlength="${CLOUD_SYNC_PIN_LENGTH}" value="${escapeHtml(state.syncPassword || "")}" placeholder="4-digit room password">
+            ${syncRoomPayload ? `
+              <div class="qr-sync-room-share">
+                ${syncRoomQrDataUrl ? `<img class="qr-image qr-sync-room-image" src="${syncRoomQrDataUrl}" alt="Sync room QR">` : `<div class="qr-placeholder">QR unavailable.</div>`}
+                <textarea class="qr-payload" readonly>${escapeHtml(syncRoomPayload)}</textarea>
+              </div>
+            ` : ""}
             <div class="setup-footer qr-menu-actions qr-menu-actions-inline">
               <button class="setup-icon-circle-btn qr-back-btn" data-action="back-qr-menu" aria-label="Back">${getIconMarkup("Back", "setup-inline-icon")}</button>
               <button data-action="join-sync-room">Join</button>
@@ -2240,6 +2248,18 @@ function buildProfileQrTransferBundle(profileId) {
 
 function encodeQrTransferPayload(bundle) {
   return `${QR_TRANSFER_PREFIX}${toBase64Utf8(JSON.stringify(bundle))}`;
+}
+
+function encodeCloudSyncRoomPayload(room) {
+  const pin = normalizeCloudSyncPin(room?.pin);
+  const password = normalizeCloudSyncPassword(room?.password);
+  const name = `${room?.name || ""}`.trim();
+  if (pin.length !== CLOUD_SYNC_PIN_LENGTH || password.length !== CLOUD_SYNC_PIN_LENGTH) return "";
+  return `${CLOUD_SYNC_ROOM_QR_PREFIX}${toBase64Utf8(JSON.stringify({
+    name,
+    pin,
+    password
+  }))}`;
 }
 
 function getActiveCloudSyncRoomId(state = setupState) {
@@ -2643,6 +2663,21 @@ function parseQrTransferPayload(rawPayload) {
   return safeJsonParse(raw, null);
 }
 
+function parseCloudSyncRoomPayload(rawPayload) {
+  const raw = `${rawPayload || ""}`.trim();
+  if (!raw.startsWith(CLOUD_SYNC_ROOM_QR_PREFIX)) return null;
+  try {
+    const payload = safeJsonParse(fromBase64Utf8(raw.slice(CLOUD_SYNC_ROOM_QR_PREFIX.length)), null);
+    const pin = normalizeCloudSyncPin(payload?.pin);
+    const password = normalizeCloudSyncPassword(payload?.password);
+    const name = `${payload?.name || ""}`.trim();
+    if (pin.length !== CLOUD_SYNC_PIN_LENGTH || password.length !== CLOUD_SYNC_PIN_LENGTH) return null;
+    return { name, pin, password };
+  } catch {
+    return null;
+  }
+}
+
 function getHistoryShareKey(entry) {
   const sourceEntryId = `${entry?.sourceEntryId || entry?.id || ""}`.trim();
   const sourceDeviceId = `${entry?.createdByDeviceId || entry?.sourceDeviceId || ""}`.trim();
@@ -3009,6 +3044,19 @@ async function startQrScanner() {
       const rawValue = results?.[0]?.rawValue || "";
       if (rawValue) {
         current.qrInput = rawValue;
+        const syncRoom = parseCloudSyncRoomPayload(rawValue);
+        if (syncRoom) {
+          current.qrView = "sync";
+          current.syncRoomId = "";
+          current.syncRoomName = syncRoom.name || current.syncRoomName || "";
+          current.syncPin = syncRoom.pin;
+          current.syncPassword = syncRoom.password;
+          current.syncConnected = false;
+          current.qrStatus = "Sync room loaded. Tap Join.";
+          renderStartSetupScreen();
+          stopQrScanner();
+          return;
+        }
         const parsed = parseQrTransferPayload(rawValue);
         if (!parsed) {
           current.qrStatus = "QR data is invalid.";
@@ -4501,6 +4549,20 @@ function setupStartScreen() {
       const payload = `${state.qrInput || ""}`.trim();
       if (!payload) {
         state.qrStatus = "Paste Data first.";
+        renderStartSetupScreen();
+        return;
+      }
+      const syncRoom = parseCloudSyncRoomPayload(payload);
+      if (syncRoom) {
+        state.qrView = "sync";
+        state.syncRoomId = "";
+        state.syncRoomName = syncRoom.name || state.syncRoomName || "";
+        state.syncPin = syncRoom.pin;
+        state.syncPassword = syncRoom.password;
+        state.syncConnected = false;
+        state.qrStatus = "Sync room loaded. Tap Join.";
+        state.qrInput = "";
+        stopQrScanner();
         renderStartSetupScreen();
         return;
       }

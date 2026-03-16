@@ -981,10 +981,10 @@ body.history-open #game {
   z-index: 2;
   max-width: min(84vw, 520px);
   padding: 0.4em 0.9em;
-  border: 1px solid rgba(255, 255, 255, 0.28);
+  border: 1px solid var(--main-color);
   border-radius: 999px;
   background: rgba(0, 0, 0, 0.5);
-  color: rgba(255, 255, 255, 0.92);
+  color: var(--main-color);
   font-size: clamp(12px, 1.8vmin, 16px);
   line-height: 1.2;
   text-align: center;
@@ -992,6 +992,17 @@ body.history-open #game {
   white-space: nowrap;
   overflow: hidden;
   text-overflow: ellipsis;
+}
+
+.qr-sync-room-share {
+  display: grid;
+  gap: 10px;
+  justify-items: center;
+}
+
+.qr-sync-room-image {
+  width: min(62vw, 220px);
+  max-width: 220px;
 }
 
 .start-screen-bg {
