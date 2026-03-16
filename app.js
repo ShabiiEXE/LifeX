@@ -1894,7 +1894,7 @@ async function fetchCommanderArtRefByName(name) {
 
   const exactUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cleanName)}`;
   const fuzzyUrl = `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cleanName)}`;
-  const urls = [exactUrl, fuzzyUrl];
+  const urls = [fuzzyUrl, exactUrl];
 
   for (const url of urls) {
     try {
@@ -1947,7 +1947,7 @@ async function fetchCommanderArtByName(name) {
 
   const exactUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(cleanName)}`;
   const fuzzyUrl = `https://api.scryfall.com/cards/named?fuzzy=${encodeURIComponent(cleanName)}`;
-  const urls = [exactUrl, fuzzyUrl];
+  const urls = [fuzzyUrl, exactUrl];
 
   for (const url of urls) {
     try {
@@ -2692,8 +2692,8 @@ function renderCommanderSeatOverlay(state, playerIndex) {
             }
           `
           : `
-            <input type="text" data-seat-deck-search="${playerIndex}" placeholder="Search commander">
-            <div class="setup-search-results" id="search-results-${playerIndex}"></div>
+            <input type="text" data-seat-deck-search="${playerIndex}" value="${escapeHtml(seat.searchQuery || "")}" placeholder="Search commander">
+            <div class="setup-search-results" id="search-results-${playerIndex}">${getSearchResultsMarkup(playerIndex, seat.searchResults || [], seat.searchQuery || "")}</div>
           `
         }
       </div>
@@ -3309,17 +3309,29 @@ function renderDuelSeriesOverlay(playerIndex) {
 async function searchScryfallCards(query, { commanderOnly = false } = {}) {
   const clean = (query || "").trim();
   if (clean.length < 2) return [];
-  const q = `${clean} game:paper legal:commander is:commander`;
-  const url = `https://api.scryfall.com/cards/search?unique=cards&order=name&dir=asc&q=${encodeURIComponent(q)}`;
+  const url = `https://api.scryfall.com/cards/autocomplete?q=${encodeURIComponent(clean)}`;
   const controller = new AbortController();
   const timeoutId = window.setTimeout(() => controller.abort(), SCRYFALL_SEARCH_TIMEOUT_MS);
   try {
     const response = await fetch(url, { signal: controller.signal });
     if (!response.ok) return [];
     const payload = await response.json();
-    const cards = Array.isArray(payload.data) ? payload.data : [];
+    const names = Array.isArray(payload.data) ? payload.data.filter(Boolean).slice(0, 12) : [];
+    if (!names.length) return [];
+
+    const cards = await Promise.all(names.map(async (name) => {
+      const namedUrl = `https://api.scryfall.com/cards/named?exact=${encodeURIComponent(name)}`;
+      try {
+        const namedResponse = await fetch(namedUrl, { signal: controller.signal });
+        if (!namedResponse.ok) return null;
+        return await namedResponse.json();
+      } catch {
+        return null;
+      }
+    }));
+
     return cards
-      .filter(card => isCommanderEligibleCard(card))
+      .filter(card => card && (!commanderOnly || isCommanderEligibleCard(card)))
       .sort((a, b) => scoreCommanderSearchResult(clean, b) - scoreCommanderSearchResult(clean, a))
       .slice(0, 8)
       .map(card => ({
@@ -3446,17 +3458,25 @@ async function clearPwaCacheForDebug() {
 
 function renderSearchResults(seatIndex, cards, query = "") {
   const resultsEl = document.getElementById(`search-results-${seatIndex}`);
+  const state = ensureSetupState();
+  const seat = state.seats[seatIndex];
+  seat.searchResults = Array.isArray(cards) ? cards : [];
+  seat.searchQuery = `${query || ""}`;
+  const markup = getSearchResultsMarkup(seatIndex, seat.searchResults, seat.searchQuery);
   if (!resultsEl) return;
+  resultsEl.innerHTML = markup;
+}
+
+function getSearchResultsMarkup(seatIndex, cards, query = "") {
   const state = ensureSetupState();
   const seat = state.seats[seatIndex];
   const cleanQuery = `${query || ""}`.trim();
   if (!cards.length) {
-    if (!seat?.isAddingDeck || cleanQuery.length < 2 || !seat?.profileId) {
-      resultsEl.innerHTML = "";
-      return;
+    if (!seat?.isAddingDeck || cleanQuery.length < 2) {
+      return "";
     }
     const isDuplicateForPlayer = profileAlreadyHasDeck(seat.profileId, cleanQuery);
-    resultsEl.innerHTML = `
+    return `
       <button class="search-result ${isDuplicateForPlayer ? "search-result-disabled" : ""}" data-action="create-default-search-deck" data-seat="${seatIndex}" data-deck-name="${escapeHtml(cleanQuery)}" ${isDuplicateForPlayer ? "disabled" : ""}>
         <img src="${DEFAULT_PLAYER_BACKGROUND}" alt="">
         <span class="search-result-copy">
@@ -3469,9 +3489,8 @@ function renderSearchResults(seatIndex, cards, query = "") {
         </span>
       </button>
     `;
-    return;
   }
-  resultsEl.innerHTML = cards.map(card => {
+  return cards.map(card => {
     const isDuplicateForPlayer = profileAlreadyHasDeck(seat?.profileId, card.name);
     return `
     <button class="search-result ${isDuplicateForPlayer ? "search-result-disabled" : ""}" data-action="select-search-card" data-seat="${seatIndex}" data-card-id="${card.id}" ${isDuplicateForPlayer ? "disabled" : ""}>
@@ -3487,8 +3506,6 @@ function renderSearchResults(seatIndex, cards, query = "") {
     </button>
   `;
   }).join("");
-
-  state.seats[seatIndex].searchResults = cards;
 }
 
 /* =========================
@@ -4578,6 +4595,8 @@ function setupStartScreen() {
       state.seats[seat].pendingSearchCard = null;
       state.seats[seat].searchArtOptions = [];
       state.seats[seat].isLoadingArtOptions = false;
+      renderSearchResults(seat, [], query);
+      if (`${query}`.trim().length < 2) return;
       const token = ++scryfallSearchToken;
       const cards = await searchScryfallCards(query, { commanderOnly: true });
       if (token !== scryfallSearchToken) return;
@@ -8633,7 +8652,7 @@ window.addEventListener("beforeunload", saveState);
 window.addEventListener("pagehide", saveState);
 
 
-window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
+//window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
 
 // Console helpers for quick troubleshooting:
 // start2(), start3(), start4(), start5(), start6(), startPlayers(n)
