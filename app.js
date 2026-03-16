@@ -1301,8 +1301,18 @@ function renderStartPlaygroupOverlay() {
   const overlay = document.getElementById("start-screen-playgroup");
   const startScreen = document.getElementById("start-screen");
   if (!overlay || !startScreen) return;
+  const state = ensureSetupState();
   const activePlaygroup = getActiveCloudSyncRoom();
-  const shouldShow = !startScreen.classList.contains("hidden") && !!activePlaygroup?.name;
+  const shouldShow =
+    !startScreen.classList.contains("hidden")
+    && !hasStartedGame
+    && (
+      state.step === "config"
+      || state.step === "history"
+      || isProfileEditorMode(state)
+      || !!state.qrOpen
+    )
+    && !!activePlaygroup?.name;
   overlay.innerHTML = shouldShow
     ? `<div class="start-active-playgroup">Playgroup: ${escapeHtml(activePlaygroup.name)}</div>`
     : "";
@@ -3980,7 +3990,6 @@ function renderStartSetupScreen() {
   startScreen.classList.remove("hidden");
   container.classList.remove("hidden");
   startScreen.classList.add("setup-open");
-  renderStartPlaygroupOverlay();
 
   if (state.step === "config") {
     if (!hasStartedGame) {
@@ -4016,6 +4025,7 @@ function renderStartSetupScreen() {
       : renderStartingPlayerStep(state);
   }
 
+  renderStartPlaygroupOverlay();
   updateScrollableFadeState(container);
   syncSetupDeckGridMetrics(document);
   refreshSetupArtGridLayout(document);
