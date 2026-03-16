@@ -980,9 +980,15 @@ function loadDeckLibrary(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim
   const parsed = safeJsonParse(localStorage.getItem(getWorkspaceStorageKey(DECK_STORAGE_KEY, roomId)), []);
   if (!Array.isArray(parsed)) return [];
   return parsed
-    .filter(item => item && typeof item.id === "string" && typeof item.cardName === "string")
+    .filter(item => {
+      if (!item || typeof item.id !== "string") return false;
+      const commanderName = `${item.cardName || item.deckName || item.name || ""}`.trim();
+      return !!commanderName;
+    })
     .map(item => ({
       ...item,
+      cardName: `${item.cardName || item.deckName || item.name || ""}`.trim(),
+      deckName: `${item.deckName || item.cardName || item.name || ""}`.trim(),
       ownerProfileId: typeof item.ownerProfileId === "string" ? item.ownerProfileId : "",
       artId: typeof item.artId === "string" ? item.artId : "",
       artRef: typeof item.artRef === "string" ? item.artRef : "",
@@ -1922,6 +1928,10 @@ function initGame(playerCount) {
 }
 
 function renderStartConfigStep(state) {
+  const activePlaygroup = getActiveCloudSyncRoom();
+  const playgroupBadgeMarkup = activePlaygroup?.name
+    ? `<div class="start-active-playgroup">Playgroup: ${escapeHtml(activePlaygroup.name)}</div>`
+    : "";
   const modeOptions = ["commander", "magic"].map(mode => `
     <button class="${state.mode === mode ? "active" : ""}" data-action="set-mode" data-mode="${mode}">${modeLabel(mode)}</button>
   `).join("");
@@ -1982,6 +1992,7 @@ function renderStartConfigStep(state) {
         <button class="setup-start-logs-btn" data-action="open-profile-editor" aria-label="Edit Profiles">${getIconMarkup("Profile", "setup-inline-icon")}</button>
       </div>
       ${jumpBackMarkup}
+      ${playgroupBadgeMarkup}
       ${renderQrPanel(state)}
     </div>
   `;

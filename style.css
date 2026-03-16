@@ -973,6 +973,27 @@ body.history-open #game {
   overflow: hidden;
 }
 
+.start-active-playgroup {
+  position: absolute;
+  left: 50%;
+  bottom: clamp(14px, 3vmin, 24px);
+  transform: translateX(-50%);
+  z-index: 2;
+  max-width: min(84vw, 520px);
+  padding: 0.4em 0.9em;
+  border: 1px solid rgba(255, 255, 255, 0.28);
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.5);
+  color: rgba(255, 255, 255, 0.92);
+  font-size: clamp(12px, 1.8vmin, 16px);
+  line-height: 1.2;
+  text-align: center;
+  pointer-events: none;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
 .start-screen-bg {
   position: absolute;
   inset: 0;
