@@ -587,7 +587,7 @@ export default {
     }
 
     const wipeMatch = url.pathname.match(/^\/api\/sync\/(\d{4})\/admin\/wipe$/);
-    if (request.method === "POST" && wipeMatch) {
+    if ((request.method === "POST" || request.method === "GET") && wipeMatch) {
       const providedSecret = `${url.searchParams.get("key") || ""}`.trim();
       if (!configuredSecret || !providedSecret || providedSecret !== configuredSecret) {
         return json({ error: "Unauthorized." }, { status: 401 });
@@ -607,13 +607,13 @@ export default {
       return response;
     }
 
-    if (request.method === "POST" && url.pathname === "/api/sync/admin/wipe-all") {
+    if ((request.method === "POST" || request.method === "GET") && url.pathname === "/api/sync/admin/wipe-all") {
       const providedSecret = `${url.searchParams.get("key") || ""}`.trim();
       if (!configuredSecret || !providedSecret || providedSecret !== configuredSecret) {
         return json({ error: "Unauthorized." }, { status: 401 });
       }
       const pins = await listRoomIndexPins(env);
-      const batchSize = 100;
+      const batchSize = 25;
       let cleared = 0;
       for (let index = 0; index < pins.length; index += batchSize) {
         const batch = pins.slice(index, index + batchSize);
@@ -631,7 +631,7 @@ export default {
         cleared += results.filter(Boolean).length;
       }
       await clearRoomIndex(env);
-      return json({ ok: true, cleared });
+      return json({ ok: true, cleared, indexedRooms: pins.length });
     }
 
     return env.ASSETS.fetch(request);
