@@ -2071,6 +2071,11 @@ function renderQrPanel(state) {
         ` : ""}
         ${isSync ? `
           <div class="qr-scan-body">
+            ${syncRoomPayload ? `
+              <div class="qr-sync-room-share">
+                ${syncRoomQrDataUrl ? `<img class="qr-image qr-sync-room-image" src="${syncRoomQrDataUrl}" alt="Sync room QR">` : `<div class="qr-placeholder">QR unavailable.</div>`}
+              </div>
+            ` : ""}
             <select class="sync-payload sync-highlight" data-sync-room-select="room">
               <option value="">New playgroup</option>
               ${savedSyncRooms.map((room) => `<option value="${escapeHtml(room.id)}" ${selectedSyncRoomId === room.id ? "selected" : ""}>${escapeHtml(room.name)}</option>`).join("")}
@@ -2078,12 +2083,6 @@ function renderQrPanel(state) {
             <input class="sync-payload" data-sync-room-name="room-name" maxlength="40" value="${escapeHtml(state.syncRoomName || "")}" placeholder="Playgroup name">
             <input class="sync-payload" type="text" data-sync-pin="room-pin" inputmode="numeric" maxlength="${CLOUD_SYNC_PIN_LENGTH}" value="${escapeHtml(state.syncPin || "")}" placeholder="4-digit room PIN">
             <input class="sync-payload" type="password" data-sync-password="room-password" inputmode="numeric" maxlength="${CLOUD_SYNC_PIN_LENGTH}" value="${escapeHtml(state.syncPassword || "")}" placeholder="4-digit room password">
-            ${syncRoomPayload ? `
-              <div class="qr-sync-room-share">
-                ${syncRoomQrDataUrl ? `<img class="qr-image qr-sync-room-image" src="${syncRoomQrDataUrl}" alt="Sync room QR">` : `<div class="qr-placeholder">QR unavailable.</div>`}
-                <textarea class="qr-payload" readonly>${escapeHtml(syncRoomPayload)}</textarea>
-              </div>
-            ` : ""}
             <div class="setup-footer qr-menu-actions qr-menu-actions-inline">
               <button class="setup-icon-circle-btn qr-back-btn" data-action="back-qr-menu" aria-label="Back">${getIconMarkup("Back", "setup-inline-icon")}</button>
               <button data-action="join-sync-room">Join</button>
@@ -9286,6 +9285,28 @@ function updateOrientationLock() {
   document.body.classList.toggle("portrait-locked-landscape", window.innerWidth > window.innerHeight);
 }
 
+function preventMobileViewportZoom() {
+  let lastTouchEndAt = 0;
+
+  document.addEventListener("gesturestart", (event) => {
+    event.preventDefault();
+  }, { passive: false });
+
+  document.addEventListener("touchmove", (event) => {
+    if ((event.touches?.length || 0) > 1) {
+      event.preventDefault();
+    }
+  }, { passive: false });
+
+  document.addEventListener("touchend", (event) => {
+    const now = Date.now();
+    if (now - lastTouchEndAt < 300) {
+      event.preventDefault();
+    }
+    lastTouchEndAt = now;
+  }, { passive: false });
+}
+
 /* =========================
    App Bootstrapping
    ========================= */
@@ -9327,6 +9348,8 @@ if (!hasLoadedState) {
   isPaused = true;
   resetSetupState();
 }
+
+preventMobileViewportZoom();
 
 const initialCloudSyncRoom = getActiveCloudSyncRoom();
 if (initialCloudSyncRoom) {
@@ -9578,7 +9601,7 @@ window.addEventListener("beforeunload", saveState);
 window.addEventListener("pagehide", saveState);
 
 
-//window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
+window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
 
 // Console helpers for quick troubleshooting:
 // start2(), start3(), start4(), start5(), start6(), startPlayers(n)
