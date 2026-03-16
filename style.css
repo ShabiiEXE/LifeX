@@ -1007,7 +1007,7 @@ body.history-open #game {
 
 
 .reset-sync-match-data{
-  display: none !Important; /*DELETE BUTT*/
+  display: block !Important; /*DELETE BUTT*/
 }
 
 .start-screen-bg {
