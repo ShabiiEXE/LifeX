@@ -3110,16 +3110,17 @@ function bindSetupSeatBodyDrag(playerEl, seatIndex) {
 
   const seatRotation = getSeatRotation(selectedPlayerCount, seatIndex);
   const usesSidewaysDrag = Math.abs(seatRotation) === 90;
+  const setupRailSide = playerEl?.dataset?.setupRailSide === "left" ? "left" : "right";
   scrollers.forEach((scroller) => {
+    const isRailScroller =
+      scroller.classList.contains("setup-profile-list")
+      || scroller.classList.contains("setup-deck-grid")
+      || scroller.classList.contains("setup-search-results")
+      || scroller.classList.contains("setup-search-art-grid");
     bindDragScroll(scroller, {
       usesSidewaysDrag,
       seatRotation,
-      reverseSidewaysDrag: usesSidewaysDrag && (
-        scroller.classList.contains("setup-profile-list")
-        || scroller.classList.contains("setup-deck-grid")
-        || scroller.classList.contains("setup-search-results")
-        || scroller.classList.contains("setup-search-art-grid")
-      ),
+      reverseSidewaysDrag: usesSidewaysDrag && isRailScroller && setupRailSide === "right",
       ignoreSelectors: "input, select"
     });
   });
