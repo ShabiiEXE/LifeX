@@ -1,10 +1,27 @@
 {
   "$schema": "node_modules/wrangler/config-schema.json",
   "name": "lifex",
+  "main": "./worker.js",
   "compatibility_date": "2025-09-27",
   "observability": {
     "enabled": true
   },
+  "durable_objects": {
+    "bindings": [
+      {
+        "name": "SYNC_ROOM",
+        "class_name": "SyncRoom"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1-sync-room",
+      "new_sqlite_classes": [
+        "SyncRoom"
+      ]
+    }
+  ],
   "assets": {
     "directory": "./dist"
   },

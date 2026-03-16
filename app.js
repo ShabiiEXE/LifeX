@@ -70,8 +70,11 @@ const MATCH_HISTORY_STORAGE_KEY = "lifeTrackerMatchHistoryV1";
 const PERSISTENT_STATS_STORAGE_KEY = "lifeTrackerPersistentStatsV1";
 const RESUME_SESSIONS_STORAGE_KEY = "lifeTrackerResumeSessionsV1";
 const DEVICE_ID_STORAGE_KEY = "lifeXDeviceIdV1";
+const CLOUD_SYNC_STORAGE_KEY = "lifeXCloudSyncV1";
 const QR_TRANSFER_PREFIX = "LIFEX1:";
 const SCRYFALL_SEARCH_TIMEOUT_MS = 3200;
+const CLOUD_SYNC_PIN_LENGTH = 4;
+const CLOUD_SYNC_POLL_MS = 15000;
 const DEFAULT_PLAYER_BACKGROUND = "./img/default_back0.png";
 const MENU_BACKGROUND = "./img/menu_back.png";
 const DEFAULT_MAGIC_PLAYER_BACKGROUNDS = [
@@ -109,6 +112,8 @@ let qrScannerLoopId = null;
 let qrScannerDetector = null;
 let duelSeries = createDefaultDuelSeriesState();
 let pendingDuelContinuation = null;
+let cloudSyncLoopId = null;
+let cloudSyncInFlightPromise = null;
 
 /* =========================
    Duel Series Helpers
@@ -401,6 +406,76 @@ function getOrCreateDeviceId() {
   return nextId;
 }
 
+function normalizeCloudSyncPin(value) {
+  const digitsOnly = `${value || ""}`.replace(/\D/g, "").slice(0, CLOUD_SYNC_PIN_LENGTH);
+  return digitsOnly.length === CLOUD_SYNC_PIN_LENGTH ? digitsOnly : digitsOnly;
+}
+
+function loadCloudSyncSession() {
+  const parsed = safeJsonParse(localStorage.getItem(CLOUD_SYNC_STORAGE_KEY), {});
+  const rooms = Array.isArray(parsed?.rooms)
+    ? parsed.rooms
+        .map((room, index) => {
+          const pin = normalizeCloudSyncPin(room?.pin);
+          const id = `${room?.id || `room-${index}`}`.trim() || `room-${index}`;
+          const name = `${room?.name || ""}`.trim() || `Playgroup ${pin || index + 1}`;
+          if (pin.length !== CLOUD_SYNC_PIN_LENGTH) return null;
+          return { id, name, pin };
+        })
+        .filter(Boolean)
+    : [];
+  const activeRoomId = `${parsed?.activeRoomId || ""}`.trim();
+  return {
+    rooms,
+    activeRoomId: rooms.some(room => room.id === activeRoomId)
+      ? activeRoomId
+      : (rooms[0]?.id || "")
+  };
+}
+
+function saveCloudSyncSession() {
+  localStorage.setItem(CLOUD_SYNC_STORAGE_KEY, JSON.stringify({
+    rooms: Array.isArray(cloudSyncSession?.rooms) ? cloudSyncSession.rooms : [],
+    activeRoomId: `${cloudSyncSession?.activeRoomId || ""}`.trim()
+  }));
+}
+
+function getCloudSyncRooms() {
+  return Array.isArray(cloudSyncSession?.rooms) ? cloudSyncSession.rooms : [];
+}
+
+function getActiveCloudSyncRoom() {
+  const activeId = `${cloudSyncSession?.activeRoomId || ""}`.trim();
+  return getCloudSyncRooms().find(room => room.id === activeId) || null;
+}
+
+function upsertCloudSyncRoom(room, { setActive = true } = {}) {
+  const pin = normalizeCloudSyncPin(room?.pin);
+  if (pin.length !== CLOUD_SYNC_PIN_LENGTH) return null;
+  const id = `${room?.id || createLocalId()}`.trim() || createLocalId();
+  const name = `${room?.name || ""}`.trim() || `Playgroup ${pin}`;
+  const nextRoom = { id, name, pin };
+  const existingRooms = getCloudSyncRooms().filter(item => item.id !== id && item.pin !== pin);
+  cloudSyncSession = {
+    rooms: [nextRoom, ...existingRooms],
+    activeRoomId: setActive ? id : (cloudSyncSession?.activeRoomId || id)
+  };
+  saveCloudSyncSession();
+  return nextRoom;
+}
+
+function removeCloudSyncRoom(roomId) {
+  const nextRooms = getCloudSyncRooms().filter(room => room.id !== roomId);
+  const wasActive = `${cloudSyncSession?.activeRoomId || ""}`.trim() === `${roomId || ""}`.trim();
+  cloudSyncSession = {
+    rooms: nextRooms,
+    activeRoomId: !wasActive && nextRooms.some(room => room.id === cloudSyncSession?.activeRoomId)
+      ? cloudSyncSession.activeRoomId
+      : ""
+  };
+  saveCloudSyncSession();
+}
+
 function toBase64Utf8(value) {
   const bytes = new TextEncoder().encode(`${value || ""}`);
   let binary = "";
@@ -629,6 +704,7 @@ function subtractNumericScoreMaps(nextMap, prevMap) {
    Storage / Persistence
    ========================= */
 const deviceId = getOrCreateDeviceId();
+let cloudSyncSession = loadCloudSyncSession();
 
 function loadProfileLibrary() {
   const parsed = safeJsonParse(localStorage.getItem(PROFILE_STORAGE_KEY), []);
@@ -1008,6 +1084,10 @@ function createDefaultSetupState() {
     qrSharePayload: "",
     qrImageUrl: "",
     qrCloseOnShareExit: false,
+    syncRoomId: getActiveCloudSyncRoom()?.id || "",
+    syncRoomName: getActiveCloudSyncRoom()?.name || "",
+    syncPin: getActiveCloudSyncRoom()?.pin || "",
+    syncConnected: !!getActiveCloudSyncRoom(),
     seats: Array.from({ length: 6 }, (_, index) => getDefaultSeatState(index))
   };
 }
@@ -1644,6 +1724,8 @@ function renderStartConfigStep(state) {
 function renderQrPanel(state) {
   if (!state?.qrOpen) return "";
 
+  const savedSyncRooms = getCloudSyncRooms();
+  const selectedSyncRoomId = getActiveCloudSyncRoomId(state);
   const status = (state.qrStatus || "").trim();
   const isMenu = state.qrView === "menu";
   const shouldShowMenuImportStatus = isMenu && /^Imported\s/i.test(status);
@@ -1652,6 +1734,7 @@ function renderQrPanel(state) {
     : "";
   const isShare = state.qrView === "share";
   const isScan = state.qrView === "scan";
+  const isSync = state.qrView === "sync";
   const showBackdrop = isShare && !!state.qrImageUrl;
   const shareExitAction = state.qrCloseOnShareExit ? "close-qr" : "back-qr-menu";
   const shareExitIcon = state.qrCloseOnShareExit ? "Cancel" : "Back";
@@ -1671,6 +1754,7 @@ function renderQrPanel(state) {
           <div class="setup-footer qr-menu-actions">
             <button data-action="open-qr-scan">Scan</button>
             <button data-action="open-qr-share">Share</button>
+            <button data-action="open-qr-sync">Sync</button>
           </div>
         ` : ""}
         ${isShare ? `
@@ -1691,6 +1775,23 @@ function renderQrPanel(state) {
               <button class="setup-icon-circle-btn qr-back-btn" data-action="${shareExitAction}" aria-label="${shareExitLabel}">${getIconMarkup(shareExitIcon, "setup-inline-icon")}</button>
               <button data-action="import-qr-payload">Import</button>
               </div>
+          </div>
+        ` : ""}
+        ${isSync ? `
+          <div class="qr-scan-body">
+            <select class="qr-payload" data-sync-room-select="room">
+              <option value="">New playgroup</option>
+              ${savedSyncRooms.map((room) => `<option value="${escapeHtml(room.id)}" ${selectedSyncRoomId === room.id ? "selected" : ""}>${escapeHtml(room.name)}</option>`).join("")}
+            </select>
+            <input class="qr-payload" data-sync-room-name="room-name" maxlength="40" value="${escapeHtml(state.syncRoomName || "")}" placeholder="Playgroup name">
+            <input class="qr-payload" type="password" data-sync-pin="room-pin" inputmode="numeric" maxlength="${CLOUD_SYNC_PIN_LENGTH}" value="${escapeHtml(state.syncPin || "")}" placeholder="4-digit room PIN">
+            <div class="setup-footer qr-menu-actions qr-menu-actions-inline">
+              <button class="setup-icon-circle-btn qr-back-btn" data-action="back-qr-menu" aria-label="Back">${getIconMarkup("Back", "setup-inline-icon")}</button>
+              <button data-action="create-sync-room">Create</button>
+              <button data-action="join-sync-room">Join</button>
+              <button data-action="sync-cloud-room" ${state.syncConnected ? "" : "disabled"}>Sync Now</button>
+              <button data-action="${state.syncConnected ? "disconnect-sync-room" : "close-qr"}">${state.syncConnected ? "Leave" : "Close"}</button>
+            </div>
           </div>
         ` : ""}
       </div>
@@ -1776,6 +1877,11 @@ function buildQrTransferBundle(includeGames = false) {
       commanderArtIds: Array.isArray(entry?.players) ? entry.players.map(player => normalizeCommanderArtId(player?.artId)) : []
     }))
     : [];
+  const historyEntries = includeGames
+    ? commanderGames
+        .map(entry => normalizeMatchHistoryEntry(entry))
+        .filter(Boolean)
+    : [];
 
   return {
     profiles: profileLibrary
@@ -1797,6 +1903,7 @@ function buildQrTransferBundle(includeGames = false) {
       })
       .filter(Boolean),
     games,
+    historyEntries,
     stats: buildPersistentStatsSnapshot()
   };
 }
@@ -1841,6 +1948,160 @@ function buildProfileQrTransferBundle(profileId) {
 
 function encodeQrTransferPayload(bundle) {
   return `${QR_TRANSFER_PREFIX}${toBase64Utf8(JSON.stringify(bundle))}`;
+}
+
+function getActiveCloudSyncRoomId(state = setupState) {
+  const roomId = `${state?.syncRoomId || cloudSyncSession?.activeRoomId || ""}`.trim();
+  return roomId || "";
+}
+
+function getCloudSyncRoomById(roomId) {
+  return getCloudSyncRooms().find(room => room.id === roomId) || null;
+}
+
+function getActiveCloudSyncRoom(state = setupState) {
+  const roomId = getActiveCloudSyncRoomId(state);
+  return getCloudSyncRoomById(roomId) || getCloudSyncRoomById(cloudSyncSession?.activeRoomId || "") || null;
+}
+
+function getPendingCloudSyncRoom(state = setupState) {
+  const roomId = getActiveCloudSyncRoomId(state);
+  const storedRoom = getCloudSyncRoomById(roomId);
+  const pin = normalizeCloudSyncPin(state?.syncPin || storedRoom?.pin || "");
+  const name = `${state?.syncRoomName || storedRoom?.name || ""}`.trim() || (pin ? `Playgroup ${pin}` : "");
+  return {
+    id: roomId || storedRoom?.id || "",
+    name,
+    pin
+  };
+}
+
+function setCloudSyncStatus(message, { shouldRender = true } = {}) {
+  const state = ensureSetupState();
+  state.qrStatus = `${message || ""}`.trim();
+  const activeRoom = getCloudSyncRoomById(getActiveCloudSyncRoomId(state)) || getActiveCloudSyncRoom();
+  state.syncRoomId = activeRoom?.id || state.syncRoomId || "";
+  state.syncRoomName = activeRoom?.name || state.syncRoomName || "";
+  state.syncPin = normalizeCloudSyncPin(state.syncPin || activeRoom?.pin || "");
+  state.syncConnected = !!activeRoom;
+  if (shouldRender && state.qrOpen && state.qrView === "sync") {
+    renderStartSetupScreen();
+  }
+}
+
+function stopCloudSyncLoop({ clearSession = false, clearRoomId = "", status = "" } = {}) {
+  if (cloudSyncLoopId !== null) {
+    window.clearInterval(cloudSyncLoopId);
+    cloudSyncLoopId = null;
+  }
+  cloudSyncInFlightPromise = null;
+  if (clearSession) {
+    if (clearRoomId) {
+      removeCloudSyncRoom(clearRoomId);
+    } else {
+      cloudSyncSession = { rooms: [], activeRoomId: "" };
+      saveCloudSyncSession();
+    }
+  }
+  const state = ensureSetupState();
+  if (clearSession) {
+    state.syncRoomId = getActiveCloudSyncRoom()?.id || "";
+    state.syncRoomName = getActiveCloudSyncRoom()?.name || "";
+    state.syncPin = "";
+  }
+  state.syncConnected = !!getActiveCloudSyncRoom();
+  if (status) {
+    setCloudSyncStatus(status);
+  }
+}
+
+async function syncCloudRoom(roomOrPin, { silent = false } = {}) {
+  const room = typeof roomOrPin === "string"
+    ? { pin: roomOrPin, name: "", id: "" }
+    : (roomOrPin || getPendingCloudSyncRoom());
+  const normalizedPin = normalizeCloudSyncPin(room?.pin);
+  if (normalizedPin.length !== CLOUD_SYNC_PIN_LENGTH) {
+    if (!silent) setCloudSyncStatus("Enter a 4-digit PIN.");
+    return null;
+  }
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    if (!silent) setCloudSyncStatus("Offline. Sync will retry when online.");
+    return null;
+  }
+  if (cloudSyncInFlightPromise) return cloudSyncInFlightPromise;
+
+  cloudSyncInFlightPromise = (async () => {
+    const response = await fetch(`/api/sync/${encodeURIComponent(normalizedPin)}/sync`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json"
+      },
+      body: JSON.stringify({
+        deviceId,
+        bundle: buildQrTransferBundle(true)
+      })
+    });
+    if (!response.ok) {
+      throw new Error(response.status === 404 ? "Room not found." : "Cloud sync failed.");
+    }
+    const payload = await response.json();
+    const merged = mergeImportedTransferData(payload?.bundle || {});
+    const nextRoom = upsertCloudSyncRoom({
+      id: room?.id || "",
+      name: room?.name || "",
+      pin: normalizedPin
+    }, { setActive: true });
+    const state = ensureSetupState();
+    state.syncRoomId = nextRoom?.id || "";
+    state.syncRoomName = nextRoom?.name || "";
+    state.syncPin = normalizedPin;
+    state.syncConnected = true;
+    if (!silent) {
+      const imported = (merged?.addedProfiles || 0) + (merged?.addedDecks || 0) + (merged?.addedGames || 0);
+      setCloudSyncStatus(imported > 0 ? `Synced ${nextRoom?.name || "room"} (${normalizedPin}). Imported ${imported} item${imported === 1 ? "" : "s"}.` : `Synced ${nextRoom?.name || "room"} (${normalizedPin}).`);
+    }
+    return payload;
+  })();
+
+  try {
+    return await cloudSyncInFlightPromise;
+  } catch (error) {
+    if (!silent) {
+      setCloudSyncStatus(error instanceof Error ? error.message : "Cloud sync failed.");
+    }
+    throw error;
+  } finally {
+    cloudSyncInFlightPromise = null;
+  }
+}
+
+function startCloudSyncLoop(roomOrPin, { syncNow = true, silent = false } = {}) {
+  const room = typeof roomOrPin === "string"
+    ? { pin: roomOrPin, name: "", id: "" }
+    : (roomOrPin || getPendingCloudSyncRoom());
+  const normalizedPin = normalizeCloudSyncPin(room?.pin);
+  if (normalizedPin.length !== CLOUD_SYNC_PIN_LENGTH) return;
+  stopCloudSyncLoop();
+  const nextRoom = upsertCloudSyncRoom(room, { setActive: true });
+  const state = ensureSetupState();
+  state.syncRoomId = nextRoom?.id || "";
+  state.syncRoomName = nextRoom?.name || "";
+  state.syncPin = normalizedPin;
+  state.syncConnected = true;
+  if (syncNow) {
+    void syncCloudRoom(nextRoom || room, { silent });
+  }
+  cloudSyncLoopId = window.setInterval(() => {
+    void syncCloudRoom(nextRoom || room, { silent: true });
+  }, CLOUD_SYNC_POLL_MS);
+}
+
+function syncActiveCloudRoom({ silent = true } = {}) {
+  const activeRoom = getActiveCloudSyncRoom();
+  if (!activeRoom) return;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+  startCloudSyncLoop(activeRoom, { syncNow: false, silent: true });
+  void syncCloudRoom(activeRoom, { silent });
 }
 
 function hasDeckImage(deck) {
@@ -2076,6 +2337,9 @@ function mergeImportedTransferData(payload) {
   });
   const importedDecks = nestedProfileDecks;
   const importedGames = Array.isArray(payload.games) ? payload.games : [];
+  const importedHistoryEntries = Array.isArray(payload.historyEntries)
+    ? payload.historyEntries.map(entry => normalizeMatchHistoryEntry(entry)).filter(Boolean)
+    : [];
 
   let addedProfiles = 0;
   let addedDecks = 0;
@@ -2180,8 +2444,43 @@ function mergeImportedTransferData(payload) {
       .map(entry => `${entry?.sourceEntryId || entry?.id || ""}`.trim())
       .filter(Boolean)
   );
+  const existingHistoryIndexByKey = new Map(
+    matchHistory
+      .map((entry, index) => [`${entry?.sourceEntryId || entry?.id || ""}`.trim(), index])
+      .filter(([key]) => key)
+  );
 
-  importedGames.forEach((incomingGame) => {
+  const shouldReplaceImportedHistory = (currentEntry, incomingEntry) => {
+    if (!currentEntry) return true;
+    const currentLogLength = Array.isArray(currentEntry?.gameLog) ? currentEntry.gameLog.length : 0;
+    const incomingLogLength = Array.isArray(incomingEntry?.gameLog) ? incomingEntry.gameLog.length : 0;
+    if (incomingLogLength !== currentLogLength) return incomingLogLength > currentLogLength;
+    const currentActions = Number.isFinite(currentEntry?.actionCount) ? currentEntry.actionCount : 0;
+    const incomingActions = Number.isFinite(incomingEntry?.actionCount) ? incomingEntry.actionCount : 0;
+    if (incomingActions !== currentActions) return incomingActions > currentActions;
+    const currentTurns = Number.isFinite(currentEntry?.turnCount) ? currentEntry.turnCount : 0;
+    const incomingTurns = Number.isFinite(incomingEntry?.turnCount) ? incomingEntry.turnCount : 0;
+    if (incomingTurns !== currentTurns) return incomingTurns > currentTurns;
+    return (incomingEntry?.endedAt || 0) >= (currentEntry?.endedAt || 0);
+  };
+
+  importedHistoryEntries.forEach((incomingEntry) => {
+    const sourceEntryId = `${incomingEntry?.sourceEntryId || incomingEntry?.id || ""}`.trim();
+    if (!sourceEntryId) return;
+    const existingIndex = existingHistoryIndexByKey.get(sourceEntryId);
+    if (existingIndex === undefined) {
+      matchHistory.push(incomingEntry);
+      existingHistoryIndexByKey.set(sourceEntryId, matchHistory.length - 1);
+      existingHistoryKeys.add(sourceEntryId);
+      addedGames += 1;
+      return;
+    }
+    const currentEntry = matchHistory[existingIndex];
+    if (!shouldReplaceImportedHistory(currentEntry, incomingEntry)) return;
+    matchHistory[existingIndex] = incomingEntry;
+  });
+
+  if (!importedHistoryEntries.length) importedGames.forEach((incomingGame) => {
     const sourceEntryId = `${incomingGame?.sourceEntryId || incomingGame?.id || ""}`.trim();
     if (!sourceEntryId || existingHistoryKeys.has(sourceEntryId)) return;
 
@@ -2275,8 +2574,13 @@ function mergeImportedTransferData(payload) {
   deckLibrary.sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
   matchHistory.sort((a, b) => (b.endedAt || 0) - (a.endedAt || 0));
   matchHistory = trimMatchHistoryByCommanderCap(matchHistory);
-  if (payload.stats) {
-    mergeImportedPersistentStats(payload.stats);
+  const incomingStatsPayloads = Array.isArray(payload.stats)
+    ? payload.stats
+    : (payload.stats ? [payload.stats] : []);
+  if (incomingStatsPayloads.length) {
+    incomingStatsPayloads.forEach((statsSnapshot) => {
+      mergeImportedPersistentStats(statsSnapshot);
+    });
   } else {
     syncPersistentStatsFromHistory();
   }
@@ -3758,6 +4062,93 @@ function setupStartScreen() {
       return;
     }
 
+    if (action === "open-qr-sync") {
+      const activeRoom = getActiveCloudSyncRoom();
+      state.qrOpen = true;
+      state.qrView = "sync";
+      state.syncRoomId = activeRoom?.id || "";
+      state.syncRoomName = activeRoom?.name || state.syncRoomName || "";
+      state.syncPin = activeRoom?.pin || state.syncPin || "";
+      state.syncConnected = !!activeRoom;
+      state.qrStatus = activeRoom
+        ? `Connected to ${activeRoom.name}.`
+        : "Create or join a 4-digit sync room.";
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "create-sync-room") {
+      const pendingRoom = getPendingCloudSyncRoom(state);
+      try {
+        const response = await fetch("/api/sync/create", { method: "POST" });
+        if (!response.ok) throw new Error("Unable to create room.");
+        const payload = await response.json();
+        const pin = normalizeCloudSyncPin(payload?.pin || "");
+        if (pin.length !== CLOUD_SYNC_PIN_LENGTH) throw new Error("Invalid room response.");
+        const nextRoom = {
+          id: pendingRoom.id || createLocalId(),
+          name: pendingRoom.name || `Playgroup ${pin}`,
+          pin
+        };
+        startCloudSyncLoop(nextRoom, { syncNow: true });
+        state.syncRoomId = nextRoom.id;
+        state.syncRoomName = nextRoom.name;
+        state.syncPin = pin;
+        state.syncConnected = true;
+        state.qrView = "sync";
+        state.qrStatus = `Created ${nextRoom.name}.`;
+      } catch (error) {
+        state.qrStatus = error instanceof Error ? error.message : "Unable to create room.";
+      }
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "join-sync-room") {
+      const pendingRoom = getPendingCloudSyncRoom(state);
+      if (pendingRoom.pin.length !== CLOUD_SYNC_PIN_LENGTH) {
+        state.qrStatus = "Enter a 4-digit PIN.";
+        renderStartSetupScreen();
+        return;
+      }
+      try {
+        startCloudSyncLoop(pendingRoom, { syncNow: false });
+        await syncCloudRoom(pendingRoom);
+      } catch {
+        stopCloudSyncLoop({ clearSession: true, clearRoomId: pendingRoom.id || getActiveCloudSyncRoom()?.id || "" });
+      }
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "sync-cloud-room") {
+      const activeRoom = getActiveCloudSyncRoom(state);
+      if (!activeRoom) {
+        state.qrStatus = "Choose or join a playgroup first.";
+        renderStartSetupScreen();
+        return;
+      }
+      try {
+        await syncCloudRoom(activeRoom);
+      } catch {
+        // Status is handled in syncCloudRoom.
+      }
+      renderStartSetupScreen();
+      return;
+    }
+
+    if (action === "disconnect-sync-room") {
+      const activeRoom = getActiveCloudSyncRoom(state);
+      stopCloudSyncLoop({
+        clearSession: true,
+        clearRoomId: activeRoom?.id || "",
+        status: activeRoom ? `${activeRoom.name} removed from this device.` : "Sync room cleared on this device."
+      });
+      state.qrView = "sync";
+      renderStartSetupScreen();
+      return;
+    }
+
     if (action === "import-qr-payload") {
       const payload = `${state.qrInput || ""}`.trim();
       if (!payload) {
@@ -4623,6 +5014,39 @@ function setupStartScreen() {
     const qrInput = event.target.closest("[data-qr-input]");
     if (qrInput) {
       state.qrInput = qrInput.value || "";
+      return;
+    }
+
+    const syncPinInput = event.target.closest("[data-sync-pin]");
+    if (syncPinInput) {
+      state.syncPin = normalizeCloudSyncPin(syncPinInput.value || "");
+      return;
+    }
+
+    const syncRoomNameInput = event.target.closest("[data-sync-room-name]");
+    if (syncRoomNameInput) {
+      state.syncRoomName = `${syncRoomNameInput.value || ""}`.trimStart();
+      return;
+    }
+
+    const syncRoomSelect = event.target.closest("[data-sync-room-select]");
+    if (syncRoomSelect) {
+      const roomId = `${syncRoomSelect.value || ""}`.trim();
+      const room = getCloudSyncRoomById(roomId);
+      if (!room) {
+        state.syncRoomId = "";
+        state.syncRoomName = "";
+        state.syncPin = "";
+        state.syncConnected = false;
+        return;
+      }
+      upsertCloudSyncRoom(room, { setActive: true });
+      state.syncRoomId = room.id;
+      state.syncRoomName = room.name;
+      state.syncPin = room.pin;
+      state.syncConnected = true;
+      startCloudSyncLoop(room, { syncNow: true, silent: true });
+      setCloudSyncStatus(`Connected to ${room.name}.`);
       return;
     }
 
@@ -5733,6 +6157,7 @@ function archiveCompletedGame(finalCauseLabel, finalMessage) {
   matchHistory = trimMatchHistoryByCommanderCap(matchHistory);
   recordPersistentStatsForEntry(entry);
   saveMatchHistory();
+  syncActiveCloudRoom({ silent: true });
 }
 
 function deleteMatchHistoryEntry(entryId) {
@@ -8453,6 +8878,10 @@ if ("serviceWorker" in navigator) {
 
 window.addEventListener("online", () => {
   void hydrateMissingDeckImages({ limit: 50 });
+  const activeRoom = getActiveCloudSyncRoom();
+  if (activeRoom) {
+    startCloudSyncLoop(activeRoom, { syncNow: true, silent: true });
+  }
 });
 
 const hasLoadedState = loadState();
@@ -8461,6 +8890,11 @@ if (!hasLoadedState) {
   selectedPlayerCount = 0;
   isPaused = true;
   resetSetupState();
+}
+
+const initialCloudSyncRoom = getActiveCloudSyncRoom();
+if (initialCloudSyncRoom) {
+  startCloudSyncLoop(initialCloudSyncRoom, { syncNow: true, silent: true });
 }
 
 
