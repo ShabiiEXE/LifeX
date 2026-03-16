@@ -236,6 +236,10 @@ export class SyncRoom {
     }
 
     if (request.method === "GET" && url.pathname.endsWith("/debug")) {
+      const providedSecret = `${request.headers.get("x-debug-sync-secret") || ""}`.trim();
+      if (!providedSecret) {
+        return json({ error: "Unauthorized." }, { status: 401 });
+      }
       if (!state.pin) {
         return json({ error: "Room not found." }, { status: 404 });
       }
@@ -294,10 +298,20 @@ export default {
 
     const debugMatch = url.pathname.match(/^\/api\/sync\/(\d{4})\/debug$/);
     if (request.method === "GET" && debugMatch) {
+      const configuredSecret = `${env?.DEBUG_SYNC_SECRET || ""}`.trim();
+      const providedSecret = `${url.searchParams.get("key") || ""}`.trim();
+      if (!configuredSecret || !providedSecret || providedSecret !== configuredSecret) {
+        return json({ error: "Unauthorized." }, { status: 401 });
+      }
       const pin = debugMatch[1];
       const id = env.SYNC_ROOM.idFromName(pin);
       const stub = env.SYNC_ROOM.get(id);
-      return stub.fetch(`https://sync.internal/room/${pin}/debug`);
+      return stub.fetch(`https://sync.internal/room/${pin}/debug`, {
+        method: "GET",
+        headers: {
+          "x-debug-sync-secret": providedSecret
+        }
+      });
     }
 
     return env.ASSETS.fetch(request);
