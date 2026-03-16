@@ -618,6 +618,19 @@ export default {
       return response;
     }
 
+    if (request.method === "GET" && url.pathname === "/api/sync/admin/list-codes") {
+      const providedSecret = `${url.searchParams.get("key") || ""}`.trim();
+      if (!configuredSecret || !providedSecret || providedSecret !== configuredSecret) {
+        return json({ error: "Unauthorized." }, { status: 401 });
+      }
+      const pins = await listRoomIndexPins(env);
+      return json({
+        ok: true,
+        count: pins.length,
+        pins
+      });
+    }
+
     if ((request.method === "POST" || request.method === "GET") && url.pathname === "/api/sync/admin/wipe-all") {
       const providedSecret = `${url.searchParams.get("key") || ""}`.trim();
       if (!configuredSecret || !providedSecret || providedSecret !== configuredSecret) {

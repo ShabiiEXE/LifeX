@@ -77,6 +77,7 @@ const CLOUD_SYNC_ROOM_QR_PREFIX = "LIFEXSYNC1:";
 const SCRYFALL_SEARCH_TIMEOUT_MS = 3200;
 const CLOUD_SYNC_PIN_LENGTH = 4;
 const CLOUD_SYNC_POLL_MS = 15000;
+const LOCAL_TEST_SYNC_PIN = "0000";
 const DEFAULT_PLAYER_BACKGROUND = "./img/default_back0.png";
 const MENU_BACKGROUND = "./img/menu_back.png";
 const DEFAULT_MAGIC_PLAYER_BACKGROUNDS = [
@@ -418,6 +419,10 @@ function normalizeCloudSyncPin(value) {
 function normalizeCloudSyncPassword(value) {
   const digitsOnly = `${value || ""}`.replace(/\D/g, "").slice(0, CLOUD_SYNC_PIN_LENGTH);
   return digitsOnly.length === CLOUD_SYNC_PIN_LENGTH ? digitsOnly : digitsOnly;
+}
+
+function isLocalTestSyncPin(value) {
+  return normalizeCloudSyncPin(value) === LOCAL_TEST_SYNC_PIN;
 }
 
 function loadCloudSyncSession() {
@@ -1286,16 +1291,21 @@ function renderStartScreenBackdrop() {
     return;
   }
 
-  const activePlaygroup = getActiveCloudSyncRoom();
-  const playgroupBadgeMarkup = activePlaygroup?.name
-    ? `<div class="start-active-playgroup">Playgroup: ${escapeHtml(activePlaygroup.name)}</div>`
-    : "";
-
   startScreenBg.innerHTML = `
     <div class="start-screen-bg-tile start-screen-bg-tile-full" style="background-image:url('${MENU_BACKGROUND}')"></div>
-    ${playgroupBadgeMarkup}
   `;
   startScreenBg.classList.remove("hidden");
+}
+
+function renderStartPlaygroupOverlay() {
+  const overlay = document.getElementById("start-screen-playgroup");
+  const startScreen = document.getElementById("start-screen");
+  if (!overlay || !startScreen) return;
+  const activePlaygroup = getActiveCloudSyncRoom();
+  const shouldShow = !startScreen.classList.contains("hidden") && !!activePlaygroup?.name;
+  overlay.innerHTML = shouldShow
+    ? `<div class="start-active-playgroup">Playgroup: ${escapeHtml(activePlaygroup.name)}</div>`
+    : "";
 }
 
 function getDefaultSeatState(index) {
@@ -2354,6 +2364,29 @@ async function syncCloudRoom(roomOrPin, { silent = false } = {}) {
     if (!silent) setCloudSyncStatus("Enter a 4-digit password.");
     return null;
   }
+  if (isLocalTestSyncPin(normalizedPin)) {
+    const nextRoom = upsertCloudSyncRoom({
+      id: room?.id || "",
+      name: room?.name || "Local Test",
+      pin: normalizedPin,
+      password: normalizedPassword
+    }, { setActive: true });
+    const state = ensureSetupState();
+    state.syncRoomId = nextRoom?.id || "";
+    state.syncRoomName = nextRoom?.name || "";
+    state.syncPin = normalizedPin;
+    state.syncPassword = normalizedPassword;
+    state.syncConnected = true;
+    cloudSyncPending = false;
+    if (!silent) {
+      setCloudSyncStatus(`Connected to ${nextRoom?.name || "local test room"} (local test mode).`);
+    }
+    return {
+      pin: normalizedPin,
+      local: true,
+      bundle: buildQrTransferBundle(true)
+    };
+  }
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
     markCloudSyncPending();
     if (!silent) setCloudSyncStatus("Offline. Sync will retry when online.");
@@ -2433,6 +2466,13 @@ function startCloudSyncLoop(roomOrPin, { syncNow = true, silent = false } = {}) 
   state.syncPin = normalizedPin;
   state.syncPassword = normalizedPassword;
   state.syncConnected = true;
+  if (isLocalTestSyncPin(normalizedPin)) {
+    cloudSyncPending = false;
+    if (syncNow) {
+      void syncCloudRoom(nextRoom || room, { silent });
+    }
+    return;
+  }
   if (syncNow) {
     void syncCloudRoom(nextRoom || room, { silent });
   }
@@ -3940,6 +3980,7 @@ function renderStartSetupScreen() {
   startScreen.classList.remove("hidden");
   container.classList.remove("hidden");
   startScreen.classList.add("setup-open");
+  renderStartPlaygroupOverlay();
 
   if (state.step === "config") {
     if (!hasStartedGame) {
@@ -4482,7 +4523,9 @@ function setupStartScreen() {
           throw new Error("Enter a 4-digit password.");
         }
         let createdNewRoom = false;
-        if (pendingRoom.pin.length === CLOUD_SYNC_PIN_LENGTH) {
+        if (isLocalTestSyncPin(pendingRoom.pin)) {
+          createdNewRoom = !getCloudSyncRooms().some(room => room.pin === LOCAL_TEST_SYNC_PIN);
+        } else if (pendingRoom.pin.length === CLOUD_SYNC_PIN_LENGTH) {
           const response = await fetch(`/api/sync/${encodeURIComponent(pendingRoom.pin)}/ensure`, {
             method: "POST",
             headers: {
@@ -9601,7 +9644,7 @@ window.addEventListener("beforeunload", saveState);
 window.addEventListener("pagehide", saveState);
 
 
-window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
+//window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
 
 // Console helpers for quick troubleshooting:
 // start2(), start3(), start4(), start5(), start6(), startPlayers(n)
