@@ -2505,7 +2505,7 @@ function renderCommanderGridSeat(state, playerIndex, seatPos) {
         <button class="setup-plus-btn" data-action="add-deck" data-seat="${playerIndex}" aria-label="Add deck">${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>
         <input type="text" data-seat-input="deckName" data-seat="${playerIndex}" value="${seat.deckName || ""}" placeholder="Deck name">
         <input type="text" data-seat-deck-search="${playerIndex}" placeholder="Search commander">
-        <div class="setup-search-results" id="search-results-${playerIndex}"></div>
+        <div class="setup-search-results" data-seat-search-results="${playerIndex}"></div>
       </div>
     `;
   } else {
@@ -2693,7 +2693,7 @@ function renderCommanderSeatOverlay(state, playerIndex) {
           `
           : `
             <input type="text" data-seat-deck-search="${playerIndex}" value="${escapeHtml(seat.searchQuery || "")}" placeholder="Search commander">
-            <div class="setup-search-results" id="search-results-${playerIndex}">${getSearchResultsMarkup(playerIndex, seat.searchResults || [], seat.searchQuery || "")}</div>
+            <div class="setup-search-results" data-seat-search-results="${playerIndex}"></div>
           `
         }
       </div>
@@ -3274,6 +3274,9 @@ function renderStartSetupScreen() {
     stopQrScanner();
     renderCommanderGridOnGame(state);
     container.innerHTML = renderQrPanel(state);
+    state.seats.forEach((seat, index) => {
+      renderSearchResults(index, seat?.searchResults || [], seat?.searchQuery || "");
+    });
   } else {
     stopQrScanner();
     state.qrOpen = false;
@@ -3457,55 +3460,105 @@ async function clearPwaCacheForDebug() {
 }
 
 function renderSearchResults(seatIndex, cards, query = "") {
-  const resultsEl = document.getElementById(`search-results-${seatIndex}`);
+  const resultEls = Array.from(document.querySelectorAll(`[data-seat-search-results="${seatIndex}"]`));
   const state = ensureSetupState();
   const seat = state.seats[seatIndex];
   seat.searchResults = Array.isArray(cards) ? cards : [];
   seat.searchQuery = `${query || ""}`;
-  const markup = getSearchResultsMarkup(seatIndex, seat.searchResults, seat.searchQuery);
-  if (!resultsEl) return;
-  resultsEl.innerHTML = markup;
+  resultEls.forEach((resultsEl) => {
+    resultsEl.replaceChildren(...buildSearchResultNodes(seatIndex, seat.searchResults, seat.searchQuery));
+  });
 }
 
-function getSearchResultsMarkup(seatIndex, cards, query = "") {
+function buildSearchResultNodes(seatIndex, cards, query = "") {
   const state = ensureSetupState();
   const seat = state.seats[seatIndex];
   const cleanQuery = `${query || ""}`.trim();
   if (!cards.length) {
     if (!seat?.isAddingDeck || cleanQuery.length < 2) {
-      return "";
+      return [];
     }
     const isDuplicateForPlayer = profileAlreadyHasDeck(seat.profileId, cleanQuery);
-    return `
-      <button class="search-result ${isDuplicateForPlayer ? "search-result-disabled" : ""}" data-action="create-default-search-deck" data-seat="${seatIndex}" data-deck-name="${escapeHtml(cleanQuery)}" ${isDuplicateForPlayer ? "disabled" : ""}>
-        <img src="${DEFAULT_PLAYER_BACKGROUND}" alt="">
-        <span class="search-result-copy">
-          <span class="search-result-name-row">
-            <span class="search-result-name">${escapeHtml(cleanQuery)}</span>
-            <span class="search-result-badge search-result-badge-muted">Default Deck</span>
-            ${isDuplicateForPlayer ? '<span class="search-result-badge search-result-badge-muted">Added</span>' : ""}
-          </span>
-          <span class="search-result-meta">${navigator.onLine ? "No online match found. Create locally." : "Offline mode. Create locally with default art."}</span>
-        </span>
-      </button>
-    `;
+    return [buildSearchResultButton({
+      seatIndex,
+      action: "create-default-search-deck",
+      disabled: isDuplicateForPlayer,
+      datasetKey: "deckName",
+      datasetValue: cleanQuery,
+      image: DEFAULT_PLAYER_BACKGROUND,
+      name: cleanQuery,
+      typeLine: navigator.onLine ? "No online match found. Create locally." : "Offline mode. Create locally with default art.",
+      exact: false,
+      badges: ["Default Deck"].concat(isDuplicateForPlayer ? ["Added"] : [])
+    })];
   }
   return cards.map(card => {
     const isDuplicateForPlayer = profileAlreadyHasDeck(seat?.profileId, card.name);
-    return `
-    <button class="search-result ${isDuplicateForPlayer ? "search-result-disabled" : ""}" data-action="select-search-card" data-seat="${seatIndex}" data-card-id="${card.id}" ${isDuplicateForPlayer ? "disabled" : ""}>
-      <img src="${card.art}" alt="">
-      <span class="search-result-copy">
-        <span class="search-result-name-row">
-          <span class="search-result-name">${card.name}</span>
-          ${card.exact ? '<span class="search-result-badge">Exact</span>' : ""}
-          ${isDuplicateForPlayer ? '<span class="search-result-badge search-result-badge-muted">Added</span>' : ""}
-        </span>
-        <span class="search-result-meta">${card.typeLine}</span>
-      </span>
-    </button>
-  `;
-  }).join("");
+    return buildSearchResultButton({
+      seatIndex,
+      action: "select-search-card",
+      disabled: isDuplicateForPlayer,
+      datasetKey: "cardId",
+      datasetValue: card.id,
+      image: card.art,
+      name: card.name,
+      typeLine: card.typeLine,
+      exact: !!card.exact,
+      badges: isDuplicateForPlayer ? ["Added"] : []
+    });
+  });
+}
+
+function buildSearchResultButton({ seatIndex, action, disabled = false, datasetKey = "", datasetValue = "", image = "", name = "", typeLine = "", exact = false, badges = [] }) {
+  const button = document.createElement("button");
+  button.className = `search-result${disabled ? " search-result-disabled" : ""}`;
+  button.dataset.action = action;
+  button.dataset.seat = String(seatIndex);
+  if (datasetKey) {
+    button.dataset[datasetKey] = `${datasetValue || ""}`;
+  }
+  if (disabled) {
+    button.disabled = true;
+  }
+
+  const img = document.createElement("img");
+  img.src = `${image || ""}`;
+  img.alt = "";
+  button.appendChild(img);
+
+  const copy = document.createElement("span");
+  copy.className = "search-result-copy";
+
+  const nameRow = document.createElement("span");
+  nameRow.className = "search-result-name-row";
+
+  const nameEl = document.createElement("span");
+  nameEl.className = "search-result-name";
+  nameEl.textContent = `${name || ""}`;
+  nameRow.appendChild(nameEl);
+
+  if (exact) {
+    const exactBadge = document.createElement("span");
+    exactBadge.className = "search-result-badge";
+    exactBadge.textContent = "Exact";
+    nameRow.appendChild(exactBadge);
+  }
+
+  badges.forEach((badgeText) => {
+    const badge = document.createElement("span");
+    badge.className = "search-result-badge search-result-badge-muted";
+    badge.textContent = `${badgeText || ""}`;
+    nameRow.appendChild(badge);
+  });
+
+  const meta = document.createElement("span");
+  meta.className = "search-result-meta";
+  meta.textContent = `${typeLine || ""}`;
+
+  copy.appendChild(nameRow);
+  copy.appendChild(meta);
+  button.appendChild(copy);
+  return button;
 }
 
 /* =========================

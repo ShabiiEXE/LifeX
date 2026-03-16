@@ -2169,6 +2169,59 @@ body.history-open .history-seat-shell.player.single-seat-editor .setup-seat-over
   width: 100%;
   max-width: 100%;
   align-self: stretch;
+  flex: 1 1 auto;
+  min-height: clamp(220px, 42vh, 420px);
+  height: calc(100% - 56px);
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel .setup-search-results {
+  width: calc(100% - 20px);
+  max-width: calc(100% - 20px);
+  align-self: center;
+  flex: 1 1 auto;
+  min-height: 0;
+  mask-image: none;
+  -webkit-mask-image: none;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel .search-result {
+  display: grid !important;
+  grid-template-columns: 64px 1fr !important;
+  min-height: 60px;
+  color: #fff !important;
+  background: rgba(0, 0, 0, 0.42);
+  overflow: visible;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel .search-result img {
+  display: block !important;
+  width: 64px !important;
+  height: 48px !important;
+  opacity: 1 !important;
+  visibility: visible !important;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel .search-result-copy,
+#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel .search-result-name-row,
+#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel .search-result-name,
+#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel .search-result-meta,
+#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel .search-result-badge {
+  display: flex;
+  opacity: 1 !important;
+  visibility: visible !important;
+  color: inherit !important;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel .search-result-copy {
+  flex-direction: column;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel .search-result-name {
+  display: block;
+}
+
+#game[data-players="1"] .player.single-seat-editor .setup-add-deck-panel .search-result-meta {
+  display: block;
 }
 
 #game[data-players="1"] .player.single-seat-editor .setup-seat-overlay-editing-deck {
@@ -2400,9 +2453,10 @@ body.history-open .history-seat-shell.player.single-seat-editor .setup-seat-over
   flex-direction: column;
   gap: 6px;
   width: 100%;
-  /*flex: 1 1 auto;*/
+  flex: 1 1 auto;
   min-height: 0;
   padding-top: 28px;
+  height: 100%;
   overflow: hidden;
   margin-top: 5%;
 }
