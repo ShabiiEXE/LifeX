@@ -554,6 +554,14 @@ function getLatestDeckDeletion(ownerProfileName, commanderName, tombstones = syn
   )?.deletedAt) || 0;
 }
 
+function isDeletedBySyncTombstone(deletedAt, itemTimestamp) {
+  const normalizedDeletedAt = Number.isFinite(deletedAt) ? deletedAt : 0;
+  const normalizedItemTimestamp = Number.isFinite(itemTimestamp) ? itemTimestamp : 0;
+  if (normalizedDeletedAt <= 0) return false;
+  if (normalizedItemTimestamp <= 0) return true;
+  return normalizedDeletedAt >= normalizedItemTimestamp;
+}
+
 function mergeSyncTombstones(incomingTombstones) {
   const normalizedIncoming = normalizeSyncTombstones(incomingTombstones);
   normalizedIncoming.profiles.forEach((entry) => {
@@ -573,7 +581,7 @@ function applySyncTombstonesToLocalData() {
   profileLibrary = profileLibrary.filter((profile) => {
     const latestDeletion = getLatestProfileDeletion(profile?.name);
     const profileLastUsedAt = Number.isFinite(profile?.lastUsedAt) ? profile.lastUsedAt : 0;
-    const shouldDelete = latestDeletion > 0 && latestDeletion >= profileLastUsedAt;
+    const shouldDelete = isDeletedBySyncTombstone(latestDeletion, profileLastUsedAt);
     if (shouldDelete && profile?.id) {
       deletedProfileIds.add(profile.id);
     }
@@ -587,7 +595,11 @@ function applySyncTombstonesToLocalData() {
     const latestProfileDeletion = ownerProfileName ? getLatestProfileDeletion(ownerProfileName) : 0;
     const latestDeckDeletion = ownerProfileName && commanderName ? getLatestDeckDeletion(ownerProfileName, commanderName) : 0;
     const deckLastUsedAt = Number.isFinite(deck?.lastUsedAt) ? deck.lastUsedAt : 0;
-    return !(deletedProfileIds.has(deck.ownerProfileId) || latestProfileDeletion >= deckLastUsedAt || latestDeckDeletion >= deckLastUsedAt);
+    return !(
+      deletedProfileIds.has(deck.ownerProfileId)
+      || isDeletedBySyncTombstone(latestProfileDeletion, deckLastUsedAt)
+      || isDeletedBySyncTombstone(latestDeckDeletion, deckLastUsedAt)
+    );
   });
 
   if (setupState?.seats) {
@@ -1273,8 +1285,14 @@ function renderStartScreenBackdrop() {
     return;
   }
 
+  const activePlaygroup = getActiveCloudSyncRoom();
+  const playgroupBadgeMarkup = activePlaygroup?.name
+    ? `<div class="start-active-playgroup">Playgroup: ${escapeHtml(activePlaygroup.name)}</div>`
+    : "";
+
   startScreenBg.innerHTML = `
     <div class="start-screen-bg-tile start-screen-bg-tile-full" style="background-image:url('${MENU_BACKGROUND}')"></div>
+    ${playgroupBadgeMarkup}
   `;
   startScreenBg.classList.remove("hidden");
 }
@@ -1928,10 +1946,6 @@ function initGame(playerCount) {
 }
 
 function renderStartConfigStep(state) {
-  const activePlaygroup = getActiveCloudSyncRoom();
-  const playgroupBadgeMarkup = activePlaygroup?.name
-    ? `<div class="start-active-playgroup">Playgroup: ${escapeHtml(activePlaygroup.name)}</div>`
-    : "";
   const modeOptions = ["commander", "magic"].map(mode => `
     <button class="${state.mode === mode ? "active" : ""}" data-action="set-mode" data-mode="${mode}">${modeLabel(mode)}</button>
   `).join("");
@@ -1992,7 +2006,6 @@ function renderStartConfigStep(state) {
         <button class="setup-start-logs-btn" data-action="open-profile-editor" aria-label="Edit Profiles">${getIconMarkup("Profile", "setup-inline-icon")}</button>
       </div>
       ${jumpBackMarkup}
-      ${playgroupBadgeMarkup}
       ${renderQrPanel(state)}
     </div>
   `;
@@ -2684,7 +2697,7 @@ function mergeImportedTransferData(payload) {
     const incomingName = `${incoming?.name || ""}`.trim();
     if (!incomingName) return;
     const incomingLastUsedAt = Number.isFinite(incoming?.lastUsedAt) ? incoming.lastUsedAt : 0;
-    if (getLatestProfileDeletion(incomingName) >= incomingLastUsedAt) return;
+    if (isDeletedBySyncTombstone(getLatestProfileDeletion(incomingName), incomingLastUsedAt)) return;
     const normalized = normalizeLibraryName(incomingName);
     const existing = profileLibrary.find(profile => normalizeLibraryName(profile.name) === normalized);
 
@@ -2717,8 +2730,8 @@ function mergeImportedTransferData(payload) {
       ownerProfileId = ensureProfileIdByName(ownerName);
     }
     if (!ownerProfileId) return;
-    if (getLatestProfileDeletion(ownerName) >= incomingLastUsedAt) return;
-    if (getLatestDeckDeletion(ownerName, commanderName) >= incomingLastUsedAt) return;
+    if (isDeletedBySyncTombstone(getLatestProfileDeletion(ownerName), incomingLastUsedAt)) return;
+    if (isDeletedBySyncTombstone(getLatestDeckDeletion(ownerName, commanderName), incomingLastUsedAt)) return;
 
     const existingDeck = deckLibrary.find(deck =>
       deck.ownerProfileId === ownerProfileId &&
@@ -4037,15 +4050,29 @@ async function clearPwaCacheForDebug() {
     PROFILE_STORAGE_KEY,
     DECK_STORAGE_KEY,
     MATCH_HISTORY_STORAGE_KEY,
-    PERSISTENT_STATS_STORAGE_KEY
+    PERSISTENT_STATS_STORAGE_KEY,
+    RESUME_SESSIONS_STORAGE_KEY,
+    SYNC_TOMBSTONES_STORAGE_KEY,
+    CLOUD_SYNC_STORAGE_KEY,
+    DEVICE_ID_STORAGE_KEY
   ]);
+  const keepPrefixes = [
+    `${PROFILE_STORAGE_KEY}:`,
+    `${DECK_STORAGE_KEY}:`,
+    `${MATCH_HISTORY_STORAGE_KEY}:`,
+    `${PERSISTENT_STATS_STORAGE_KEY}:`,
+    `${RESUME_SESSIONS_STORAGE_KEY}:`,
+    `${SYNC_TOMBSTONES_STORAGE_KEY}:`
+  ];
 
   try {
     const keysToRemove = [];
     for (let i = 0; i < localStorage.length; i += 1) {
       const key = localStorage.key(i);
       if (!key) continue;
-      if (!keepKeys.has(key)) keysToRemove.push(key);
+      if (keepKeys.has(key)) continue;
+      if (keepPrefixes.some((prefix) => key.startsWith(prefix))) continue;
+      keysToRemove.push(key);
     }
     keysToRemove.forEach((key) => localStorage.removeItem(key));
   } catch {

@@ -108,6 +108,14 @@ function getLatestDeckDeletion(ownerProfileName, commanderName, tombstones) {
   )?.deletedAt || 0;
 }
 
+function isDeletedByTombstone(deletedAt, itemTimestamp) {
+  const normalizedDeletedAt = Number.isFinite(deletedAt) ? deletedAt : 0;
+  const normalizedItemTimestamp = Number.isFinite(itemTimestamp) ? itemTimestamp : 0;
+  if (normalizedDeletedAt <= 0) return false;
+  if (normalizedItemTimestamp <= 0) return true;
+  return normalizedDeletedAt >= normalizedItemTimestamp;
+}
+
 function mergeProfiles(existingProfiles = [], incomingProfiles = [], tombstones = createEmptyRoomState().tombstones) {
   const profilesByName = new Map();
 
@@ -169,7 +177,7 @@ function mergeProfiles(existingProfiles = [], incomingProfiles = [], tombstones 
           lastUsedAt: deck.lastUsedAt
         }))
     }))
-    .filter((profile) => getLatestProfileDeletion(profile.name, tombstones) < (profile.lastUsedAt || 0))
+    .filter((profile) => !isDeletedByTombstone(getLatestProfileDeletion(profile.name, tombstones), profile.lastUsedAt || 0))
     .sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
 }
 
@@ -232,7 +240,10 @@ function mergeRoomBundle(state, bundle) {
       .map((profile) => ({
         ...profile,
         decks: (Array.isArray(profile.decks) ? profile.decks : []).filter((deck) =>
-          getLatestDeckDeletion(profile.name, deck.commanderName || deck.name, mergedTombstones) < (deck.lastUsedAt || 0)
+          !isDeletedByTombstone(
+            getLatestDeckDeletion(profile.name, deck.commanderName || deck.name, mergedTombstones),
+            deck.lastUsedAt || 0
+          )
         )
       })),
     games: mergeGames(state.games, Array.isArray(bundle?.games) ? bundle.games : []),
