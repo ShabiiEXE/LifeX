@@ -1,5 +1,6 @@
 const PIN_LENGTH = 4;
 const CREATE_ATTEMPTS = 128;
+const ROOM_INDEX_NAME = "__sync-room-index__";
 
 function json(data, init = {}) {
   return new Response(JSON.stringify(data), {
@@ -278,8 +279,55 @@ export class SyncRoom {
     await this.ctx.storage.deleteAll();
   }
 
+  async loadIndexPins() {
+    const stored = await this.ctx.storage.get("pins");
+    return Array.isArray(stored)
+      ? stored.map((pin) => normalizePin(pin)).filter(Boolean)
+      : [];
+  }
+
+  async saveIndexPins(pins) {
+    const normalizedPins = Array.from(new Set(
+      (Array.isArray(pins) ? pins : []).map((pin) => normalizePin(pin)).filter(Boolean)
+    )).sort();
+    await this.ctx.storage.put("pins", normalizedPins);
+  }
+
   async fetch(request) {
     const url = new URL(request.url);
+
+    if (request.method === "POST" && url.pathname.endsWith("/index/add")) {
+      const payload = await request.json().catch(() => null);
+      const pin = normalizePin(payload?.pin);
+      if (!pin) {
+        return json({ error: "Invalid PIN." }, { status: 400 });
+      }
+      const pins = await this.loadIndexPins();
+      pins.push(pin);
+      await this.saveIndexPins(pins);
+      return json({ ok: true, pin });
+    }
+
+    if (request.method === "POST" && url.pathname.endsWith("/index/remove")) {
+      const payload = await request.json().catch(() => null);
+      const pin = normalizePin(payload?.pin);
+      if (!pin) {
+        return json({ error: "Invalid PIN." }, { status: 400 });
+      }
+      const pins = (await this.loadIndexPins()).filter((entry) => entry !== pin);
+      await this.saveIndexPins(pins);
+      return json({ ok: true, pin });
+    }
+
+    if (request.method === "GET" && url.pathname.endsWith("/index/list")) {
+      return json({ pins: await this.loadIndexPins() });
+    }
+
+    if (request.method === "POST" && url.pathname.endsWith("/index/clear")) {
+      await this.ctx.storage.delete("pins");
+      return json({ ok: true });
+    }
+
     const requestedPin =
       normalizePin(url.searchParams.get("pin"))
       || normalizePin(url.pathname.match(/\/room\/(\d{4})\//)?.[1] || "");
@@ -421,6 +469,55 @@ async function createRoom(env, password) {
   return json({ error: "Unable to allocate a room." }, { status: 503 });
 }
 
+async function addPinToRoomIndex(env, pin) {
+  const normalizedPin = normalizePin(pin);
+  if (!normalizedPin) return;
+  const id = env.SYNC_ROOM.idFromName(ROOM_INDEX_NAME);
+  const stub = env.SYNC_ROOM.get(id);
+  await stub.fetch("https://sync.internal/index/add", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json; charset=utf-8"
+    },
+    body: JSON.stringify({ pin: normalizedPin })
+  });
+}
+
+async function removePinFromRoomIndex(env, pin) {
+  const normalizedPin = normalizePin(pin);
+  if (!normalizedPin) return;
+  const id = env.SYNC_ROOM.idFromName(ROOM_INDEX_NAME);
+  const stub = env.SYNC_ROOM.get(id);
+  await stub.fetch("https://sync.internal/index/remove", {
+    method: "POST",
+    headers: {
+      "content-type": "application/json; charset=utf-8"
+    },
+    body: JSON.stringify({ pin: normalizedPin })
+  });
+}
+
+async function listRoomIndexPins(env) {
+  const id = env.SYNC_ROOM.idFromName(ROOM_INDEX_NAME);
+  const stub = env.SYNC_ROOM.get(id);
+  const response = await stub.fetch("https://sync.internal/index/list", {
+    method: "GET"
+  });
+  if (!response.ok) return [];
+  const payload = await response.json().catch(() => null);
+  return Array.isArray(payload?.pins)
+    ? payload.pins.map((pin) => normalizePin(pin)).filter(Boolean)
+    : [];
+}
+
+async function clearRoomIndex(env) {
+  const id = env.SYNC_ROOM.idFromName(ROOM_INDEX_NAME);
+  const stub = env.SYNC_ROOM.get(id);
+  await stub.fetch("https://sync.internal/index/clear", {
+    method: "POST"
+  });
+}
+
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
@@ -428,7 +525,12 @@ export default {
 
     if (request.method === "POST" && url.pathname === "/api/sync/create") {
       const payload = await request.json().catch(() => null);
-      return createRoom(env, payload?.password);
+      const response = await createRoom(env, payload?.password);
+      if (response.ok) {
+        const data = await response.clone().json().catch(() => null);
+        await addPinToRoomIndex(env, data?.pin);
+      }
+      return response;
     }
 
     const ensureMatch = url.pathname.match(/^\/api\/sync\/(\d{4})\/ensure$/);
@@ -437,13 +539,20 @@ export default {
       const body = await request.text();
       const id = env.SYNC_ROOM.idFromName(pin);
       const stub = env.SYNC_ROOM.get(id);
-      return stub.fetch(`https://sync.internal/room/${pin}/ensure`, {
+      const response = await stub.fetch(`https://sync.internal/room/${pin}/ensure`, {
         method: "POST",
         headers: {
           "content-type": "application/json; charset=utf-8"
         },
         body
       });
+      if (response.ok) {
+        const data = await response.clone().json().catch(() => null);
+        if (data?.created) {
+          await addPinToRoomIndex(env, pin);
+        }
+      }
+      return response;
     }
 
     const syncMatch = url.pathname.match(/^\/api\/sync\/(\d{4})\/sync$/);
@@ -486,12 +595,16 @@ export default {
       const pin = wipeMatch[1];
       const id = env.SYNC_ROOM.idFromName(pin);
       const stub = env.SYNC_ROOM.get(id);
-      return stub.fetch(`https://sync.internal/room/${pin}/wipe`, {
+      const response = await stub.fetch(`https://sync.internal/room/${pin}/wipe`, {
         method: "POST",
         headers: {
           "x-admin-sync-secret": providedSecret
         }
       });
+      if (response.ok) {
+        await removePinFromRoomIndex(env, pin);
+      }
+      return response;
     }
 
     if (request.method === "POST" && url.pathname === "/api/sync/admin/wipe-all") {
@@ -499,7 +612,7 @@ export default {
       if (!configuredSecret || !providedSecret || providedSecret !== configuredSecret) {
         return json({ error: "Unauthorized." }, { status: 401 });
       }
-      const pins = Array.from({ length: 10000 }, (_, index) => `${index}`.padStart(PIN_LENGTH, "0"));
+      const pins = await listRoomIndexPins(env);
       const batchSize = 100;
       let cleared = 0;
       for (let index = 0; index < pins.length; index += batchSize) {
@@ -517,6 +630,7 @@ export default {
         }));
         cleared += results.filter(Boolean).length;
       }
+      await clearRoomIndex(env);
       return json({ ok: true, cleared });
     }
 
