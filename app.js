@@ -114,6 +114,7 @@ let duelSeries = createDefaultDuelSeriesState();
 let pendingDuelContinuation = null;
 let cloudSyncLoopId = null;
 let cloudSyncInFlightPromise = null;
+let cloudSyncPending = false;
 
 /* =========================
    Duel Series Helpers
@@ -1800,7 +1801,6 @@ function renderQrPanel(state) {
             <div class="setup-footer qr-menu-actions qr-menu-actions-inline">
               <button class="setup-icon-circle-btn qr-back-btn" data-action="back-qr-menu" aria-label="Back">${getIconMarkup("Back", "setup-inline-icon")}</button>
               <button data-action="join-sync-room">Join</button>
-              <button data-action="sync-cloud-room" ${state.syncConnected ? "" : "disabled"}>Sync Now</button>
               ${state.syncConnected ? `<button class="setup-icon-circle-btn qr-back-btn" data-action="disconnect-sync-room" aria-label="Leave sync room">${getIconMarkup("Delete", "setup-inline-icon")}</button>` : ""}
             </div>
           </div>
@@ -2000,6 +2000,11 @@ function setCloudSyncStatus(message, { shouldRender = true } = {}) {
   }
 }
 
+function markCloudSyncPending() {
+  if (!getActiveCloudSyncRoom()) return;
+  cloudSyncPending = true;
+}
+
 function stopCloudSyncLoop({ clearSession = false, clearRoomId = "", status = "" } = {}) {
   if (cloudSyncLoopId !== null) {
     window.clearInterval(cloudSyncLoopId);
@@ -2036,6 +2041,7 @@ async function syncCloudRoom(roomOrPin, { silent = false } = {}) {
     return null;
   }
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    markCloudSyncPending();
     if (!silent) setCloudSyncStatus("Offline. Sync will retry when online.");
     return null;
   }
@@ -2067,6 +2073,7 @@ async function syncCloudRoom(roomOrPin, { silent = false } = {}) {
     state.syncRoomName = nextRoom?.name || "";
     state.syncPin = normalizedPin;
     state.syncConnected = true;
+    cloudSyncPending = false;
     if (!silent) {
       const imported = (merged?.addedProfiles || 0) + (merged?.addedDecks || 0) + (merged?.addedGames || 0);
       setCloudSyncStatus(imported > 0 ? `Synced ${nextRoom?.name || "room"} (${normalizedPin}). Imported ${imported} item${imported === 1 ? "" : "s"}.` : `Synced ${nextRoom?.name || "room"} (${normalizedPin}).`);
@@ -2077,6 +2084,7 @@ async function syncCloudRoom(roomOrPin, { silent = false } = {}) {
   try {
     return await cloudSyncInFlightPromise;
   } catch (error) {
+    markCloudSyncPending();
     if (!silent) {
       setCloudSyncStatus(error instanceof Error ? error.message : "Cloud sync failed.");
     }
@@ -2110,7 +2118,10 @@ function startCloudSyncLoop(roomOrPin, { syncNow = true, silent = false } = {}) 
 function syncActiveCloudRoom({ silent = true } = {}) {
   const activeRoom = getActiveCloudSyncRoom();
   if (!activeRoom) return;
-  if (typeof navigator !== "undefined" && navigator.onLine === false) return;
+  if (typeof navigator !== "undefined" && navigator.onLine === false) {
+    markCloudSyncPending();
+    return;
+  }
   startCloudSyncLoop(activeRoom, { syncNow: false, silent: true });
   void syncCloudRoom(activeRoom, { silent });
 }
@@ -4120,22 +4131,6 @@ function setupStartScreen() {
       return;
     }
 
-    if (action === "sync-cloud-room") {
-      const activeRoom = getActiveCloudSyncRoom(state);
-      if (!activeRoom) {
-        state.qrStatus = "Choose or join a playgroup first.";
-        renderStartSetupScreen();
-        return;
-      }
-      try {
-        await syncCloudRoom(activeRoom);
-      } catch {
-        // Status is handled in syncCloudRoom.
-      }
-      renderStartSetupScreen();
-      return;
-    }
-
     if (action === "disconnect-sync-room") {
       const activeRoom = getActiveCloudSyncRoom(state);
       stopCloudSyncLoop({
@@ -5033,19 +5028,26 @@ function setupStartScreen() {
       const roomId = `${syncRoomSelect.value || ""}`.trim();
       const room = getCloudSyncRoomById(roomId);
       if (!room) {
+        stopCloudSyncLoop();
+        cloudSyncSession = {
+          rooms: getCloudSyncRooms(),
+          activeRoomId: ""
+        };
+        saveCloudSyncSession();
         state.syncRoomId = "";
         state.syncRoomName = "";
         state.syncPin = "";
         state.syncConnected = false;
+        setCloudSyncStatus("No active playgroup selected.");
         return;
       }
-      upsertCloudSyncRoom(room, { setActive: true });
-      state.syncRoomId = room.id;
-      state.syncRoomName = room.name;
-      state.syncPin = room.pin;
+      const activeRoom = upsertCloudSyncRoom(room, { setActive: true }) || room;
+      state.syncRoomId = activeRoom.id;
+      state.syncRoomName = activeRoom.name;
+      state.syncPin = activeRoom.pin;
       state.syncConnected = true;
-      startCloudSyncLoop(room, { syncNow: true, silent: true });
-      setCloudSyncStatus(`Connected to ${room.name}.`);
+      startCloudSyncLoop(activeRoom, { syncNow: true, silent: true });
+      setCloudSyncStatus(`Connected to ${activeRoom.name}.`);
       return;
     }
 
@@ -8879,7 +8881,11 @@ window.addEventListener("online", () => {
   void hydrateMissingDeckImages({ limit: 50 });
   const activeRoom = getActiveCloudSyncRoom();
   if (activeRoom) {
-    startCloudSyncLoop(activeRoom, { syncNow: true, silent: true });
+    if (cloudSyncPending) {
+      syncActiveCloudRoom({ silent: true });
+    } else {
+      startCloudSyncLoop(activeRoom, { syncNow: true, silent: true });
+    }
   }
 });
 
