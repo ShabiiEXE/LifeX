@@ -3110,7 +3110,6 @@ function bindSetupSeatBodyDrag(playerEl, seatIndex) {
 
   const seatRotation = getSeatRotation(selectedPlayerCount, seatIndex);
   const usesSidewaysDrag = Math.abs(seatRotation) === 90;
-  const setupRailSide = playerEl?.dataset?.setupRailSide === "left" ? "left" : "right";
   scrollers.forEach((scroller) => {
     const isRailScroller =
       scroller.classList.contains("setup-profile-list")
@@ -3120,7 +3119,7 @@ function bindSetupSeatBodyDrag(playerEl, seatIndex) {
     bindDragScroll(scroller, {
       usesSidewaysDrag,
       seatRotation,
-      reverseSidewaysDrag: usesSidewaysDrag && isRailScroller && setupRailSide === "right",
+      reverseSidewaysDrag: usesSidewaysDrag && isRailScroller && seatRotation < 0,
       ignoreSelectors: "input, select"
     });
   });
