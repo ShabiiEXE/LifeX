@@ -1222,6 +1222,7 @@ function deleteDeckById(deckId) {
   if (!deckId) return false;
   const index = deckLibrary.findIndex(item => item.id === deckId);
   if (index === -1) return false;
+  const deletedDeck = deckLibrary[index];
   deckLibrary.splice(index, 1);
   saveDeckLibrary();
 
@@ -1229,6 +1230,14 @@ function deleteDeckById(deckId) {
     setupState.seats.forEach((seat) => {
       if (seat?.deckId === deckId) {
         clearSeatDeckSelection(seat, { preserveDeleteMode: !!seat?.isDeletingDeck });
+      }
+      if (seat?.isDeletingDeck) {
+        const remainingDecksForProfile = deletedDeck?.ownerProfileId
+          ? deckLibrary.some(deck => deck.ownerProfileId === deletedDeck.ownerProfileId)
+          : deckLibrary.length > 0;
+        if (!remainingDecksForProfile) {
+          seat.isDeletingDeck = false;
+        }
       }
     });
   }
@@ -1256,6 +1265,9 @@ function deleteProfileById(profileId) {
         seat.newProfileName = "";
         seat.isDeletingProfile = false;
         clearSeatDeckSelection(seat);
+      }
+      if (seat?.isDeletingProfile && profileLibrary.length === 0) {
+        seat.isDeletingProfile = false;
       }
     });
   }
@@ -1787,10 +1799,9 @@ function renderQrPanel(state) {
             <input class="qr-payload" type="password" data-sync-pin="room-pin" inputmode="numeric" maxlength="${CLOUD_SYNC_PIN_LENGTH}" value="${escapeHtml(state.syncPin || "")}" placeholder="4-digit room PIN">
             <div class="setup-footer qr-menu-actions qr-menu-actions-inline">
               <button class="setup-icon-circle-btn qr-back-btn" data-action="back-qr-menu" aria-label="Back">${getIconMarkup("Back", "setup-inline-icon")}</button>
-              <button data-action="create-sync-room">Create</button>
               <button data-action="join-sync-room">Join</button>
               <button data-action="sync-cloud-room" ${state.syncConnected ? "" : "disabled"}>Sync Now</button>
-              <button data-action="${state.syncConnected ? "disconnect-sync-room" : "close-qr"}">${state.syncConnected ? "Leave" : "Close"}</button>
+              ${state.syncConnected ? `<button class="setup-icon-circle-btn qr-back-btn" data-action="disconnect-sync-room" aria-label="Leave sync room">${getIconMarkup("Delete", "setup-inline-icon")}</button>` : ""}
             </div>
           </div>
         ` : ""}
@@ -4077,43 +4088,26 @@ function setupStartScreen() {
       return;
     }
 
-    if (action === "create-sync-room") {
-      const pendingRoom = getPendingCloudSyncRoom(state);
-      try {
-        const response = await fetch("/api/sync/create", { method: "POST" });
-        if (!response.ok) throw new Error("Unable to create room.");
-        const payload = await response.json();
-        const pin = normalizeCloudSyncPin(payload?.pin || "");
-        if (pin.length !== CLOUD_SYNC_PIN_LENGTH) throw new Error("Invalid room response.");
-        const nextRoom = {
-          id: pendingRoom.id || createLocalId(),
-          name: pendingRoom.name || `Playgroup ${pin}`,
-          pin
-        };
-        startCloudSyncLoop(nextRoom, { syncNow: true });
-        state.syncRoomId = nextRoom.id;
-        state.syncRoomName = nextRoom.name;
-        state.syncPin = pin;
-        state.syncConnected = true;
-        state.qrView = "sync";
-        state.qrStatus = `Created ${nextRoom.name}.`;
-      } catch (error) {
-        state.qrStatus = error instanceof Error ? error.message : "Unable to create room.";
-      }
-      renderStartSetupScreen();
-      return;
-    }
-
     if (action === "join-sync-room") {
       const pendingRoom = getPendingCloudSyncRoom(state);
-      if (pendingRoom.pin.length !== CLOUD_SYNC_PIN_LENGTH) {
-        state.qrStatus = "Enter a 4-digit PIN.";
-        renderStartSetupScreen();
-        return;
-      }
       try {
+        let createdNewRoom = false;
+        if (pendingRoom.pin.length !== CLOUD_SYNC_PIN_LENGTH) {
+          const response = await fetch("/api/sync/create", { method: "POST" });
+          if (!response.ok) throw new Error("Unable to create room.");
+          const payload = await response.json();
+          const pin = normalizeCloudSyncPin(payload?.pin || "");
+          if (pin.length !== CLOUD_SYNC_PIN_LENGTH) throw new Error("Invalid room response.");
+          pendingRoom.pin = pin;
+          createdNewRoom = true;
+        }
         startCloudSyncLoop(pendingRoom, { syncNow: false });
         await syncCloudRoom(pendingRoom);
+        if (pendingRoom.name) {
+          state.qrStatus = createdNewRoom
+            ? `Created ${pendingRoom.name}.`
+            : `Connected to ${pendingRoom.name}.`;
+        }
       } catch {
         stopCloudSyncLoop({ clearSession: true, clearRoomId: pendingRoom.id || getActiveCloudSyncRoom()?.id || "" });
       }
@@ -4667,7 +4661,7 @@ function setupStartScreen() {
     if (action === "delete-deck" && Number.isInteger(seat)) {
       const deckId = btn.dataset.deckId || "";
       if (!deleteDeckById(deckId)) return;
-      state.seats[seat].isDeletingDeck = true;
+      state.seats[seat].isDeletingDeck = getDecksForProfile(state.seats[seat].profileId).length > 0;
       state.seats[seat].isBorrowingDeck = false;
       state.seats[seat].borrowProfileId = "";
       state.forceDeckSelection = isProfileEditorMode(state) ? true : !allSetupSeatsReady(state);
