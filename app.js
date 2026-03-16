@@ -71,6 +71,7 @@ const PERSISTENT_STATS_STORAGE_KEY = "lifeTrackerPersistentStatsV1";
 const RESUME_SESSIONS_STORAGE_KEY = "lifeTrackerResumeSessionsV1";
 const DEVICE_ID_STORAGE_KEY = "lifeXDeviceIdV1";
 const CLOUD_SYNC_STORAGE_KEY = "lifeXCloudSyncV1";
+const SYNC_TOMBSTONES_STORAGE_KEY = "lifeXSyncTombstonesV1";
 const QR_TRANSFER_PREFIX = "LIFEX1:";
 const SCRYFALL_SEARCH_TIMEOUT_MS = 3200;
 const CLOUD_SYNC_PIN_LENGTH = 4;
@@ -115,6 +116,7 @@ let pendingDuelContinuation = null;
 let cloudSyncLoopId = null;
 let cloudSyncInFlightPromise = null;
 let cloudSyncPending = false;
+let syncTombstones = null;
 
 /* =========================
    Duel Series Helpers
@@ -412,6 +414,11 @@ function normalizeCloudSyncPin(value) {
   return digitsOnly.length === CLOUD_SYNC_PIN_LENGTH ? digitsOnly : digitsOnly;
 }
 
+function normalizeCloudSyncPassword(value) {
+  const digitsOnly = `${value || ""}`.replace(/\D/g, "").slice(0, CLOUD_SYNC_PIN_LENGTH);
+  return digitsOnly.length === CLOUD_SYNC_PIN_LENGTH ? digitsOnly : digitsOnly;
+}
+
 function loadCloudSyncSession() {
   const parsed = safeJsonParse(localStorage.getItem(CLOUD_SYNC_STORAGE_KEY), {});
   const rooms = Array.isArray(parsed?.rooms)
@@ -419,9 +426,10 @@ function loadCloudSyncSession() {
         .map((room, index) => {
           const pin = normalizeCloudSyncPin(room?.pin);
           const id = `${room?.id || `room-${index}`}`.trim() || `room-${index}`;
-          const name = `${room?.name || ""}`.trim() || `Playgroup ${pin || index + 1}`;
+          const name = `${room?.name || ""}`.trim() || `Playgroup ${index + 1}`;
+          const password = normalizeCloudSyncPassword(room?.password);
           if (pin.length !== CLOUD_SYNC_PIN_LENGTH) return null;
-          return { id, name, pin };
+          return { id, name, pin, password };
         })
         .filter(Boolean)
     : [];
@@ -441,6 +449,224 @@ function saveCloudSyncSession() {
   }));
 }
 
+function createEmptySyncTombstones() {
+  return {
+    profiles: [],
+    decks: []
+  };
+}
+
+function normalizeSyncTombstones(source) {
+  const profiles = Array.isArray(source?.profiles) ? source.profiles : [];
+  const decks = Array.isArray(source?.decks) ? source.decks : [];
+  return {
+    profiles: profiles
+      .map((entry) => {
+        const profileName = `${entry?.profileName || entry?.name || ""}`.trim();
+        const deletedAt = Number.isFinite(entry?.deletedAt) ? entry.deletedAt : 0;
+        if (!profileName || !deletedAt) return null;
+        return { profileName, deletedAt };
+      })
+      .filter(Boolean),
+    decks: decks
+      .map((entry) => {
+        const ownerProfileName = `${entry?.ownerProfileName || ""}`.trim();
+        const commanderName = `${entry?.commanderName || entry?.name || ""}`.trim();
+        const deletedAt = Number.isFinite(entry?.deletedAt) ? entry.deletedAt : 0;
+        if (!ownerProfileName || !commanderName || !deletedAt) return null;
+        return { ownerProfileName, commanderName, deletedAt };
+      })
+      .filter(Boolean)
+  };
+}
+
+function loadSyncTombstones(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
+  return normalizeSyncTombstones(
+    safeJsonParse(localStorage.getItem(getWorkspaceStorageKey(SYNC_TOMBSTONES_STORAGE_KEY, roomId)), createEmptySyncTombstones())
+  );
+}
+
+function saveSyncTombstones(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
+  localStorage.setItem(getWorkspaceStorageKey(SYNC_TOMBSTONES_STORAGE_KEY, roomId), JSON.stringify(normalizeSyncTombstones(syncTombstones)));
+}
+
+function mergeProfileTombstone(entries, profileName, deletedAt) {
+  const normalizedProfileName = normalizeLibraryName(profileName);
+  const nextEntries = Array.isArray(entries) ? entries : [];
+  const existing = nextEntries.find((entry) => normalizeLibraryName(entry.profileName) === normalizedProfileName);
+  if (existing) {
+    existing.deletedAt = Math.max(existing.deletedAt || 0, deletedAt || 0);
+    if (!existing.profileName) existing.profileName = `${profileName || ""}`.trim();
+    return nextEntries;
+  }
+  nextEntries.push({
+    profileName: `${profileName || ""}`.trim(),
+    deletedAt
+  });
+  return nextEntries;
+}
+
+function mergeDeckTombstone(entries, ownerProfileName, commanderName, deletedAt) {
+  const normalizedOwner = normalizeLibraryName(ownerProfileName);
+  const normalizedCommander = normalizeLibraryName(commanderName);
+  const nextEntries = Array.isArray(entries) ? entries : [];
+  const existing = nextEntries.find((entry) =>
+    normalizeLibraryName(entry.ownerProfileName) === normalizedOwner &&
+    normalizeLibraryName(entry.commanderName) === normalizedCommander
+  );
+  if (existing) {
+    existing.deletedAt = Math.max(existing.deletedAt || 0, deletedAt || 0);
+    return nextEntries;
+  }
+  nextEntries.push({
+    ownerProfileName: `${ownerProfileName || ""}`.trim(),
+    commanderName: `${commanderName || ""}`.trim(),
+    deletedAt
+  });
+  return nextEntries;
+}
+
+function recordProfileDeletionTombstone(profileName, deletedAt = Date.now()) {
+  if (!profileName) return;
+  syncTombstones.profiles = mergeProfileTombstone(syncTombstones.profiles, profileName, deletedAt);
+  saveSyncTombstones();
+}
+
+function recordDeckDeletionTombstone(ownerProfileName, commanderName, deletedAt = Date.now()) {
+  if (!ownerProfileName || !commanderName) return;
+  syncTombstones.decks = mergeDeckTombstone(syncTombstones.decks, ownerProfileName, commanderName, deletedAt);
+  saveSyncTombstones();
+}
+
+function getLatestProfileDeletion(profileName, tombstones = syncTombstones) {
+  const normalizedProfileName = normalizeLibraryName(profileName);
+  return (normalizeSyncTombstones(tombstones).profiles.find((entry) =>
+    normalizeLibraryName(entry.profileName) === normalizedProfileName
+  )?.deletedAt) || 0;
+}
+
+function getLatestDeckDeletion(ownerProfileName, commanderName, tombstones = syncTombstones) {
+  const normalizedOwner = normalizeLibraryName(ownerProfileName);
+  const normalizedCommander = normalizeLibraryName(commanderName);
+  return (normalizeSyncTombstones(tombstones).decks.find((entry) =>
+    normalizeLibraryName(entry.ownerProfileName) === normalizedOwner &&
+    normalizeLibraryName(entry.commanderName) === normalizedCommander
+  )?.deletedAt) || 0;
+}
+
+function mergeSyncTombstones(incomingTombstones) {
+  const normalizedIncoming = normalizeSyncTombstones(incomingTombstones);
+  normalizedIncoming.profiles.forEach((entry) => {
+    syncTombstones.profiles = mergeProfileTombstone(syncTombstones.profiles, entry.profileName, entry.deletedAt);
+  });
+  normalizedIncoming.decks.forEach((entry) => {
+    syncTombstones.decks = mergeDeckTombstone(syncTombstones.decks, entry.ownerProfileName, entry.commanderName, entry.deletedAt);
+  });
+  saveSyncTombstones();
+}
+
+function applySyncTombstonesToLocalData() {
+  const profileDeletions = normalizeSyncTombstones(syncTombstones).profiles;
+  const deckDeletions = normalizeSyncTombstones(syncTombstones).decks;
+
+  const deletedProfileIds = new Set();
+  profileLibrary = profileLibrary.filter((profile) => {
+    const latestDeletion = getLatestProfileDeletion(profile?.name);
+    const profileLastUsedAt = Number.isFinite(profile?.lastUsedAt) ? profile.lastUsedAt : 0;
+    const shouldDelete = latestDeletion > 0 && latestDeletion >= profileLastUsedAt;
+    if (shouldDelete && profile?.id) {
+      deletedProfileIds.add(profile.id);
+    }
+    return !shouldDelete;
+  });
+
+  deckLibrary = deckLibrary.filter((deck) => {
+    const ownerProfile = profileLibrary.find((profile) => profile.id === deck.ownerProfileId);
+    const ownerProfileName = `${ownerProfile?.name || ""}`.trim();
+    const commanderName = `${deck?.cardName || deck?.deckName || ""}`.trim();
+    const latestProfileDeletion = ownerProfileName ? getLatestProfileDeletion(ownerProfileName) : 0;
+    const latestDeckDeletion = ownerProfileName && commanderName ? getLatestDeckDeletion(ownerProfileName, commanderName) : 0;
+    const deckLastUsedAt = Number.isFinite(deck?.lastUsedAt) ? deck.lastUsedAt : 0;
+    return !(deletedProfileIds.has(deck.ownerProfileId) || latestProfileDeletion >= deckLastUsedAt || latestDeckDeletion >= deckLastUsedAt);
+  });
+
+  if (setupState?.seats) {
+    setupState.seats.forEach((seat, index) => {
+      const seatProfileName = `${seat?.profileName || ""}`.trim();
+      const latestProfileDeletion = getLatestProfileDeletion(seatProfileName);
+      if (seatProfileName && latestProfileDeletion > 0 && latestProfileDeletion >= 0 && !profileLibrary.find((profile) => profile.id === seat.profileId)) {
+        const fallback = getDefaultSeatState(index);
+        seat.profileId = "";
+        seat.profileName = fallback.profileName;
+        seat.isAddingProfile = false;
+        seat.newProfileName = "";
+        seat.isDeletingProfile = false;
+        clearSeatDeckSelection(seat);
+        return;
+      }
+
+      const ownerProfileName = seatProfileName;
+      const commanderName = `${seat?.cardName || seat?.deckName || ""}`.trim();
+      const latestDeckDeletion = ownerProfileName && commanderName ? getLatestDeckDeletion(ownerProfileName, commanderName) : 0;
+      if (latestDeckDeletion > 0 && commanderName && !deckLibrary.find((deck) => deck.id === seat.deckId)) {
+        clearSeatDeckSelection(seat, { preserveDeleteMode: !!seat?.isDeletingDeck });
+      }
+    });
+  }
+
+  saveProfileLibrary();
+  saveDeckLibrary();
+}
+
+function refreshSetupStateForWorkspaceSwitch() {
+  if (!setupState) return;
+  setupState.seats = Array.from({ length: 6 }, (_, index) => getDefaultSeatState(index));
+  setupState.syncRoomId = getActiveCloudSyncRoom()?.id || "";
+  setupState.syncRoomName = getActiveCloudSyncRoom()?.name || "";
+  setupState.syncPin = getActiveCloudSyncRoom()?.pin || "";
+  setupState.syncPassword = getActiveCloudSyncRoom()?.password || "";
+  setupState.syncConnected = !!getActiveCloudSyncRoom();
+}
+
+function loadWorkspaceSnapshot(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim(), { refreshSetup = true, shouldRender = true } = {}) {
+  profileLibrary = loadProfileLibrary(roomId);
+  deckLibrary = loadDeckLibrary(roomId);
+  matchHistory = loadMatchHistory(roomId);
+  persistentStats = loadPersistentStats(roomId);
+  syncTombstones = loadSyncTombstones(roomId);
+  applySyncTombstonesToLocalData();
+  syncPersistentStatsFromHistory();
+  resumeSessions = loadResumeSessions(roomId);
+  void hydrateMissingDeckImages({ limit: 50 });
+  if (refreshSetup && (!hasStartedGame || !selectedPlayerCount)) {
+    refreshSetupStateForWorkspaceSwitch();
+  }
+  if (shouldRender && document.getElementById("start-screen")) {
+    renderStartSetupScreen();
+  }
+}
+
+function activateCloudSyncWorkspace(room, { shouldRender = true } = {}) {
+  const currentRoomId = `${cloudSyncSession?.activeRoomId || ""}`.trim();
+  const nextRoom = room ? upsertCloudSyncRoom(room, { setActive: true }) : null;
+  const nextRoomId = `${nextRoom?.id || ""}`.trim();
+  if (currentRoomId && currentRoomId !== nextRoomId) {
+    persistWorkspaceSnapshot(currentRoomId);
+  } else if (!currentRoomId && nextRoomId) {
+    persistWorkspaceSnapshot("");
+  }
+  loadWorkspaceSnapshot(nextRoomId, { shouldRender });
+  return nextRoom;
+}
+
+function clearActiveCloudSyncWorkspace({ shouldRender = true } = {}) {
+  const currentRoomId = `${cloudSyncSession?.activeRoomId || ""}`.trim();
+  if (currentRoomId) {
+    persistWorkspaceSnapshot(currentRoomId);
+  }
+  loadWorkspaceSnapshot("", { shouldRender });
+}
+
 function getCloudSyncRooms() {
   return Array.isArray(cloudSyncSession?.rooms) ? cloudSyncSession.rooms : [];
 }
@@ -454,8 +680,9 @@ function upsertCloudSyncRoom(room, { setActive = true } = {}) {
   const pin = normalizeCloudSyncPin(room?.pin);
   if (pin.length !== CLOUD_SYNC_PIN_LENGTH) return null;
   const id = `${room?.id || createLocalId()}`.trim() || createLocalId();
-  const name = `${room?.name || ""}`.trim() || `Playgroup ${pin}`;
-  const nextRoom = { id, name, pin };
+  const name = `${room?.name || ""}`.trim() || "Playgroup";
+  const password = normalizeCloudSyncPassword(room?.password);
+  const nextRoom = { id, name, pin, password };
   const existingRooms = getCloudSyncRooms().filter(item => item.id !== id && item.pin !== pin);
   cloudSyncSession = {
     rooms: [nextRoom, ...existingRooms],
@@ -707,8 +934,22 @@ function subtractNumericScoreMaps(nextMap, prevMap) {
 const deviceId = getOrCreateDeviceId();
 let cloudSyncSession = loadCloudSyncSession();
 
-function loadProfileLibrary() {
-  const parsed = safeJsonParse(localStorage.getItem(PROFILE_STORAGE_KEY), []);
+function getWorkspaceStorageKey(baseKey, roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
+  const normalizedRoomId = `${roomId || ""}`.trim();
+  return normalizedRoomId ? `${baseKey}:${normalizedRoomId}` : baseKey;
+}
+
+function persistWorkspaceSnapshot(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
+  localStorage.setItem(getWorkspaceStorageKey(PROFILE_STORAGE_KEY, roomId), JSON.stringify(profileLibrary));
+  localStorage.setItem(getWorkspaceStorageKey(DECK_STORAGE_KEY, roomId), JSON.stringify(deckLibrary));
+  localStorage.setItem(getWorkspaceStorageKey(MATCH_HISTORY_STORAGE_KEY, roomId), JSON.stringify(trimMatchHistoryByCommanderCap(matchHistory)));
+  localStorage.setItem(getWorkspaceStorageKey(PERSISTENT_STATS_STORAGE_KEY, roomId), JSON.stringify(persistentStats));
+  localStorage.setItem(getWorkspaceStorageKey(SYNC_TOMBSTONES_STORAGE_KEY, roomId), JSON.stringify(normalizeSyncTombstones(syncTombstones)));
+  localStorage.setItem(getWorkspaceStorageKey(RESUME_SESSIONS_STORAGE_KEY, roomId), JSON.stringify((Array.isArray(resumeSessions) ? resumeSessions : []).slice(0, 3)));
+}
+
+function loadProfileLibrary(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
+  const parsed = safeJsonParse(localStorage.getItem(getWorkspaceStorageKey(PROFILE_STORAGE_KEY, roomId)), []);
   if (!Array.isArray(parsed)) return [];
   return parsed
     .filter(item => item && typeof item.id === "string" && typeof item.name === "string")
@@ -719,8 +960,8 @@ function loadProfileLibrary() {
     .sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
 }
 
-function saveProfileLibrary() {
-  localStorage.setItem(PROFILE_STORAGE_KEY, JSON.stringify(profileLibrary));
+function saveProfileLibrary(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
+  localStorage.setItem(getWorkspaceStorageKey(PROFILE_STORAGE_KEY, roomId), JSON.stringify(profileLibrary));
 }
 
 function markProfileAsUsed(profileId) {
@@ -733,8 +974,8 @@ function markProfileAsUsed(profileId) {
   return profile;
 }
 
-function loadDeckLibrary() {
-  const parsed = safeJsonParse(localStorage.getItem(DECK_STORAGE_KEY), []);
+function loadDeckLibrary(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
+  const parsed = safeJsonParse(localStorage.getItem(getWorkspaceStorageKey(DECK_STORAGE_KEY, roomId)), []);
   if (!Array.isArray(parsed)) return [];
   return parsed
     .filter(item => item && typeof item.id === "string" && typeof item.cardName === "string")
@@ -748,8 +989,8 @@ function loadDeckLibrary() {
     .sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
 }
 
-function saveDeckLibrary() {
-  localStorage.setItem(DECK_STORAGE_KEY, JSON.stringify(deckLibrary));
+function saveDeckLibrary(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
+  localStorage.setItem(getWorkspaceStorageKey(DECK_STORAGE_KEY, roomId), JSON.stringify(deckLibrary));
   warmCommanderImageCache();
 }
 
@@ -834,25 +1075,25 @@ function normalizeMatchHistoryEntry(entry) {
   };
 }
 
-function loadMatchHistory() {
-  const parsed = safeJsonParse(localStorage.getItem(MATCH_HISTORY_STORAGE_KEY), []);
+function loadMatchHistory(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
+  const parsed = safeJsonParse(localStorage.getItem(getWorkspaceStorageKey(MATCH_HISTORY_STORAGE_KEY, roomId)), []);
   if (!Array.isArray(parsed)) return [];
   return trimMatchHistoryByCommanderCap(parsed.map(normalizeMatchHistoryEntry).filter(Boolean));
 }
 
-function saveMatchHistory() {
+function saveMatchHistory(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
   matchHistory = trimMatchHistoryByCommanderCap(matchHistory);
-  localStorage.setItem(MATCH_HISTORY_STORAGE_KEY, JSON.stringify(matchHistory));
+  localStorage.setItem(getWorkspaceStorageKey(MATCH_HISTORY_STORAGE_KEY, roomId), JSON.stringify(matchHistory));
 }
 
-function loadPersistentStats() {
+function loadPersistentStats(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
   return normalizePersistentStatsStore(
-    safeJsonParse(localStorage.getItem(PERSISTENT_STATS_STORAGE_KEY), createEmptyPersistentStatsStore())
+    safeJsonParse(localStorage.getItem(getWorkspaceStorageKey(PERSISTENT_STATS_STORAGE_KEY, roomId)), createEmptyPersistentStatsStore())
   );
 }
 
-function savePersistentStats() {
-  localStorage.setItem(PERSISTENT_STATS_STORAGE_KEY, JSON.stringify(persistentStats));
+function savePersistentStats(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
+  localStorage.setItem(getWorkspaceStorageKey(PERSISTENT_STATS_STORAGE_KEY, roomId), JSON.stringify(persistentStats));
 }
 
 function buildPersistentStatsSnapshot() {
@@ -971,16 +1212,16 @@ function mergeImportedPersistentStats(statsPayload) {
   savePersistentStats();
 }
 
-function loadResumeSessions() {
-  const parsed = safeJsonParse(localStorage.getItem(RESUME_SESSIONS_STORAGE_KEY), []);
+function loadResumeSessions(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
+  const parsed = safeJsonParse(localStorage.getItem(getWorkspaceStorageKey(RESUME_SESSIONS_STORAGE_KEY, roomId)), []);
   if (!Array.isArray(parsed)) return [];
   return parsed
     .filter(entry => entry && typeof entry.id === "string" && entry.snapshot?.hasStartedGame)
     .slice(0, 3);
 }
 
-function saveResumeSessions() {
-  localStorage.setItem(RESUME_SESSIONS_STORAGE_KEY, JSON.stringify(resumeSessions.slice(0, 3)));
+function saveResumeSessions(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
+  localStorage.setItem(getWorkspaceStorageKey(RESUME_SESSIONS_STORAGE_KEY, roomId), JSON.stringify(resumeSessions.slice(0, 3)));
 }
 
 function saveCurrentResumeSession(snapshot) {
@@ -996,15 +1237,17 @@ function saveCurrentResumeSession(snapshot) {
 
 function clearResumeSessions() {
   resumeSessions = [];
-  localStorage.removeItem(RESUME_SESSIONS_STORAGE_KEY);
+  localStorage.removeItem(getWorkspaceStorageKey(RESUME_SESSIONS_STORAGE_KEY));
 }
 
 function clearStoredGameData() {
   matchHistory = [];
   persistentStats = createEmptyPersistentStatsStore();
+  syncTombstones = createEmptySyncTombstones();
   clearResumeSessions();
-  localStorage.removeItem(MATCH_HISTORY_STORAGE_KEY);
-  localStorage.removeItem(PERSISTENT_STATS_STORAGE_KEY);
+  localStorage.removeItem(getWorkspaceStorageKey(MATCH_HISTORY_STORAGE_KEY));
+  localStorage.removeItem(getWorkspaceStorageKey(PERSISTENT_STATS_STORAGE_KEY));
+  localStorage.removeItem(getWorkspaceStorageKey(SYNC_TOMBSTONES_STORAGE_KEY));
 }
 
 function renderStartScreenBackdrop() {
@@ -1088,6 +1331,7 @@ function createDefaultSetupState() {
     syncRoomId: getActiveCloudSyncRoom()?.id || "",
     syncRoomName: getActiveCloudSyncRoom()?.name || "",
     syncPin: getActiveCloudSyncRoom()?.pin || "",
+    syncPassword: getActiveCloudSyncRoom()?.password || "",
     syncConnected: !!getActiveCloudSyncRoom(),
     seats: Array.from({ length: 6 }, (_, index) => getDefaultSeatState(index))
   };
@@ -1224,6 +1468,10 @@ function deleteDeckById(deckId) {
   const index = deckLibrary.findIndex(item => item.id === deckId);
   if (index === -1) return false;
   const deletedDeck = deckLibrary[index];
+  const deletedDeckOwner = profileLibrary.find(profile => profile.id === deletedDeck?.ownerProfileId);
+  const deletedDeckOwnerName = `${deletedDeckOwner?.name || ""}`.trim();
+  const deletedCommanderName = `${deletedDeck?.cardName || deletedDeck?.deckName || ""}`.trim();
+  recordDeckDeletionTombstone(deletedDeckOwnerName, deletedCommanderName, Date.now());
   deckLibrary.splice(index, 1);
   saveDeckLibrary();
 
@@ -1250,6 +1498,9 @@ function deleteProfileById(profileId) {
   if (!profileId) return false;
   const profileIndex = profileLibrary.findIndex(item => item.id === profileId);
   if (profileIndex === -1) return false;
+  const deletedProfile = profileLibrary[profileIndex];
+  const deletedProfileName = `${deletedProfile?.name || ""}`.trim();
+  recordProfileDeletionTombstone(deletedProfileName, Date.now());
   profileLibrary.splice(profileIndex, 1);
   saveProfileLibrary();
 
@@ -1792,12 +2043,13 @@ function renderQrPanel(state) {
         ` : ""}
         ${isSync ? `
           <div class="qr-scan-body">
-            <select class="qr-payload" data-sync-room-select="room">
+            <select class="sync-payload sync-highlight" data-sync-room-select="room">
               <option value="">New playgroup</option>
               ${savedSyncRooms.map((room) => `<option value="${escapeHtml(room.id)}" ${selectedSyncRoomId === room.id ? "selected" : ""}>${escapeHtml(room.name)}</option>`).join("")}
             </select>
-            <input class="qr-payload" data-sync-room-name="room-name" maxlength="40" value="${escapeHtml(state.syncRoomName || "")}" placeholder="Playgroup name">
-            <input class="qr-payload" type="password" data-sync-pin="room-pin" inputmode="numeric" maxlength="${CLOUD_SYNC_PIN_LENGTH}" value="${escapeHtml(state.syncPin || "")}" placeholder="4-digit room PIN">
+            <input class="sync-payload" data-sync-room-name="room-name" maxlength="40" value="${escapeHtml(state.syncRoomName || "")}" placeholder="Playgroup name">
+            <input class="sync-payload" type="password" data-sync-pin="room-pin" inputmode="numeric" maxlength="${CLOUD_SYNC_PIN_LENGTH}" value="${escapeHtml(state.syncPin || "")}" placeholder="4-digit room PIN">
+            <input class="sync-payload" type="password" data-sync-password="room-password" inputmode="numeric" maxlength="${CLOUD_SYNC_PIN_LENGTH}" value="${escapeHtml(state.syncPassword || "")}" placeholder="4-digit room password">
             <div class="setup-footer qr-menu-actions qr-menu-actions-inline">
               <button class="setup-icon-circle-btn qr-back-btn" data-action="back-qr-menu" aria-label="Back">${getIconMarkup("Back", "setup-inline-icon")}</button>
               <button data-action="join-sync-room">Join</button>
@@ -1868,7 +2120,8 @@ function buildQrTransferBundle(includeGames = false) {
       name: commanderName,
       commanderName,
       deckName: customDeckName || commanderName,
-      artRef: getDeckTransferArtRef(deck)
+      artRef: getDeckTransferArtRef(deck),
+      lastUsedAt: Number.isFinite(deck?.lastUsedAt) ? deck.lastUsedAt : 0
     });
   });
 
@@ -1909,13 +2162,15 @@ function buildQrTransferBundle(includeGames = false) {
           }));
         return {
           name,
+          lastUsedAt: Number.isFinite(profile?.lastUsedAt) ? profile.lastUsedAt : 0,
           decks
         };
       })
       .filter(Boolean),
     games,
     historyEntries,
-    stats: buildPersistentStatsSnapshot()
+    stats: buildPersistentStatsSnapshot(),
+    tombstones: normalizeSyncTombstones(syncTombstones)
   };
 }
 
@@ -1979,11 +2234,13 @@ function getPendingCloudSyncRoom(state = setupState) {
   const roomId = getActiveCloudSyncRoomId(state);
   const storedRoom = getCloudSyncRoomById(roomId);
   const pin = normalizeCloudSyncPin(state?.syncPin || storedRoom?.pin || "");
-  const name = `${state?.syncRoomName || storedRoom?.name || ""}`.trim() || (pin ? `Playgroup ${pin}` : "");
+  const name = `${state?.syncRoomName || storedRoom?.name || ""}`.trim() || "Playgroup";
+  const password = normalizeCloudSyncPassword(state?.syncPassword || storedRoom?.password || "");
   return {
     id: roomId || storedRoom?.id || "",
     name,
-    pin
+    pin,
+    password
   };
 }
 
@@ -1994,6 +2251,7 @@ function setCloudSyncStatus(message, { shouldRender = true } = {}) {
   state.syncRoomId = activeRoom?.id || state.syncRoomId || "";
   state.syncRoomName = activeRoom?.name || state.syncRoomName || "";
   state.syncPin = normalizeCloudSyncPin(state.syncPin || activeRoom?.pin || "");
+  state.syncPassword = normalizeCloudSyncPassword(state.syncPassword || activeRoom?.password || "");
   state.syncConnected = !!activeRoom;
   if (shouldRender && state.qrOpen && state.qrView === "sync") {
     renderStartSetupScreen();
@@ -2006,24 +2264,30 @@ function markCloudSyncPending() {
 }
 
 function stopCloudSyncLoop({ clearSession = false, clearRoomId = "", status = "" } = {}) {
+  const previousRoomId = `${cloudSyncSession?.activeRoomId || ""}`.trim();
   if (cloudSyncLoopId !== null) {
     window.clearInterval(cloudSyncLoopId);
     cloudSyncLoopId = null;
   }
   cloudSyncInFlightPromise = null;
   if (clearSession) {
+    if (previousRoomId) {
+      persistWorkspaceSnapshot(previousRoomId);
+    }
     if (clearRoomId) {
       removeCloudSyncRoom(clearRoomId);
     } else {
       cloudSyncSession = { rooms: [], activeRoomId: "" };
       saveCloudSyncSession();
     }
+    loadWorkspaceSnapshot("", { shouldRender: false });
   }
   const state = ensureSetupState();
   if (clearSession) {
     state.syncRoomId = getActiveCloudSyncRoom()?.id || "";
     state.syncRoomName = getActiveCloudSyncRoom()?.name || "";
     state.syncPin = "";
+    state.syncPassword = "";
   }
   state.syncConnected = !!getActiveCloudSyncRoom();
   if (status) {
@@ -2033,11 +2297,16 @@ function stopCloudSyncLoop({ clearSession = false, clearRoomId = "", status = ""
 
 async function syncCloudRoom(roomOrPin, { silent = false } = {}) {
   const room = typeof roomOrPin === "string"
-    ? { pin: roomOrPin, name: "", id: "" }
+    ? { pin: roomOrPin, name: "", id: "", password: "" }
     : (roomOrPin || getPendingCloudSyncRoom());
   const normalizedPin = normalizeCloudSyncPin(room?.pin);
+  const normalizedPassword = normalizeCloudSyncPassword(room?.password);
   if (normalizedPin.length !== CLOUD_SYNC_PIN_LENGTH) {
     if (!silent) setCloudSyncStatus("Enter a 4-digit PIN.");
+    return null;
+  }
+  if (normalizedPassword.length !== CLOUD_SYNC_PIN_LENGTH) {
+    if (!silent) setCloudSyncStatus("Enter a 4-digit password.");
     return null;
   }
   if (typeof navigator !== "undefined" && navigator.onLine === false) {
@@ -2055,28 +2324,37 @@ async function syncCloudRoom(roomOrPin, { silent = false } = {}) {
       },
       body: JSON.stringify({
         deviceId,
+        password: normalizedPassword,
         bundle: buildQrTransferBundle(true)
       })
     });
     if (!response.ok) {
-      throw new Error(response.status === 404 ? "Room not found." : "Cloud sync failed.");
+      throw new Error(
+        response.status === 401
+          ? "Wrong room password."
+          : response.status === 404
+            ? "Room not found."
+            : "Cloud sync failed."
+      );
     }
     const payload = await response.json();
     const merged = mergeImportedTransferData(payload?.bundle || {});
     const nextRoom = upsertCloudSyncRoom({
       id: room?.id || "",
       name: room?.name || "",
-      pin: normalizedPin
+      pin: normalizedPin,
+      password: normalizedPassword
     }, { setActive: true });
     const state = ensureSetupState();
     state.syncRoomId = nextRoom?.id || "";
     state.syncRoomName = nextRoom?.name || "";
     state.syncPin = normalizedPin;
+    state.syncPassword = normalizedPassword;
     state.syncConnected = true;
     cloudSyncPending = false;
     if (!silent) {
       const imported = (merged?.addedProfiles || 0) + (merged?.addedDecks || 0) + (merged?.addedGames || 0);
-      setCloudSyncStatus(imported > 0 ? `Synced ${nextRoom?.name || "room"} (${normalizedPin}). Imported ${imported} item${imported === 1 ? "" : "s"}.` : `Synced ${nextRoom?.name || "room"} (${normalizedPin}).`);
+      setCloudSyncStatus(imported > 0 ? `Synced ${nextRoom?.name || "room"}. Imported ${imported} item${imported === 1 ? "" : "s"}.` : `Synced ${nextRoom?.name || "room"}.`);
     }
     return payload;
   })();
@@ -2096,16 +2374,19 @@ async function syncCloudRoom(roomOrPin, { silent = false } = {}) {
 
 function startCloudSyncLoop(roomOrPin, { syncNow = true, silent = false } = {}) {
   const room = typeof roomOrPin === "string"
-    ? { pin: roomOrPin, name: "", id: "" }
+    ? { pin: roomOrPin, name: "", id: "", password: "" }
     : (roomOrPin || getPendingCloudSyncRoom());
   const normalizedPin = normalizeCloudSyncPin(room?.pin);
+  const normalizedPassword = normalizeCloudSyncPassword(room?.password);
   if (normalizedPin.length !== CLOUD_SYNC_PIN_LENGTH) return;
+  if (normalizedPassword.length !== CLOUD_SYNC_PIN_LENGTH) return;
   stopCloudSyncLoop();
-  const nextRoom = upsertCloudSyncRoom(room, { setActive: true });
+  const nextRoom = activateCloudSyncWorkspace(room, { shouldRender: false });
   const state = ensureSetupState();
   state.syncRoomId = nextRoom?.id || "";
   state.syncRoomName = nextRoom?.name || "";
   state.syncPin = normalizedPin;
+  state.syncPassword = normalizedPassword;
   state.syncConnected = true;
   if (syncNow) {
     void syncCloudRoom(nextRoom || room, { silent });
@@ -2362,6 +2643,8 @@ function mergeImportedTransferData(payload) {
   const importedHistoryEntries = Array.isArray(payload.historyEntries)
     ? payload.historyEntries.map(entry => normalizeMatchHistoryEntry(entry)).filter(Boolean)
     : [];
+  mergeSyncTombstones(payload.tombstones);
+  applySyncTombstonesToLocalData();
 
   let addedProfiles = 0;
   let addedDecks = 0;
@@ -2387,6 +2670,8 @@ function mergeImportedTransferData(payload) {
   importedProfiles.forEach((incoming) => {
     const incomingName = `${incoming?.name || ""}`.trim();
     if (!incomingName) return;
+    const incomingLastUsedAt = Number.isFinite(incoming?.lastUsedAt) ? incoming.lastUsedAt : 0;
+    if (getLatestProfileDeletion(incomingName) >= incomingLastUsedAt) return;
     const normalized = normalizeLibraryName(incomingName);
     const existing = profileLibrary.find(profile => normalizeLibraryName(profile.name) === normalized);
 
@@ -2410,6 +2695,7 @@ function mergeImportedTransferData(payload) {
     const incomingArtId = normalizeCommanderArtId(incomingDeck?.artId);
     const incomingArtRef = normalizeCommanderArtRef(incomingDeck?.artRef || incomingDeck?.artId);
     const resolvedIncomingImage = incomingImage || buildScryfallArtCropUrlFromRef(incomingArtRef);
+    const incomingLastUsedAt = Number.isFinite(incomingDeck?.lastUsedAt) ? incomingDeck.lastUsedAt : 0;
 
     // Owner name is authoritative for cross-device merging.
     let ownerProfileId = "";
@@ -2418,6 +2704,8 @@ function mergeImportedTransferData(payload) {
       ownerProfileId = ensureProfileIdByName(ownerName);
     }
     if (!ownerProfileId) return;
+    if (getLatestProfileDeletion(ownerName) >= incomingLastUsedAt) return;
+    if (getLatestDeckDeletion(ownerName, commanderName) >= incomingLastUsedAt) return;
 
     const existingDeck = deckLibrary.find(deck =>
       deck.ownerProfileId === ownerProfileId &&
@@ -4091,10 +4379,11 @@ function setupStartScreen() {
       state.syncRoomId = activeRoom?.id || "";
       state.syncRoomName = activeRoom?.name || state.syncRoomName || "";
       state.syncPin = activeRoom?.pin || state.syncPin || "";
+      state.syncPassword = activeRoom?.password || state.syncPassword || "";
       state.syncConnected = !!activeRoom;
       state.qrStatus = activeRoom
         ? `Connected to ${activeRoom.name}.`
-        : "Create or join a 4-digit sync room.";
+        : "Create or join a 4-digit sync room with a 4-digit password.";
       renderStartSetupScreen();
       return;
     }
@@ -4102,14 +4391,35 @@ function setupStartScreen() {
     if (action === "join-sync-room") {
       const pendingRoom = getPendingCloudSyncRoom(state);
       try {
+        if (pendingRoom.password.length !== CLOUD_SYNC_PIN_LENGTH) {
+          throw new Error("Enter a 4-digit password.");
+        }
         let createdNewRoom = false;
         if (pendingRoom.pin.length === CLOUD_SYNC_PIN_LENGTH) {
-          const response = await fetch(`/api/sync/${encodeURIComponent(pendingRoom.pin)}/ensure`, { method: "POST" });
-          if (!response.ok) throw new Error("Unable to open that room.");
+          const response = await fetch(`/api/sync/${encodeURIComponent(pendingRoom.pin)}/ensure`, {
+            method: "POST",
+            headers: {
+              "content-type": "application/json"
+            },
+            body: JSON.stringify({
+              password: pendingRoom.password
+            })
+          });
+          if (!response.ok) {
+            throw new Error(response.status === 401 ? "Wrong room password." : "Unable to open that room.");
+          }
           const payload = await response.json();
           createdNewRoom = !!payload?.created;
         } else {
-          const response = await fetch("/api/sync/create", { method: "POST" });
+          const response = await fetch("/api/sync/create", {
+            method: "POST",
+            headers: {
+              "content-type": "application/json"
+            },
+            body: JSON.stringify({
+              password: pendingRoom.password
+            })
+          });
           if (!response.ok) throw new Error("Unable to create room.");
           const payload = await response.json();
           const pin = normalizeCloudSyncPin(payload?.pin || "");
@@ -4124,8 +4434,12 @@ function setupStartScreen() {
             ? `Created ${pendingRoom.name}.`
             : `Connected to ${pendingRoom.name}.`;
         }
-      } catch {
-        stopCloudSyncLoop({ clearSession: true, clearRoomId: pendingRoom.id || getActiveCloudSyncRoom()?.id || "" });
+      } catch (error) {
+        stopCloudSyncLoop({
+          clearSession: true,
+          clearRoomId: pendingRoom.id || getActiveCloudSyncRoom()?.id || "",
+          status: error instanceof Error ? error.message : "Unable to open that room."
+        });
       }
       renderStartSetupScreen();
       return;
@@ -5017,6 +5331,12 @@ function setupStartScreen() {
       return;
     }
 
+    const syncPasswordInput = event.target.closest("[data-sync-password]");
+    if (syncPasswordInput) {
+      state.syncPassword = normalizeCloudSyncPassword(syncPasswordInput.value || "");
+      return;
+    }
+
     const syncRoomNameInput = event.target.closest("[data-sync-room-name]");
     if (syncRoomNameInput) {
       state.syncRoomName = `${syncRoomNameInput.value || ""}`.trimStart();
@@ -5028,23 +5348,30 @@ function setupStartScreen() {
       const roomId = `${syncRoomSelect.value || ""}`.trim();
       const room = getCloudSyncRoomById(roomId);
       if (!room) {
+        const previousRoomId = `${cloudSyncSession?.activeRoomId || ""}`.trim();
         stopCloudSyncLoop();
+        if (previousRoomId) {
+          persistWorkspaceSnapshot(previousRoomId);
+        }
         cloudSyncSession = {
           rooms: getCloudSyncRooms(),
           activeRoomId: ""
         };
         saveCloudSyncSession();
+        loadWorkspaceSnapshot("", { shouldRender: false });
         state.syncRoomId = "";
         state.syncRoomName = "";
         state.syncPin = "";
+        state.syncPassword = "";
         state.syncConnected = false;
         setCloudSyncStatus("No active playgroup selected.");
         return;
       }
-      const activeRoom = upsertCloudSyncRoom(room, { setActive: true }) || room;
+      const activeRoom = room;
       state.syncRoomId = activeRoom.id;
       state.syncRoomName = activeRoom.name;
       state.syncPin = activeRoom.pin;
+      state.syncPassword = activeRoom.password || "";
       state.syncConnected = true;
       startCloudSyncLoop(activeRoom, { syncNow: true, silent: true });
       setCloudSyncStatus(`Connected to ${activeRoom.name}.`);
@@ -8864,6 +9191,8 @@ profileLibrary = loadProfileLibrary();
 deckLibrary = loadDeckLibrary();
 matchHistory = loadMatchHistory();
 persistentStats = loadPersistentStats();
+syncTombstones = loadSyncTombstones();
+applySyncTombstonesToLocalData();
 syncPersistentStatsFromHistory();
 resumeSessions = loadResumeSessions();
 void hydrateMissingDeckImages({ limit: 50 });

@@ -1265,6 +1265,25 @@ body.history-open #player-buttons {
   line-height: 1.35;
 }
 
+.sync-payload {
+  min-height: 34px;
+  max-height: 140px;
+  border-radius: 10px;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  background: rgba(0, 0, 0, 0.48);
+  color: #fff;
+  padding: 8px;
+  resize: vertical;
+  font-family: inherit;
+  font-size: 12px;
+  line-height: 1.35;
+}
+
+.sync-highlight{
+  color: var(--main-color);
+  font-weight: bold;
+}
+
 .qr-scan-video {
   width: 100%;
   border-radius: 10px;

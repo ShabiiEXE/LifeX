@@ -20,19 +20,94 @@ function normalizePin(value) {
   return digits.length === PIN_LENGTH ? digits : "";
 }
 
-function createEmptyRoomState(pin = "") {
+function normalizePassword(value) {
+  const digits = `${value || ""}`.replace(/\D/g, "").slice(0, PIN_LENGTH);
+  return digits.length === PIN_LENGTH ? digits : "";
+}
+
+function createEmptyRoomState(pin = "", password = "") {
   return {
     pin,
+    password: normalizePassword(password),
     createdAt: Date.now(),
     updatedAt: Date.now(),
     profiles: [],
     games: [],
     historyEntries: [],
+    tombstones: {
+      profiles: [],
+      decks: []
+    },
     statsByDevice: {}
   };
 }
 
-function mergeProfiles(existingProfiles = [], incomingProfiles = []) {
+function normalizeTombstones(source) {
+  const profiles = Array.isArray(source?.profiles) ? source.profiles : [];
+  const decks = Array.isArray(source?.decks) ? source.decks : [];
+  return {
+    profiles: profiles
+      .map((entry) => {
+        const profileName = `${entry?.profileName || entry?.name || ""}`.trim();
+        const deletedAt = Number.isFinite(entry?.deletedAt) ? entry.deletedAt : 0;
+        if (!profileName || !deletedAt) return null;
+        return { profileName, deletedAt };
+      })
+      .filter(Boolean),
+    decks: decks
+      .map((entry) => {
+        const ownerProfileName = `${entry?.ownerProfileName || ""}`.trim();
+        const commanderName = `${entry?.commanderName || entry?.name || ""}`.trim();
+        const deletedAt = Number.isFinite(entry?.deletedAt) ? entry.deletedAt : 0;
+        if (!ownerProfileName || !commanderName || !deletedAt) return null;
+        return { ownerProfileName, commanderName, deletedAt };
+      })
+      .filter(Boolean)
+  };
+}
+
+function mergeTombstones(existingTombstones, incomingTombstones) {
+  const merged = normalizeTombstones(existingTombstones);
+  const next = normalizeTombstones(incomingTombstones);
+
+  next.profiles.forEach((entry) => {
+    const existing = merged.profiles.find((current) => normalizeName(current.profileName) === normalizeName(entry.profileName));
+    if (existing) {
+      existing.deletedAt = Math.max(existing.deletedAt || 0, entry.deletedAt || 0);
+    } else {
+      merged.profiles.push(entry);
+    }
+  });
+
+  next.decks.forEach((entry) => {
+    const existing = merged.decks.find((current) =>
+      normalizeName(current.ownerProfileName) === normalizeName(entry.ownerProfileName)
+      && normalizeName(current.commanderName) === normalizeName(entry.commanderName)
+    );
+    if (existing) {
+      existing.deletedAt = Math.max(existing.deletedAt || 0, entry.deletedAt || 0);
+    } else {
+      merged.decks.push(entry);
+    }
+  });
+
+  return merged;
+}
+
+function getLatestProfileDeletion(profileName, tombstones) {
+  return normalizeTombstones(tombstones).profiles.find((entry) =>
+    normalizeName(entry.profileName) === normalizeName(profileName)
+  )?.deletedAt || 0;
+}
+
+function getLatestDeckDeletion(ownerProfileName, commanderName, tombstones) {
+  return normalizeTombstones(tombstones).decks.find((entry) =>
+    normalizeName(entry.ownerProfileName) === normalizeName(ownerProfileName)
+    && normalizeName(entry.commanderName) === normalizeName(commanderName)
+  )?.deletedAt || 0;
+}
+
+function mergeProfiles(existingProfiles = [], incomingProfiles = [], tombstones = createEmptyRoomState().tombstones) {
   const profilesByName = new Map();
 
   const ingestProfile = (profile) => {
@@ -93,6 +168,7 @@ function mergeProfiles(existingProfiles = [], incomingProfiles = []) {
           lastUsedAt: deck.lastUsedAt
         }))
     }))
+    .filter((profile) => getLatestProfileDeletion(profile.name, tombstones) < (profile.lastUsedAt || 0))
     .sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
 }
 
@@ -147,12 +223,20 @@ function mergeHistoryEntries(existingEntries = [], incomingEntries = []) {
 }
 
 function mergeRoomBundle(state, bundle) {
+  const mergedTombstones = mergeTombstones(state.tombstones, bundle?.tombstones);
   const nextState = {
     ...state,
     updatedAt: Date.now(),
-    profiles: mergeProfiles(state.profiles, Array.isArray(bundle?.profiles) ? bundle.profiles : []),
+    profiles: mergeProfiles(state.profiles, Array.isArray(bundle?.profiles) ? bundle.profiles : [], mergedTombstones)
+      .map((profile) => ({
+        ...profile,
+        decks: (Array.isArray(profile.decks) ? profile.decks : []).filter((deck) =>
+          getLatestDeckDeletion(profile.name, deck.commanderName || deck.name, mergedTombstones) < (deck.lastUsedAt || 0)
+        )
+      })),
     games: mergeGames(state.games, Array.isArray(bundle?.games) ? bundle.games : []),
     historyEntries: mergeHistoryEntries(state.historyEntries, Array.isArray(bundle?.historyEntries) ? bundle.historyEntries : []),
+    tombstones: mergedTombstones,
     statsByDevice: { ...(state.statsByDevice || {}) }
   };
 
@@ -171,6 +255,7 @@ function buildBundleFromState(state) {
     profiles: Array.isArray(state?.profiles) ? state.profiles : [],
     games: Array.isArray(state?.games) ? state.games : [],
     historyEntries: Array.isArray(state?.historyEntries) ? state.historyEntries : [],
+    tombstones: normalizeTombstones(state?.tombstones),
     stats: Object.values(state?.statsByDevice || {})
   };
 }
@@ -189,11 +274,19 @@ export class SyncRoom {
     await this.ctx.storage.put("state", state);
   }
 
+  async clearState() {
+    await this.ctx.storage.deleteAll();
+  }
+
   async fetch(request) {
     const url = new URL(request.url);
     const requestedPin =
       normalizePin(url.searchParams.get("pin"))
       || normalizePin(url.pathname.match(/\/room\/(\d{4})\//)?.[1] || "");
+    const payload = request.method === "POST"
+      ? await request.json().catch(() => null)
+      : null;
+    const requestedPassword = normalizePassword(payload?.password);
     const state = await this.loadState();
 
     if (request.method === "POST" && url.pathname.endsWith("/create")) {
@@ -204,19 +297,40 @@ export class SyncRoom {
       if (!pin) {
         return json({ error: "Invalid PIN." }, { status: 400 });
       }
-      const nextState = createEmptyRoomState(pin);
+      if (!requestedPassword) {
+        return json({ error: "Invalid password." }, { status: 400 });
+      }
+      const nextState = createEmptyRoomState(pin, requestedPassword);
       await this.saveState(nextState);
       return json({ pin });
     }
 
     if (request.method === "POST" && url.pathname.endsWith("/ensure")) {
       if (state.pin) {
+        if (!requestedPassword) {
+          return json({ error: "Wrong room password." }, { status: 401 });
+        }
+        if (!normalizePassword(state.password)) {
+          const migratedState = {
+            ...state,
+            password: requestedPassword,
+            updatedAt: Date.now()
+          };
+          await this.saveState(migratedState);
+          return json({ pin: migratedState.pin, created: false });
+        }
+        if (requestedPassword !== normalizePassword(state.password)) {
+          return json({ error: "Wrong room password." }, { status: 401 });
+        }
         return json({ pin: state.pin, created: false });
       }
       if (!requestedPin) {
         return json({ error: "Invalid PIN." }, { status: 400 });
       }
-      const nextState = createEmptyRoomState(requestedPin);
+      if (!requestedPassword) {
+        return json({ error: "Invalid password." }, { status: 400 });
+      }
+      const nextState = createEmptyRoomState(requestedPin, requestedPassword);
       await this.saveState(nextState);
       return json({ pin: requestedPin, created: true });
     }
@@ -225,7 +339,27 @@ export class SyncRoom {
       if (!state.pin) {
         return json({ error: "Room not found." }, { status: 404 });
       }
-      const payload = await request.json().catch(() => null);
+      if (!requestedPassword) {
+        return json({ error: "Wrong room password." }, { status: 401 });
+      }
+      const roomPassword = normalizePassword(state.password);
+      if (!roomPassword) {
+        const migratedState = {
+          ...state,
+          password: requestedPassword,
+          updatedAt: Date.now()
+        };
+        const nextState = mergeRoomBundle(migratedState, payload?.bundle || {});
+        await this.saveState(nextState);
+        return json({
+          pin: migratedState.pin,
+          bundle: buildBundleFromState(nextState),
+          updatedAt: nextState.updatedAt
+        });
+      }
+      if (requestedPassword !== roomPassword) {
+        return json({ error: "Wrong room password." }, { status: 401 });
+      }
       const nextState = mergeRoomBundle(state, payload?.bundle || {});
       await this.saveState(nextState);
       return json({
@@ -246,16 +380,37 @@ export class SyncRoom {
       return json(state);
     }
 
+    if (request.method === "POST" && url.pathname.endsWith("/wipe")) {
+      const providedSecret = `${request.headers.get("x-admin-sync-secret") || ""}`.trim();
+      if (!providedSecret) {
+        return json({ error: "Unauthorized." }, { status: 401 });
+      }
+      await this.clearState();
+      return json({ ok: true, pin: requestedPin || state.pin || "" });
+    }
+
     return json({ error: "Not found." }, { status: 404 });
   }
 }
 
-async function createRoom(env) {
+async function createRoom(env, password) {
+  const normalizedPassword = normalizePassword(password);
+  if (!normalizedPassword) {
+    return json({ error: "Invalid password." }, { status: 400 });
+  }
   for (let attempt = 0; attempt < CREATE_ATTEMPTS; attempt += 1) {
     const pin = `${Math.floor(Math.random() * 10000)}`.padStart(PIN_LENGTH, "0");
     const id = env.SYNC_ROOM.idFromName(pin);
     const stub = env.SYNC_ROOM.get(id);
-    const response = await stub.fetch(`https://sync.internal/create?pin=${pin}`, { method: "POST" });
+    const response = await stub.fetch(`https://sync.internal/create?pin=${pin}`, {
+      method: "POST",
+      headers: {
+        "content-type": "application/json; charset=utf-8"
+      },
+      body: JSON.stringify({
+        password: normalizedPassword
+      })
+    });
     if (response.ok) {
       return json({ pin });
     }
@@ -269,17 +424,26 @@ async function createRoom(env) {
 export default {
   async fetch(request, env) {
     const url = new URL(request.url);
+    const configuredSecret = `${env?.DEBUG_SYNC_SECRET || ""}`.trim();
 
     if (request.method === "POST" && url.pathname === "/api/sync/create") {
-      return createRoom(env);
+      const payload = await request.json().catch(() => null);
+      return createRoom(env, payload?.password);
     }
 
     const ensureMatch = url.pathname.match(/^\/api\/sync\/(\d{4})\/ensure$/);
     if (request.method === "POST" && ensureMatch) {
       const pin = ensureMatch[1];
+      const body = await request.text();
       const id = env.SYNC_ROOM.idFromName(pin);
       const stub = env.SYNC_ROOM.get(id);
-      return stub.fetch(`https://sync.internal/room/${pin}/ensure`, { method: "POST" });
+      return stub.fetch(`https://sync.internal/room/${pin}/ensure`, {
+        method: "POST",
+        headers: {
+          "content-type": "application/json; charset=utf-8"
+        },
+        body
+      });
     }
 
     const syncMatch = url.pathname.match(/^\/api\/sync\/(\d{4})\/sync$/);
@@ -298,7 +462,6 @@ export default {
 
     const debugMatch = url.pathname.match(/^\/api\/sync\/(\d{4})\/debug$/);
     if (request.method === "GET" && debugMatch) {
-      const configuredSecret = `${env?.DEBUG_SYNC_SECRET || ""}`.trim();
       const providedSecret = `${url.searchParams.get("key") || ""}`.trim();
       if (!configuredSecret || !providedSecret || providedSecret !== configuredSecret) {
         return json({ error: "Unauthorized." }, { status: 401 });
@@ -312,6 +475,49 @@ export default {
           "x-debug-sync-secret": providedSecret
         }
       });
+    }
+
+    const wipeMatch = url.pathname.match(/^\/api\/sync\/(\d{4})\/admin\/wipe$/);
+    if (request.method === "POST" && wipeMatch) {
+      const providedSecret = `${url.searchParams.get("key") || ""}`.trim();
+      if (!configuredSecret || !providedSecret || providedSecret !== configuredSecret) {
+        return json({ error: "Unauthorized." }, { status: 401 });
+      }
+      const pin = wipeMatch[1];
+      const id = env.SYNC_ROOM.idFromName(pin);
+      const stub = env.SYNC_ROOM.get(id);
+      return stub.fetch(`https://sync.internal/room/${pin}/wipe`, {
+        method: "POST",
+        headers: {
+          "x-admin-sync-secret": providedSecret
+        }
+      });
+    }
+
+    if (request.method === "POST" && url.pathname === "/api/sync/admin/wipe-all") {
+      const providedSecret = `${url.searchParams.get("key") || ""}`.trim();
+      if (!configuredSecret || !providedSecret || providedSecret !== configuredSecret) {
+        return json({ error: "Unauthorized." }, { status: 401 });
+      }
+      const pins = Array.from({ length: 10000 }, (_, index) => `${index}`.padStart(PIN_LENGTH, "0"));
+      const batchSize = 100;
+      let cleared = 0;
+      for (let index = 0; index < pins.length; index += batchSize) {
+        const batch = pins.slice(index, index + batchSize);
+        const results = await Promise.all(batch.map(async (pin) => {
+          const id = env.SYNC_ROOM.idFromName(pin);
+          const stub = env.SYNC_ROOM.get(id);
+          const response = await stub.fetch(`https://sync.internal/room/${pin}/wipe`, {
+            method: "POST",
+            headers: {
+              "x-admin-sync-secret": providedSecret
+            }
+          });
+          return response.ok;
+        }));
+        cleared += results.filter(Boolean).length;
+      }
+      return json({ ok: true, cleared });
     }
 
     return env.ASSETS.fetch(request);
