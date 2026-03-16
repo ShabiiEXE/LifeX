@@ -653,6 +653,8 @@ function activateCloudSyncWorkspace(room, { shouldRender = true } = {}) {
   if (currentRoomId && currentRoomId !== nextRoomId) {
     persistWorkspaceSnapshot(currentRoomId);
   } else if (!currentRoomId && nextRoomId) {
+    // First room connection adopts the current local workspace.
+    persistWorkspaceSnapshot(nextRoomId);
     persistWorkspaceSnapshot("");
   }
   loadWorkspaceSnapshot(nextRoomId, { shouldRender });
