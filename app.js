@@ -4092,7 +4092,12 @@ function setupStartScreen() {
       const pendingRoom = getPendingCloudSyncRoom(state);
       try {
         let createdNewRoom = false;
-        if (pendingRoom.pin.length !== CLOUD_SYNC_PIN_LENGTH) {
+        if (pendingRoom.pin.length === CLOUD_SYNC_PIN_LENGTH) {
+          const response = await fetch(`/api/sync/${encodeURIComponent(pendingRoom.pin)}/ensure`, { method: "POST" });
+          if (!response.ok) throw new Error("Unable to open that room.");
+          const payload = await response.json();
+          createdNewRoom = !!payload?.created;
+        } else {
           const response = await fetch("/api/sync/create", { method: "POST" });
           if (!response.ok) throw new Error("Unable to create room.");
           const payload = await response.json();

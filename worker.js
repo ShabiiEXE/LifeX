@@ -209,6 +209,18 @@ export class SyncRoom {
       return json({ pin });
     }
 
+    if (request.method === "POST" && url.pathname.endsWith("/ensure")) {
+      if (state.pin) {
+        return json({ pin: state.pin, created: false });
+      }
+      if (!requestedPin) {
+        return json({ error: "Invalid PIN." }, { status: 400 });
+      }
+      const nextState = createEmptyRoomState(requestedPin);
+      await this.saveState(nextState);
+      return json({ pin: requestedPin, created: true });
+    }
+
     if (request.method === "POST" && url.pathname.endsWith("/sync")) {
       if (!state.pin) {
         return json({ error: "Room not found." }, { status: 404 });
@@ -249,6 +261,14 @@ export default {
 
     if (request.method === "POST" && url.pathname === "/api/sync/create") {
       return createRoom(env);
+    }
+
+    const ensureMatch = url.pathname.match(/^\/api\/sync\/(\d{4})\/ensure$/);
+    if (request.method === "POST" && ensureMatch) {
+      const pin = ensureMatch[1];
+      const id = env.SYNC_ROOM.idFromName(pin);
+      const stub = env.SYNC_ROOM.get(id);
+      return stub.fetch(`https://sync.internal/room/${pin}/ensure`, { method: "POST" });
     }
 
     const syncMatch = url.pathname.match(/^\/api\/sync\/(\d{4})\/sync$/);
