@@ -1074,7 +1074,7 @@ function markDeckAsUsed(deckId) {
   return deck;
 }
 
-function clearSeatDeckSelection(seat) {
+function clearSeatDeckSelection(seat, { preserveDeleteMode = false } = {}) {
   if (!seat) return;
   seat.deckId = "";
   seat.deckName = "";
@@ -1084,7 +1084,9 @@ function clearSeatDeckSelection(seat) {
   seat.borrowedFromProfileName = "";
   seat.image = DEFAULT_PLAYER_BACKGROUND;
   seat.isAddingDeck = false;
-  seat.isDeletingDeck = false;
+  if (!preserveDeleteMode) {
+    seat.isDeletingDeck = false;
+  }
   seat.isBorrowingDeck = false;
   seat.borrowProfileId = "";
   seat.searchQuery = "";
@@ -1146,7 +1148,7 @@ function deleteDeckById(deckId) {
   if (setupState?.seats) {
     setupState.seats.forEach((seat) => {
       if (seat?.deckId === deckId) {
-        clearSeatDeckSelection(seat);
+        clearSeatDeckSelection(seat, { preserveDeleteMode: !!seat?.isDeletingDeck });
       }
     });
   }
@@ -4274,6 +4276,7 @@ function setupStartScreen() {
     if (action === "delete-deck" && Number.isInteger(seat)) {
       const deckId = btn.dataset.deckId || "";
       if (!deleteDeckById(deckId)) return;
+      state.seats[seat].isDeletingDeck = true;
       state.seats[seat].isBorrowingDeck = false;
       state.seats[seat].borrowProfileId = "";
       state.forceDeckSelection = isProfileEditorMode(state) ? true : !allSetupSeatsReady(state);
