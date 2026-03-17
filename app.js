@@ -93,6 +93,9 @@ const CUSTOM_COMMANDER_ARTS = [
   { commanderName: "Rith, the Awakener", artRef: "/custom/rith1/", art: "./custom-art/custom_rith.png", setLabel: "Custom Art" },
   { commanderName: "Pako, Arcane Retriever", artRef: "/custom/pako1/", art: "./custom-art/custom-pako.png", setLabel: "Custom Art" }
 ];
+const COMMANDER_GUEST_PROFILE_OPTION_ID = "__commander_guest_player__";
+const COMMANDER_GUEST_PROFILE_PREFIX = "guest-player-";
+const COMMANDER_GUEST_GENERIC_DECK_PREFIX = "guest-generic-";
 /* =========================
    Root DOM References
    ========================= */
@@ -1479,6 +1482,108 @@ function normalizeLibraryName(value) {
   return `${value || ""}`.trim().toLowerCase();
 }
 
+function isGuestProfileId(profileId) {
+  return `${profileId || ""}`.startsWith(COMMANDER_GUEST_PROFILE_PREFIX);
+}
+
+function getGuestProfileNumber(profileId) {
+  const match = `${profileId || ""}`.match(/guest-player-(\d+)$/);
+  const value = Number(match?.[1] || 0);
+  return Number.isInteger(value) && value >= 1 && value <= 6 ? value : 0;
+}
+
+function buildGuestProfileId(number) {
+  const safeNumber = Math.min(6, Math.max(1, Number(number) || 1));
+  return `${COMMANDER_GUEST_PROFILE_PREFIX}${safeNumber}`;
+}
+
+function buildGuestGenericDeck(profileId) {
+  const guestNumber = getGuestProfileNumber(profileId) || 1;
+  return {
+    id: `${COMMANDER_GUEST_GENERIC_DECK_PREFIX}${guestNumber}`,
+    mode: "commander",
+    ownerProfileId: profileId,
+    deckName: "Generic",
+    cardName: "Generic",
+    artId: "",
+    artRef: "",
+    image: getDefaultPlayerBackground(guestNumber - 1, "commander"),
+    lastUsedAt: 0,
+    isGuestGeneric: true
+  };
+}
+
+function getCommanderSelectableProfiles(state, seatIndex) {
+  const options = profileLibrary.map((profile) => ({
+    id: profile.id,
+    name: profile.name,
+    isGuestOption: false,
+    disabled: isProfileSelectedInOtherSeat(state, profile.id, seatIndex)
+  }));
+
+  if (state?.mode === "commander" && !isProfileEditorMode(state)) {
+    options.push({
+      id: COMMANDER_GUEST_PROFILE_OPTION_ID,
+      name: "Player",
+      isGuestOption: true,
+      disabled: false
+    });
+  }
+
+  return options;
+}
+
+function getNextAvailableGuestProfileId(state, excludeSeatIndex = -1) {
+  const usedIds = new Set(
+    Array.from({ length: state?.playerCount || 0 }, (_, index) => index)
+      .filter((index) => index !== excludeSeatIndex)
+      .map((index) => state?.seats?.[index]?.profileId || "")
+      .filter((profileId) => isGuestProfileId(profileId))
+  );
+
+  for (let number = 1; number <= 6; number += 1) {
+    const guestId = buildGuestProfileId(number);
+    if (!usedIds.has(guestId)) return guestId;
+  }
+
+  return "";
+}
+
+function applyGuestGenericDeckToSeat(seat) {
+  if (!seat || !isGuestProfileId(seat.profileId)) return;
+  const deck = buildGuestGenericDeck(seat.profileId);
+  seat.deckId = deck.id;
+  seat.deckName = deck.deckName;
+  seat.cardName = deck.cardName;
+  seat.artId = "";
+  seat.borrowedFromProfileId = "";
+  seat.borrowedFromProfileName = "";
+  seat.image = deck.image || DEFAULT_PLAYER_BACKGROUND;
+}
+
+function assignGuestProfileToSeat(state, seatIndex) {
+  const seat = state?.seats?.[seatIndex];
+  if (!seat) return false;
+  const guestProfileId = getNextAvailableGuestProfileId(state, seatIndex);
+  if (!guestProfileId) return false;
+
+  seat.profileId = guestProfileId;
+  seat.profileName = "Player";
+  seat.isAddingProfile = false;
+  seat.newProfileName = "";
+  seat.isAddingDeck = false;
+  seat.isDeletingDeck = false;
+  seat.isBorrowingDeck = false;
+  seat.borrowProfileId = "";
+  seat.searchResults = [];
+  seat.searchQuery = "";
+  seat.pendingSearchCard = null;
+  seat.searchArtOptions = [];
+  seat.isLoadingArtOptions = false;
+  applyGuestGenericDeckToSeat(seat);
+  return true;
+}
+
 function isProfileSelectedInOtherSeat(state, profileId, excludeSeatIndex = -1) {
   if (!state || !profileId) return false;
   return Array.from({ length: state.playerCount }, (_, index) => index)
@@ -1509,6 +1614,9 @@ function isDeckSelectedInOtherSeat(state, deckId, excludeSeatIndex = -1) {
 
 function getDecksForProfile(profileId) {
   if (!profileId) return [];
+  if (isGuestProfileId(profileId)) {
+    return [buildGuestGenericDeck(profileId)];
+  }
   return deckLibrary
     .filter(deck => deck.ownerProfileId === profileId)
     .sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
@@ -1516,6 +1624,10 @@ function getDecksForProfile(profileId) {
 
 function markDeckAsUsed(deckId) {
   if (!deckId) return null;
+  if (`${deckId}`.startsWith(COMMANDER_GUEST_GENERIC_DECK_PREFIX)) {
+    const guestNumber = Number(`${deckId}`.replace(COMMANDER_GUEST_GENERIC_DECK_PREFIX, "")) || 1;
+    return buildGuestGenericDeck(buildGuestProfileId(guestNumber));
+  }
   const deck = deckLibrary.find(item => item.id === deckId);
   if (!deck) return null;
   deck.lastUsedAt = Date.now();
@@ -1548,6 +1660,9 @@ function clearSeatDeckSelection(seat, { preserveDeleteMode = false } = {}) {
   seat.isEditingDeckArt = false;
   seat.editingDeckId = "";
   seat.editingDeckName = "";
+  if (isGuestProfileId(seat.profileId)) {
+    applyGuestGenericDeckToSeat(seat);
+  }
 }
 
 function renameProfileById(profileId, nextName, state = setupState) {
@@ -3325,10 +3440,10 @@ function buildRematchSetupState() {
 
 function renderCommanderGridSeat(state, playerIndex, seatPos) {
   const seat = state.seats[playerIndex];
+  const selectableProfiles = getCommanderSelectableProfiles(state, playerIndex);
   const profileOptions = [`<option value="">Select profile</option>`]
-    .concat(profileLibrary.map(profile => {
-      const isUsedElsewhere = isProfileSelectedInOtherSeat(state, profile.id, playerIndex);
-      return `<option value="${profile.id}" ${seat.profileId === profile.id ? "selected" : ""} ${isUsedElsewhere ? "disabled" : ""}>${profile.name}</option>`;
+    .concat(selectableProfiles.map(profile => {
+      return `<option value="${profile.id}" ${seat.profileId === profile.id ? "selected" : ""} ${profile.disabled ? "disabled" : ""}>${profile.name}</option>`;
     }))
     .join("");
 
@@ -3344,6 +3459,17 @@ function renderCommanderGridSeat(state, playerIndex, seatPos) {
 
   let content = "";
   if (!hasProfile) {
+    const profileButtons = selectableProfiles.length
+      ? `
+        <div class="setup-profile-list">
+          ${selectableProfiles.map(profile => `
+            <button class="setup-profile-btn" data-action="select-profile" data-seat="${playerIndex}" data-profile-id="${profile.id}" ${profile.disabled ? "disabled" : ""}>
+              ${profile.name}
+            </button>
+          `).join("")}
+        </div>
+      `
+      : "";
     content = `
       <div class="setup-seat-step">
         <div class="setup-seat-title">Select Profile</div>
@@ -3351,6 +3477,7 @@ function renderCommanderGridSeat(state, playerIndex, seatPos) {
           <select data-seat-profile-select="${playerIndex}">${profileOptions}</select>
           <button data-action="apply-profile" data-seat="${playerIndex}">Use</button>
         </div>
+        ${profileButtons}
         <button class="setup-plus-btn" data-action="add-profile" data-seat="${playerIndex}" aria-label="Add profile">${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>
       </div>
     `;
@@ -3401,7 +3528,13 @@ function renderCommanderSeatOverlay(state, playerIndex) {
   const borrowProfiles = profileLibrary.filter(profile => profile.id !== seat.profileId);
   const borrowProfileName = borrowProfiles.find(profile => profile.id === seat.borrowProfileId)?.name || "";
   const borrowDecks = getDecksForProfile(seat.borrowProfileId);
-  const visibleDecks = seat.isBorrowingDeck ? borrowDecks : profileDecks;
+  const isGuestSeat = isGuestProfileId(seat.profileId);
+  const activeBorrowedDeck = isGuestSeat && !seat.isBorrowingDeck && seat.borrowedFromProfileId && seat.deckId
+    ? deckLibrary.find(deck => deck.id === seat.deckId) || null
+    : null;
+  const visibleDecks = seat.isBorrowingDeck
+    ? borrowDecks
+    : (activeBorrowedDeck ? [activeBorrowedDeck, ...profileDecks.filter(deck => deck.id !== activeBorrowedDeck.id)] : profileDecks);
 
   const hasProfile = !!(seat.profileId && (seat.profileName || "").trim());
   const hasDeck = !!(seat.deckId && (seat.cardName || "").trim() && (seat.image || "").trim());
@@ -3432,17 +3565,18 @@ function renderCommanderSeatOverlay(state, playerIndex) {
   `;
 
   if (!hasProfile) {
+    const selectableProfiles = getCommanderSelectableProfiles(state, playerIndex);
     const profileAction = seat.isDeletingProfile
       ? "delete-profile"
       : seat.isEditingProfile
         ? "select-edit-profile"
         : "select-profile";
     const canDeleteProfiles = profileLibrary.length > 0;
-    const profileButtons = profileLibrary.length
+    const profileButtons = selectableProfiles.length
       ? `
         <div class="setup-profile-list">
-          ${profileLibrary.map(profile => `
-            <button class="setup-profile-btn ${(seat.isEditingProfile ? seat.editingProfileId : seat.profileId) === profile.id ? "active" : ""} ${seat.isDeletingProfile ? "is-delete-mode" : ""}" data-action="${profileAction}" data-seat="${playerIndex}" data-profile-id="${profile.id}" ${!seat.isDeletingProfile && !seat.isEditingProfile && isProfileSelectedInOtherSeat(state, profile.id, playerIndex) ? "disabled" : ""}>
+          ${selectableProfiles.map(profile => `
+            <button class="setup-profile-btn ${(seat.isEditingProfile ? seat.editingProfileId : seat.profileId) === profile.id ? "active" : ""} ${seat.isDeletingProfile && !profile.isGuestOption ? "is-delete-mode" : ""}" data-action="${profile.isGuestOption ? "select-profile" : profileAction}" data-seat="${playerIndex}" data-profile-id="${profile.id}" ${profile.isGuestOption ? "" : (!seat.isDeletingProfile && !seat.isEditingProfile && profile.disabled ? "disabled" : "")} ${seat.isDeletingProfile && profile.isGuestOption ? "disabled" : ""}>
               ${profile.name}
             </button>
           `).join("")}
@@ -3498,7 +3632,8 @@ function renderCommanderSeatOverlay(state, playerIndex) {
     `;
   }
 
-  const canInteractWithDeckGrid = seat.isDeletingDeck || seat.isEditingDeck || seat.isBorrowingDeck || !isSingleSeatEditor;
+  const canAddSeatDeck = !isGuestSeat;
+  const canInteractWithDeckGrid = seat.isDeletingDeck || seat.isEditingDeck || seat.isBorrowingDeck || !isSingleSeatEditor || isGuestSeat;
   const deckAction = seat.isDeletingDeck
     ? "delete-deck"
     : seat.isEditingDeck
@@ -3710,7 +3845,7 @@ function renderCommanderSeatOverlay(state, playerIndex) {
                 </div>
               `
           )
-          : `<div class="setup-seat-title ${(!seat.isBorrowingDeck && !seat.isAddingDeck) ? "setup-seat-title-selected" : ""}">${seat.isAddingDeck ? "Add a Deck" : seat.isBorrowingDeck ? `Borrow Deck${seat.borrowProfileId ? ` from ${borrowProfileName}` : ""}` : seat.isEditingDeck ? "Edit Deck" : escapeHtml(seat.profileName)}</div>`
+          : `<div class="setup-seat-title ${(!seat.isBorrowingDeck && !seat.isAddingDeck) ? "setup-seat-title-selected" : ""}">${seat.isAddingDeck ? "Add a Deck" : seat.isBorrowingDeck ? `Borrow ${seat.borrowProfileId ? ` from ${borrowProfileName}` : ""}` : seat.isEditingDeck ? "Edit Deck" : escapeHtml(seat.profileName)}</div>`
         }
         ${(isSingleSeatEditor || seat.isAddingDeck || seat.isBorrowingDeck || seat.isEditingDeck) ? "" : (selectedDeckName ? `<div class="setup-meta setup-seat-subtitle">${selectedDeckName}</div>` : "")}
       </div>
@@ -3720,7 +3855,7 @@ function renderCommanderSeatOverlay(state, playerIndex) {
         <div class="setup-seat-body">
           ${deckGrid}
         </div>
-        <button class="${isSingleSeatEditor ? "setup-plus-btn" : "setup-minus-btn"}" data-action="add-deck" data-seat="${playerIndex}" aria-label="Add deck" ${seat.isDeletingDeck || seat.isEditingDeck ? "disabled" : ""}>${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>
+        <button class="${isSingleSeatEditor ? "setup-plus-btn" : "setup-minus-btn"}" data-action="add-deck" data-seat="${playerIndex}" aria-label="Add deck" ${seat.isDeletingDeck || seat.isEditingDeck || !canAddSeatDeck ? "disabled" : ""}>${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>
         ${!isSingleSeatEditor ? "" : `<button class="setup-edit-btn ${seat.isEditingDeck ? "active" : ""}" data-action="${seat.isEditingDeck ? "close-edit-deck" : "open-edit-deck"}" data-seat="${playerIndex}" aria-label="Edit deck" ${seat.isDeletingDeck ? "disabled" : ""}>${getIconMarkup("Edit", "setup-inline-icon")}</button>`}
         ${canDeleteDecks && isSingleSeatEditor ? `<button class="setup-minus-btn ${seat.isDeletingDeck ? "active" : ""} ${seat.isEditingDeck ? "is-disabled" : ""}" data-action="${seat.isDeletingDeck ? "close-delete-deck" : "open-delete-deck"}" data-seat="${playerIndex}" aria-label="Delete deck mode" ${seat.isEditingDeck ? "disabled" : ""}>${getIconMarkup("Delete", "setup-inline-icon")}</button>` : ""}
         ${!allowBorrowDeck ? "" : `<button class="setup-borrow-btn" data-action="open-borrow-deck" data-seat="${playerIndex}" aria-label="Borrow deck" ${seat.isDeletingDeck || seat.isEditingDeck ? "disabled" : ""}>Borrow</button>`}
@@ -4898,6 +5033,15 @@ function setupStartScreen() {
       const profileId = action === "select-profile"
         ? (btn.dataset.profileId || "")
         : (document.querySelector(`[data-seat-profile-select="${seat}"]`)?.value || "");
+      if (profileId === COMMANDER_GUEST_PROFILE_OPTION_ID) {
+        if (!assignGuestProfileToSeat(state, seat)) {
+          alert("All guest Player slots are already in use.");
+          return;
+        }
+        state.forceDeckSelection = false;
+        renderStartSetupScreen();
+        return;
+      }
       const profile = profileLibrary.find(item => item.id === profileId);
       if (!profile) return;
       if (isProfileSelectedInOtherSeat(state, profile.id, seat)) {
@@ -5273,7 +5417,7 @@ function setupStartScreen() {
     }
 
     if (action === "add-deck" && Number.isInteger(seat)) {
-      if (!state.seats[seat].profileId) return;
+      if (!state.seats[seat].profileId || isGuestProfileId(state.seats[seat].profileId)) return;
       state.seats[seat].isAddingDeck = true;
       state.seats[seat].isDeletingDeck = false;
       state.seats[seat].isBorrowingDeck = false;
