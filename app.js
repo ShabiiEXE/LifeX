@@ -1568,7 +1568,7 @@ function assignGuestProfileToSeat(state, seatIndex) {
   if (!guestProfileId) return false;
 
   seat.profileId = guestProfileId;
-  seat.profileName = "Player";
+  seat.profileName = `Player ${seatIndex + 1}`;
   seat.isAddingProfile = false;
   seat.newProfileName = "";
   seat.isAddingDeck = false;
