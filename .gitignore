@@ -8,6 +8,8 @@
 /.git/
 /node_modules/
 /dist/
+/.wrangler/
+/.wrangler/cache/
 
 # Gradle files
 build.gradle
