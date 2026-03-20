@@ -534,6 +534,19 @@ export class SyncRoom {
       return json({ ok: true, pin: nextState.pin, updatedAt: nextState.updatedAt });
     }
 
+    if (request.method === "POST" && url.pathname.endsWith("/admin-reset-match-data")) {
+      const providedSecret = `${request.headers.get("x-admin-sync-secret") || ""}`.trim();
+      if (!providedSecret) {
+        return json({ error: "Unauthorized." }, { status: 401 });
+      }
+      if (!state.pin) {
+        return json({ error: "Room not found." }, { status: 404 });
+      }
+      const nextState = resetMatchDataInState(state);
+      await this.saveState(nextState);
+      return json({ ok: true, pin: nextState.pin, updatedAt: nextState.updatedAt });
+    }
+
     if (request.method === "GET" && url.pathname.endsWith("/debug")) {
       const providedSecret = `${request.headers.get("x-debug-sync-secret") || ""}`.trim();
       if (!providedSecret) {
@@ -737,6 +750,23 @@ export default {
         await removePinFromRoomIndex(env, pin);
       }
       return response;
+    }
+
+    const adminResetMatchDataMatch = url.pathname.match(/^\/api\/sync\/(\d{4})\/admin\/reset-match-data$/);
+    if ((request.method === "POST" || request.method === "GET") && adminResetMatchDataMatch) {
+      const providedSecret = `${url.searchParams.get("key") || ""}`.trim();
+      if (!configuredSecret || !providedSecret || providedSecret !== configuredSecret) {
+        return json({ error: "Unauthorized." }, { status: 401 });
+      }
+      const pin = adminResetMatchDataMatch[1];
+      const id = env.SYNC_ROOM.idFromName(pin);
+      const stub = env.SYNC_ROOM.get(id);
+      return stub.fetch(`https://sync.internal/room/${pin}/admin-reset-match-data`, {
+        method: "POST",
+        headers: {
+          "x-admin-sync-secret": providedSecret
+        }
+      });
     }
 
     if (request.method === "GET" && url.pathname === "/api/sync/admin/list-codes") {
