@@ -241,12 +241,73 @@ function mergeHistoryEntries(existingEntries = [], incomingEntries = []) {
   return Array.from(byKey.values()).sort((a, b) => (b?.endedAt || 0) - (a?.endedAt || 0));
 }
 
+function mergeIncomingProfilesAndDecks(bundle) {
+  const profilesByName = new Map();
+  const incomingProfiles = Array.isArray(bundle?.profiles) ? bundle.profiles : [];
+  const incomingDecks = Array.isArray(bundle?.decks) ? bundle.decks : [];
+
+  incomingProfiles.forEach((profile) => {
+    const name = `${profile?.name || ""}`.trim();
+    if (!name) return;
+    profilesByName.set(normalizeName(name), {
+      ...profile,
+      name,
+      decks: Array.isArray(profile?.decks) ? [...profile.decks] : []
+    });
+  });
+
+  incomingDecks.forEach((deck) => {
+    const ownerProfileName = `${deck?.ownerProfileName || ""}`.trim();
+    const commanderName = `${deck?.commanderName || deck?.name || ""}`.trim();
+    if (!ownerProfileName || !commanderName) return;
+    const profileKey = normalizeName(ownerProfileName);
+    if (!profilesByName.has(profileKey)) {
+      profilesByName.set(profileKey, {
+        name: ownerProfileName,
+        lastUsedAt: 0,
+        decks: []
+      });
+    }
+    const profile = profilesByName.get(profileKey);
+    const profileDecks = Array.isArray(profile.decks) ? profile.decks : [];
+    const existingDeck = profileDecks.find((entry) =>
+      normalizeName(entry?.commanderName || entry?.name || "") === normalizeName(commanderName)
+    );
+    if (existingDeck) {
+      existingDeck.lastUsedAt = Math.max(
+        Number.isFinite(existingDeck?.lastUsedAt) ? existingDeck.lastUsedAt : 0,
+        Number.isFinite(deck?.lastUsedAt) ? deck.lastUsedAt : 0
+      );
+      if (!existingDeck.artRef && deck?.artRef) existingDeck.artRef = `${deck.artRef}`.trim();
+      if (!existingDeck.image && deck?.image) existingDeck.image = `${deck.image}`.trim();
+      const incomingDeckName = `${deck?.deckName || commanderName}`.trim() || commanderName;
+      const existingDeckName = `${existingDeck?.deckName || commanderName}`.trim() || commanderName;
+      if (normalizeName(existingDeckName) === normalizeName(commanderName) && normalizeName(incomingDeckName) !== normalizeName(commanderName)) {
+        existingDeck.deckName = incomingDeckName;
+      }
+      return;
+    }
+    profileDecks.push({
+      name: commanderName,
+      commanderName,
+      deckName: `${deck?.deckName || commanderName}`.trim() || commanderName,
+      artRef: `${deck?.artRef || ""}`.trim(),
+      image: `${deck?.image || ""}`.trim(),
+      lastUsedAt: Number.isFinite(deck?.lastUsedAt) ? deck.lastUsedAt : 0
+    });
+    profile.decks = profileDecks;
+  });
+
+  return Array.from(profilesByName.values());
+}
+
 function mergeRoomBundle(state, bundle) {
   const mergedTombstones = mergeTombstones(state.tombstones, bundle?.tombstones);
+  const incomingProfiles = mergeIncomingProfilesAndDecks(bundle);
   const nextState = {
     ...state,
     updatedAt: Date.now(),
-    profiles: mergeProfiles(state.profiles, Array.isArray(bundle?.profiles) ? bundle.profiles : [], mergedTombstones)
+    profiles: mergeProfiles(state.profiles, incomingProfiles, mergedTombstones)
       .map((profile) => ({
         ...profile,
         decks: (Array.isArray(profile.decks) ? profile.decks : []).filter((deck) =>
