@@ -3014,7 +3014,21 @@ function mergeImportedTransferData(payload) {
       ownerProfileName: `${deck?.ownerProfileName || ""}`.trim()
     }))
     : [];
-  const importedDecks = nestedProfileDecks.concat(topLevelDecks);
+  const importedDecks = Array.from(new Map(
+    nestedProfileDecks
+      .concat(topLevelDecks)
+      .map((deck) => {
+        const ownerProfileName = `${deck?.ownerProfileName || ""}`.trim();
+        const commanderName = `${deck?.commanderName || deck?.name || ""}`.trim();
+        const key = `${normalizeLibraryName(ownerProfileName)}::${normalizeLibraryName(commanderName)}`;
+        return [key, {
+          ...deck,
+          ownerProfileName,
+          commanderName
+        }];
+      })
+      .filter(([key, deck]) => key !== "::" && deck.ownerProfileName && deck.commanderName)
+  ).values());
   const importedGames = Array.isArray(payload.games) ? payload.games : [];
   const importedHistoryEntries = Array.isArray(payload.historyEntries)
     ? payload.historyEntries.map(entry => normalizeMatchHistoryEntry(entry)).filter(Boolean)
