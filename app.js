@@ -2353,6 +2353,9 @@ function getCustomCommanderArtOptions(name) {
 
 function buildQrTransferBundle(includeGames = false) {
   const decksByOwner = new Map();
+  const profileNamesById = new Map(
+    profileLibrary.map((profile) => [`${profile?.id || ""}`.trim(), `${profile?.name || ""}`.trim()])
+  );
   deckLibrary.forEach((deck) => {
     if (deck?.mode && deck.mode !== "commander") return;
     const ownerId = `${deck?.ownerProfileId || ""}`.trim();
@@ -2411,6 +2414,24 @@ function buildQrTransferBundle(includeGames = false) {
           name,
           lastUsedAt: Number.isFinite(profile?.lastUsedAt) ? profile.lastUsedAt : 0,
           decks
+        };
+      })
+      .filter(Boolean),
+    decks: deckLibrary
+      .filter((deck) => !deck?.mode || deck.mode === "commander")
+      .map((deck) => {
+        const ownerProfileId = `${deck?.ownerProfileId || ""}`.trim();
+        const ownerProfileName = profileNamesById.get(ownerProfileId) || "";
+        const commanderName = `${deck?.cardName || deck?.deckName || ""}`.trim();
+        const customDeckName = `${deck?.deckName || commanderName}`.trim() || commanderName;
+        if (!ownerProfileName || !commanderName) return null;
+        return {
+          name: commanderName,
+          commanderName,
+          deckName: customDeckName,
+          ownerProfileName,
+          artRef: getDeckTransferArtRef(deck),
+          lastUsedAt: Number.isFinite(deck?.lastUsedAt) ? deck.lastUsedAt : 0
         };
       })
       .filter(Boolean),
@@ -2987,7 +3008,13 @@ function mergeImportedTransferData(payload) {
       ownerProfileName: `${deck?.ownerProfileName || ownerProfileName}`.trim()
     }));
   });
-  const importedDecks = nestedProfileDecks;
+  const topLevelDecks = Array.isArray(payload.decks)
+    ? payload.decks.map((deck) => ({
+      ...deck,
+      ownerProfileName: `${deck?.ownerProfileName || ""}`.trim()
+    }))
+    : [];
+  const importedDecks = nestedProfileDecks.concat(topLevelDecks);
   const importedGames = Array.isArray(payload.games) ? payload.games : [];
   const importedHistoryEntries = Array.isArray(payload.historyEntries)
     ? payload.historyEntries.map(entry => normalizeMatchHistoryEntry(entry)).filter(Boolean)

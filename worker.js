@@ -273,8 +273,17 @@ function mergeRoomBundle(state, bundle) {
 }
 
 function buildBundleFromState(state) {
+  const profiles = Array.isArray(state?.profiles) ? state.profiles : [];
   return {
-    profiles: Array.isArray(state?.profiles) ? state.profiles : [],
+    profiles,
+    decks: profiles.flatMap((profile) => {
+      const ownerProfileName = `${profile?.name || ""}`.trim();
+      const decks = Array.isArray(profile?.decks) ? profile.decks : [];
+      return decks.map((deck) => ({
+        ...deck,
+        ownerProfileName: `${deck?.ownerProfileName || ownerProfileName}`.trim()
+      }));
+    }),
     games: Array.isArray(state?.games) ? state.games : [],
     historyEntries: Array.isArray(state?.historyEntries) ? state.historyEntries : [],
     tombstones: normalizeTombstones(state?.tombstones),
