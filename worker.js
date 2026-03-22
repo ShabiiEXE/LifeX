@@ -32,6 +32,7 @@ function createEmptyRoomState(pin = "", password = "") {
     password: normalizePassword(password),
     createdAt: Date.now(),
     updatedAt: Date.now(),
+    matchDataResetAt: 0,
     profiles: [],
     games: [],
     historyEntries: [],
@@ -45,9 +46,11 @@ function createEmptyRoomState(pin = "", password = "") {
 
 function resetMatchDataInState(state) {
   const { statsByDevice, ...restState } = state || {};
+  const matchDataResetAt = Date.now();
   return {
     ...restState,
-    updatedAt: Date.now(),
+    updatedAt: matchDataResetAt,
+    matchDataResetAt,
     games: [],
     historyEntries: []
   };
@@ -304,9 +307,13 @@ function mergeIncomingProfilesAndDecks(bundle) {
 function mergeRoomBundle(state, bundle) {
   const mergedTombstones = mergeTombstones(state.tombstones, bundle?.tombstones);
   const incomingProfiles = mergeIncomingProfilesAndDecks(bundle);
+  const currentMatchDataResetAt = Number.isFinite(state?.matchDataResetAt) ? state.matchDataResetAt : 0;
+  const incomingMatchDataResetAt = Number.isFinite(bundle?.matchDataResetAt) ? bundle.matchDataResetAt : 0;
+  const shouldMergeMatchData = incomingMatchDataResetAt >= currentMatchDataResetAt;
   const nextState = {
     ...state,
     updatedAt: Date.now(),
+    matchDataResetAt: currentMatchDataResetAt,
     profiles: mergeProfiles(state.profiles, incomingProfiles, mergedTombstones)
       .map((profile) => ({
         ...profile,
@@ -317,18 +324,24 @@ function mergeRoomBundle(state, bundle) {
           )
         )
       })),
-    games: mergeGames(state.games, Array.isArray(bundle?.games) ? bundle.games : []),
-    historyEntries: mergeHistoryEntries(state.historyEntries, Array.isArray(bundle?.historyEntries) ? bundle.historyEntries : []),
+    games: shouldMergeMatchData
+      ? mergeGames(state.games, Array.isArray(bundle?.games) ? bundle.games : [])
+      : (Array.isArray(state.games) ? state.games : []),
+    historyEntries: shouldMergeMatchData
+      ? mergeHistoryEntries(state.historyEntries, Array.isArray(bundle?.historyEntries) ? bundle.historyEntries : [])
+      : (Array.isArray(state.historyEntries) ? state.historyEntries : []),
     tombstones: mergedTombstones,
     statsByDevice: { ...(state.statsByDevice || {}) }
   };
 
   const incomingStats = Array.isArray(bundle?.stats) ? bundle.stats : (bundle?.stats ? [bundle.stats] : []);
-  incomingStats.forEach((snapshot) => {
-    const sourceDeviceId = `${snapshot?.sourceDeviceId || ""}`.trim();
-    if (!sourceDeviceId) return;
-    nextState.statsByDevice[sourceDeviceId] = snapshot;
-  });
+  if (shouldMergeMatchData) {
+    incomingStats.forEach((snapshot) => {
+      const sourceDeviceId = `${snapshot?.sourceDeviceId || ""}`.trim();
+      if (!sourceDeviceId) return;
+      nextState.statsByDevice[sourceDeviceId] = snapshot;
+    });
+  }
 
   return nextState;
 }
@@ -336,6 +349,7 @@ function mergeRoomBundle(state, bundle) {
 function buildBundleFromState(state) {
   const profiles = Array.isArray(state?.profiles) ? state.profiles : [];
   return {
+    matchDataResetAt: Number.isFinite(state?.matchDataResetAt) ? state.matchDataResetAt : 0,
     profiles,
     decks: profiles.flatMap((profile) => {
       const ownerProfileName = `${profile?.name || ""}`.trim();
@@ -524,14 +538,14 @@ export class SyncRoom {
         };
         const nextState = resetMatchDataInState(migratedState);
         await this.saveState(nextState);
-        return json({ ok: true, pin: nextState.pin, updatedAt: nextState.updatedAt });
+        return json({ ok: true, pin: nextState.pin, updatedAt: nextState.updatedAt, matchDataResetAt: nextState.matchDataResetAt });
       }
       if (requestedPassword !== roomPassword) {
         return json({ error: "Wrong room password." }, { status: 401 });
       }
       const nextState = resetMatchDataInState(state);
       await this.saveState(nextState);
-      return json({ ok: true, pin: nextState.pin, updatedAt: nextState.updatedAt });
+      return json({ ok: true, pin: nextState.pin, updatedAt: nextState.updatedAt, matchDataResetAt: nextState.matchDataResetAt });
     }
 
     if (request.method === "POST" && url.pathname.endsWith("/admin-reset-match-data")) {
@@ -544,7 +558,7 @@ export class SyncRoom {
       }
       const nextState = resetMatchDataInState(state);
       await this.saveState(nextState);
-      return json({ ok: true, pin: nextState.pin, updatedAt: nextState.updatedAt });
+      return json({ ok: true, pin: nextState.pin, updatedAt: nextState.updatedAt, matchDataResetAt: nextState.matchDataResetAt });
     }
 
     if (request.method === "GET" && url.pathname.endsWith("/debug")) {

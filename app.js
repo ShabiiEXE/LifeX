@@ -72,6 +72,7 @@ const RESUME_SESSIONS_STORAGE_KEY = "lifeTrackerResumeSessionsV1";
 const DEVICE_ID_STORAGE_KEY = "lifeXDeviceIdV1";
 const CLOUD_SYNC_STORAGE_KEY = "lifeXCloudSyncV1";
 const SYNC_TOMBSTONES_STORAGE_KEY = "lifeXSyncTombstonesV1";
+const ROOM_MATCH_RESET_STORAGE_KEY = "lifeXRoomMatchResetV1";
 const QR_TRANSFER_PREFIX = "LIFEX1:";
 const CLOUD_SYNC_ROOM_QR_PREFIX = "LIFEXSYNC1:";
 const SCRYFALL_SEARCH_TIMEOUT_MS = 3200;
@@ -1039,6 +1040,31 @@ let cloudSyncSession = loadCloudSyncSession();
 function getWorkspaceStorageKey(baseKey, roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
   const normalizedRoomId = `${roomId || ""}`.trim();
   return normalizedRoomId ? `${baseKey}:${normalizedRoomId}` : baseKey;
+}
+
+function getStoredRoomMatchResetAt(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
+  const rawValue = localStorage.getItem(getWorkspaceStorageKey(ROOM_MATCH_RESET_STORAGE_KEY, roomId));
+  const parsedValue = Number(rawValue);
+  return Number.isFinite(parsedValue) && parsedValue > 0 ? parsedValue : 0;
+}
+
+function saveStoredRoomMatchResetAt(value, roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
+  const normalizedValue = Number(value);
+  const storageKey = getWorkspaceStorageKey(ROOM_MATCH_RESET_STORAGE_KEY, roomId);
+  if (!Number.isFinite(normalizedValue) || normalizedValue <= 0) {
+    localStorage.removeItem(storageKey);
+    return;
+  }
+  localStorage.setItem(storageKey, String(normalizedValue));
+}
+
+function applyRoomMatchDataReset(resetAt, roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
+  const normalizedResetAt = Number(resetAt);
+  if (!Number.isFinite(normalizedResetAt) || normalizedResetAt <= 0) return false;
+  if (normalizedResetAt <= getStoredRoomMatchResetAt(roomId)) return false;
+  clearStoredMatchData();
+  saveStoredRoomMatchResetAt(normalizedResetAt, roomId);
+  return true;
 }
 
 function persistWorkspaceSnapshot(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
@@ -2477,6 +2503,7 @@ function buildQrTransferBundle(includeGames = false) {
     : [];
 
   return {
+    matchDataResetAt: getStoredRoomMatchResetAt(),
     profiles: profileLibrary
       .map((profile) => {
         const name = `${profile?.name || ""}`.trim();
@@ -2719,14 +2746,14 @@ async function syncCloudRoom(roomOrPin, { silent = false } = {}) {
             : "Cloud sync failed."
       );
     }
-    const payload = await response.json();
-    const merged = mergeImportedTransferData(payload?.bundle || {});
     const nextRoom = upsertCloudSyncRoom({
       id: room?.id || "",
       name: room?.name || "",
       pin: normalizedPin,
       password: normalizedPassword
     }, { setActive: true });
+    const payload = await response.json();
+    const merged = mergeImportedTransferData(payload?.bundle || {}, { roomId: nextRoom?.id || room?.id || "" });
     const state = ensureSetupState();
     state.syncRoomId = nextRoom?.id || "";
     state.syncRoomName = nextRoom?.name || "";
@@ -2768,8 +2795,9 @@ async function resetCloudRoomMatchData(roomOrPin, { silent = false } = {}) {
     if (!silent) setCloudSyncStatus("Enter a 4-digit password.");
     return null;
   }
-  clearStoredMatchData();
   if (isLocalTestSyncPin(normalizedPin)) {
+    clearStoredMatchData();
+    saveStoredRoomMatchResetAt(Date.now());
     if (!silent) {
       setCloudSyncStatus(`Cleared match data for ${room?.name || "local test room"} on this device.`);
     }
@@ -2793,10 +2821,13 @@ async function resetCloudRoomMatchData(roomOrPin, { silent = false } = {}) {
           : "Unable to reset room match data."
     );
   }
+  const payload = await response.json().catch(() => ({ ok: true }));
+  clearStoredMatchData();
+  saveStoredRoomMatchResetAt(payload?.matchDataResetAt || Date.now());
   if (!silent) {
     setCloudSyncStatus(`Cleared match data for ${room?.name || "room"} locally and in cloud.`);
   }
-  return response.json().catch(() => ({ ok: true }));
+  return payload;
 }
 
 function startCloudSyncLoop(roomOrPin, { syncNow = true, silent = false } = {}) {
@@ -3073,10 +3104,12 @@ function getHistoryShareKey(entry) {
   return sourceDeviceId ? `${sourceDeviceId}::${sourceEntryId}` : sourceEntryId;
 }
 
-function mergeImportedTransferData(payload) {
+function mergeImportedTransferData(payload, { roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim() } = {}) {
   if (!payload || typeof payload !== "object") {
     return { addedProfiles: 0, addedDecks: 0, addedGames: 0 };
   }
+
+  applyRoomMatchDataReset(payload.matchDataResetAt, roomId);
 
   const importedProfiles = Array.isArray(payload.profiles) ? payload.profiles : [];
   const nestedProfileDecks = importedProfiles.flatMap((incomingProfile) => {
