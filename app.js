@@ -113,6 +113,8 @@ let hasStartedGame = false;
 let serviceWorkerReadyPromise = null;
 let exitConfirmGuardInitialized = false;
 let allowExitAfterConfirm = false;
+let screenWakeLockSentinel = null;
+let wakeLockRequestInFlight = null;
 let qrScannerStream = null;
 let qrScannerLoopId = null;
 let qrScannerDetector = null;
@@ -319,6 +321,83 @@ function triggerHaptic(pattern = "tap") {
   } catch {
     return false;
   }
+}
+
+function supportsScreenWakeLock() {
+  return typeof navigator !== "undefined"
+    && !!navigator.wakeLock
+    && typeof navigator.wakeLock.request === "function";
+}
+
+function handleScreenWakeLockRelease() {
+  screenWakeLockSentinel = null;
+  if (document.visibilityState === "visible") {
+    void requestScreenWakeLock();
+  }
+}
+
+async function requestScreenWakeLock() {
+  if (!supportsScreenWakeLock()) return false;
+  if (document.visibilityState !== "visible") return false;
+  if (screenWakeLockSentinel) return true;
+  if (wakeLockRequestInFlight) return wakeLockRequestInFlight;
+
+  wakeLockRequestInFlight = (async () => {
+    try {
+      const sentinel = await navigator.wakeLock.request("screen");
+      screenWakeLockSentinel = sentinel;
+      sentinel.addEventListener("release", handleScreenWakeLockRelease, { once: true });
+      return true;
+    } catch {
+      return false;
+    } finally {
+      wakeLockRequestInFlight = null;
+    }
+  })();
+
+  return wakeLockRequestInFlight;
+}
+
+async function releaseScreenWakeLock() {
+  const sentinel = screenWakeLockSentinel;
+  screenWakeLockSentinel = null;
+  wakeLockRequestInFlight = null;
+  if (!sentinel) return;
+
+  try {
+    await sentinel.release();
+  } catch {
+    // Some browsers may already have released it when the page was backgrounded.
+  }
+}
+
+function initScreenWakeLock() {
+  if (!supportsScreenWakeLock()) return;
+
+  const refreshWakeLock = () => {
+    if (document.visibilityState === "visible") {
+      void requestScreenWakeLock();
+      return;
+    }
+    void releaseScreenWakeLock();
+  };
+
+  document.addEventListener("visibilitychange", refreshWakeLock);
+  window.addEventListener("focus", refreshWakeLock);
+  window.addEventListener("pageshow", refreshWakeLock);
+  window.addEventListener("pagehide", () => {
+    void releaseScreenWakeLock();
+  });
+
+  // Retry after real user interaction for browsers that require activation.
+  document.addEventListener("pointerdown", () => {
+    void requestScreenWakeLock();
+  }, { passive: true });
+  document.addEventListener("keydown", () => {
+    void requestScreenWakeLock();
+  });
+
+  void requestScreenWakeLock();
 }
 
 
@@ -9993,6 +10072,7 @@ render();
 setupStartScreen();
 setupEndCauseButtons();
 applyLoadedUiState();
+initScreenWakeLock();
 initExitConfirmGuard();
 setPauseButtonIcon(isPaused);
 updateOrientationLock();
