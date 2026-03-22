@@ -44,12 +44,12 @@ function createEmptyRoomState(pin = "", password = "") {
 }
 
 function resetMatchDataInState(state) {
+  const { statsByDevice, ...restState } = state || {};
   return {
-    ...state,
+    ...restState,
     updatedAt: Date.now(),
     games: [],
-    historyEntries: [],
-    statsByDevice: {}
+    historyEntries: []
   };
 }
 
