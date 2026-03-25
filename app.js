@@ -93,7 +93,7 @@ const CUSTOM_COMMANDER_ARTS = [
   { commanderName: "Prosper, Tome-Bound", artRef: "/custom/prosper1/", art: "./custom-art/custom_prosper.png", setLabel: "Custom Art" },
   { commanderName: "Rith, the Awakener", artRef: "/custom/rith1/", art: "./custom-art/custom_rith.png", setLabel: "Custom Art" },
   { commanderName: "Pako, Arcane Retriever", artRef: "/custom/pako1/", art: "./custom-art/custom-pako.png", setLabel: "Custom Art" },
-  { commanderName: "Pako, Arcane Retriever", artRef: "/custom/obyra1/", art: "./custom-art/custom-obyra.png", setLabel: "Custom Art" }
+  { commanderName: "Obyra, Dreaming Duelist", artRef: "/custom/obyra1/", art: "./custom-art/custom-obyra.png", setLabel: "Custom Art" }
 ];
 const COMMANDER_GUEST_PROFILE_OPTION_ID = "__commander_guest_player__";
 const COMMANDER_GUEST_PROFILE_PREFIX = "guest-player-";
