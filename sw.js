@@ -42,6 +42,7 @@ const CRITICAL_APP_SHELL_ASSETS = [
   "./img/default_back0.png",
   "./img/default_back1.png",
   "./img/menu_back.png",
+  "./custom-art/custom_obyra.png",
   "./custom-art/custom_bello.png",
   "./custom-art/custom_krenko.png",
   "./custom-art/custom_morcant.png",
