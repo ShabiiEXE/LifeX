@@ -7854,20 +7854,18 @@ const plusBtn  = container.querySelector(".damage-controls button:nth-child(3)")
 let holdTimeout = null;
 let holdInterval = null;
 let isHolding = false;
+let suppressNextDamageClick = false;
 
 function startHold(amount) {
-
   stopHold();
 
   holdTimeout = setTimeout(() => {
-
     isHolding = true;
 
     holdInterval = setInterval(() => {
-      changeDamage(amount * 10);
-    }, 1000);
-
-  }, 80);
+      changeDamage(amount);
+    }, 75);
+  }, 180);
 
 }
 
@@ -7881,15 +7879,33 @@ function stopHold() {
 }
 
 function attachHold(btn, amount) {
-
   btn.addEventListener("pointerdown", (e) => {
     e.preventDefault();
+    suppressNextDamageClick = true;
+    changeDamage(amount);
     startHold(amount);
   });
 
-  btn.addEventListener("pointerup", stopHold);
-  btn.addEventListener("pointercancel", stopHold);
-  btn.addEventListener("pointerleave", stopHold);
+  btn.addEventListener("pointerup", () => {
+    stopHold();
+    setTimeout(() => {
+      suppressNextDamageClick = false;
+    }, 0);
+  });
+  btn.addEventListener("pointercancel", () => {
+    stopHold();
+    suppressNextDamageClick = false;
+  });
+  btn.addEventListener("pointerleave", () => {
+    stopHold();
+    suppressNextDamageClick = false;
+  });
+  btn.addEventListener("click", (e) => {
+    if (!suppressNextDamageClick) return;
+    e.preventDefault();
+    e.stopImmediatePropagation();
+    suppressNextDamageClick = false;
+  }, true);
 
 }
 
