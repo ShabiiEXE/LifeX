@@ -7824,9 +7824,9 @@ function openDamageMenu(targetIndex) {
 
       <div class="damage-footer ${shouldCompactDamageFooter ? "damage-footer-compact" : ""}">
         <div class="damage-controls">
-          <button class="sign-element" onclick="changeDamage(-1)" aria-label="Decrease damage">${getIconMarkup("Minus", "setup-inline-icon setup-minus-icon")}</button>
+          <button class="sign-element" onpointerdown="changeDamage(-1)" aria-label="Decrease damage">${getIconMarkup("Minus", "setup-inline-icon setup-minus-icon")}</button>
           <span id="damage-value">0</span>
-          <button class="sign-element" onclick="changeDamage(1)" aria-label="Increase damage">${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>
+          <button class="sign-element" onpointerdown="changeDamage(1)" aria-label="Increase damage">${getIconMarkup("Plus", "setup-inline-icon setup-plus-icon")}</button>
         </div>
 
         <div class="damage-actions">
