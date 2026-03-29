@@ -7851,55 +7851,35 @@ container.querySelectorAll(".damage-self-options button").forEach(btn => {
 const minusBtn = container.querySelector(".damage-controls button:nth-child(1)");
 const plusBtn  = container.querySelector(".damage-controls button:nth-child(3)");
 
-let holdTimeout = null;
-let holdInterval = null;
-let isHolding = false;
 let suppressNextDamageClick = false;
-
-function startHold(amount) {
-  stopHold();
-
-  holdTimeout = setTimeout(() => {
-    isHolding = true;
-
-    holdInterval = setInterval(() => {
-      changeDamage(amount * 10);
-    }, 1000);
-  }, 80);
-
-}
-
-function stopHold() {
-  clearTimeout(holdTimeout);
-  clearInterval(holdInterval);
-
-  holdTimeout = null;
-  holdInterval = null;
-  isHolding = false;
-}
+const DAMAGE_TAP_MIN_MS = 45;
+const DAMAGE_TAP_MAX_MS = 180;
 
 function attachHold(btn, amount) {
+  let pressStartedAt = 0;
+
   btn.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     suppressNextDamageClick = true;
-    startHold(amount);
+    pressStartedAt = performance.now();
   });
 
   btn.addEventListener("pointerup", () => {
-    if (!isHolding) {
+    const pressDuration = performance.now() - pressStartedAt;
+    if (pressDuration >= DAMAGE_TAP_MIN_MS && pressDuration <= DAMAGE_TAP_MAX_MS) {
       changeDamage(amount);
     }
-    stopHold();
+    pressStartedAt = 0;
     setTimeout(() => {
       suppressNextDamageClick = false;
     }, 0);
   });
   btn.addEventListener("pointercancel", () => {
-    stopHold();
+    pressStartedAt = 0;
     suppressNextDamageClick = false;
   });
   btn.addEventListener("pointerleave", () => {
-    stopHold();
+    pressStartedAt = 0;
     suppressNextDamageClick = false;
   });
   btn.addEventListener("click", (e) => {
