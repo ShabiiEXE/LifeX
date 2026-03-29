@@ -7854,8 +7854,6 @@ const plusBtn  = container.querySelector(".damage-controls button:nth-child(3)")
 let holdTimeout = null;
 let holdInterval = null;
 let isHolding = false;
-let suppressNextDamageClick = false;
-let lastDamageTapAt = 0;
 
 function startHold(amount) {
   stopHold();
@@ -7882,38 +7880,12 @@ function stopHold() {
 function attachHold(btn, amount) {
   btn.addEventListener("pointerdown", (e) => {
     e.preventDefault();
-    suppressNextDamageClick = true;
     startHold(amount);
   });
 
-  btn.addEventListener("pointerup", () => {
-    const wasHolding = isHolding;
-    stopHold();
-    if (!wasHolding) {
-      const now = performance.now();
-      if (now - lastDamageTapAt >= 500) {
-        lastDamageTapAt = now;
-        changeDamage(amount);
-      }
-    }
-    setTimeout(() => {
-      suppressNextDamageClick = false;
-    }, 0);
-  });
-  btn.addEventListener("pointercancel", () => {
-    stopHold();
-    suppressNextDamageClick = false;
-  });
-  btn.addEventListener("pointerleave", () => {
-    stopHold();
-    suppressNextDamageClick = false;
-  });
-  btn.addEventListener("click", (e) => {
-    if (!suppressNextDamageClick) return;
-    e.preventDefault();
-    e.stopImmediatePropagation();
-    suppressNextDamageClick = false;
-  }, true);
+  btn.addEventListener("pointerup", stopHold);
+  btn.addEventListener("pointercancel", stopHold);
+  btn.addEventListener("pointerleave", stopHold);
 
 }
 
