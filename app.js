@@ -7863,9 +7863,9 @@ function startHold(amount) {
     isHolding = true;
 
     holdInterval = setInterval(() => {
-      changeDamage(amount);
-    }, 75);
-  }, 180);
+      changeDamage(amount * 10);
+    }, 1000);
+  }, 80);
 
 }
 
@@ -7882,11 +7882,13 @@ function attachHold(btn, amount) {
   btn.addEventListener("pointerdown", (e) => {
     e.preventDefault();
     suppressNextDamageClick = true;
-    changeDamage(amount);
     startHold(amount);
   });
 
   btn.addEventListener("pointerup", () => {
+    if (!isHolding) {
+      changeDamage(amount);
+    }
     stopHold();
     setTimeout(() => {
       suppressNextDamageClick = false;
