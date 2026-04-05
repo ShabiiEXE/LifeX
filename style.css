@@ -960,6 +960,67 @@ body.history-open #game {
   padding: 0.15em 0.55em;
 }
 
+#game[data-players="5"] .player:has(.commander-counters) .commander-corner,
+#game[data-players="6"] .player:has(.commander-counters) .commander-corner {
+  max-width: 62%;
+}
+
+#game[data-players="5"] .player:has(.commander-counters):not(#player3) .pass-btn,
+#game[data-players="6"] .player:has(.commander-counters) .pass-btn {
+  position: relative;
+}
+
+#game[data-players="5"] .player:has(.commander-counters):not(#player3) .commander-corner[data-anchor="top-left"] ~ .info_container .pass-btn,
+#game[data-players="6"] .player:has(.commander-counters) .commander-corner[data-anchor="top-left"] ~ .info_container .pass-btn {
+  align-self: flex-end;
+  left: -12%;
+}
+
+#game[data-players="5"] .player:has(.commander-counters):not(#player3) .commander-corner[data-anchor="bottom-right"] ~ .info_container .pass-btn,
+#game[data-players="6"] .player:has(.commander-counters) .commander-corner[data-anchor="bottom-right"] ~ .info_container .pass-btn {
+  align-self: flex-end;
+  right: 12%;
+}
+
+#game[data-players="5"] .player:has(.commander-counters):not(#player3) .commander-corner[data-anchor="top-right"] ~ .info_container .pass-btn,
+#game[data-players="5"] .player:has(.commander-counters):not(#player3) .commander-corner[data-anchor="bottom-left"] ~ .info_container .pass-btn,
+#game[data-players="6"] .player:has(.commander-counters) .commander-corner[data-anchor="top-right"] ~ .info_container .pass-btn,
+#game[data-players="6"] .player:has(.commander-counters) .commander-corner[data-anchor="bottom-left"] ~ .info_container .pass-btn{
+  align-self: flex-start;
+  right: -12%;
+}
+
+@media (min-width: 800px) {
+  #game[data-players="5"] .player:has(.commander-counters):not(#player3) .pass-btn,
+  #game[data-players="6"] .player:has(.commander-counters) .pass-btn {
+    position: absolute;
+    bottom: clamp(10px, 1.6vmin, 20px) !important;
+    height: clamp(40px, 6.8vmin, 74px) !important;
+    font-size: clamp(15px, 2.6vmin, 24px);
+    padding: 0.22em 0.8em;
+    margin-top: 0;
+  }
+
+  #game[data-players="5"] .player:has(.commander-counters):not(#player3) .commander-corner[data-anchor="top-left"] ~ .info_container .pass-btn,
+  #game[data-players="6"] .player:has(.commander-counters) .commander-corner[data-anchor="top-left"] ~ .info_container .pass-btn {
+    right: 12% !important;
+    left: unset !important;
+    align-self: flex-end !important;
+  }
+
+  #game[data-players="5"] .player:has(.commander-counters):not(#player3) .commander-corner[data-anchor="bottom-right"] ~ .info_container .pass-btn,
+  #game[data-players="6"] .player:has(.commander-counters) .commander-corner[data-anchor="bottom-right"] ~ .info_container .pass-btn {
+    right: 12% !important;
+  }
+
+  #game[data-players="5"] .player:has(.commander-counters):not(#player3) .commander-corner[data-anchor="top-right"] ~ .info_container .pass-btn,
+  #game[data-players="5"] .player:has(.commander-counters):not(#player3) .commander-corner[data-anchor="bottom-left"] ~ .info_container .pass-btn,
+  #game[data-players="6"] .player:has(.commander-counters) .commander-corner[data-anchor="top-right"] ~ .info_container .pass-btn,
+  #game[data-players="6"] .player:has(.commander-counters) .commander-corner[data-anchor="bottom-left"] ~ .info_container .pass-btn {
+    left: 12% !important;
+  }
+}
+
 
 .hidden {
   display: none !important;
