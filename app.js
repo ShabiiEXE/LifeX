@@ -2096,6 +2096,7 @@ function getCurrentStateSnapshot() {
     endGameSelectedCauses,
     matchStats,
     matchEliminations,
+    undoStack,
     players: players.map(p => ({
       life: p.life,
       name: p.name || "",
