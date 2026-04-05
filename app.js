@@ -11,6 +11,7 @@
 let starting_life = 40;
 let selectedPlayerCount = 0;
 let activePlayerIndex = 0;
+let roundStartPlayerIndex = 0;
 let isPaused = false;
 let pauseStartedAt = null;
 let turnStartTime = null;
@@ -1954,40 +1955,18 @@ function saveState() {
 
   syncActivePlayerTimer();
 
-  const state = {
-    hasStartedGame,
-    gameMode,
-    duelSeries,
-    starting_life,
-    selectedPlayerCount,
-    activePlayerIndex,
-    isPaused,
-    isGameOver,
-    winnerIndex,
-    turnNumber,
-    gameLog,
-    lastEliminationCause,
-    lastEliminationSelections,
-    endGameSelectedCauses,
-    matchStats,
-    matchEliminations,
-    undoStack,
-    players: players.map(p => ({
-      life: p.life,
-      name: p.name || "",
-      commander: p.commander || "",
-      commanderArtId: p.commanderArtId || "",
-      image: p.image || "",
-      totalTime: p.totalTime || 0,
-      turnTime: p.turnTime || 0,
-      poison: p.poison || 0,
-      commanderDamage: p.commanderDamage || {},
-      monarch: !!p.monarch
-    }))
-  };
+  const state = buildPersistedGameState();
 
-  localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
-  saveCurrentResumeSession(state);
+  try {
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+    saveCurrentResumeSession(state);
+  } catch (error) {
+    if (error?.name !== "QuotaExceededError") throw error;
+
+    clearResumeSessions();
+    localStorage.removeItem(STORAGE_KEY);
+    localStorage.setItem(STORAGE_KEY, JSON.stringify(state));
+  }
 }
 
 function loadState() {
@@ -2014,6 +1993,10 @@ function loadState() {
   starting_life = Number.isFinite(state.starting_life) ? state.starting_life : 40;
   selectedPlayerCount = Math.min(6, Math.max(2, state.selectedPlayerCount || 4));
   activePlayerIndex = Math.min(selectedPlayerCount - 1, Math.max(0, state.activePlayerIndex || 0));
+  roundStartPlayerIndex = Math.min(
+    selectedPlayerCount - 1,
+    Math.max(0, Number.isFinite(state.roundStartPlayerIndex) ? state.roundStartPlayerIndex : activePlayerIndex)
+  );
   isPaused = state.isPaused || false;
   isGameOver = state.isGameOver || false;
   winnerIndex = state.winnerIndex ?? null;
@@ -2076,9 +2059,7 @@ function cloneStateSnapshot(snapshot) {
   return JSON.parse(JSON.stringify(snapshot));
 }
 
-function getCurrentStateSnapshot() {
-  syncActivePlayerTimer();
-
+function buildPersistedGameState() {
   return {
     hasStartedGame,
     gameMode,
@@ -2086,6 +2067,7 @@ function getCurrentStateSnapshot() {
     starting_life,
     selectedPlayerCount,
     activePlayerIndex,
+    roundStartPlayerIndex,
     isPaused,
     isGameOver,
     winnerIndex,
@@ -2096,7 +2078,6 @@ function getCurrentStateSnapshot() {
     endGameSelectedCauses,
     matchStats,
     matchEliminations,
-    undoStack,
     players: players.map(p => ({
       life: p.life,
       name: p.name || "",
@@ -2112,7 +2093,58 @@ function getCurrentStateSnapshot() {
   };
 }
 
-function applyStateSnapshot(snapshot, { forcePaused = false } = {}) {
+function didAdvancePastRoundStart(previousPlayerIndex, nextPlayerIndex, roundStartIndex, playerCount = selectedPlayerCount) {
+  const safeCount = Math.max(0, Number(playerCount) || 0);
+  if (safeCount <= 1) return false;
+
+  const prev = Math.min(safeCount - 1, Math.max(0, Number(previousPlayerIndex) || 0));
+  const next = Math.min(safeCount - 1, Math.max(0, Number(nextPlayerIndex) || 0));
+  const start = Math.min(safeCount - 1, Math.max(0, Number(roundStartIndex) || 0));
+
+  if (prev === next) return false;
+  if (prev < next) {
+    return start > prev && start <= next;
+  }
+  return start > prev || start <= next;
+}
+
+function getCurrentStateSnapshot() {
+  syncActivePlayerTimer();
+
+  return {
+    hasStartedGame,
+    gameMode,
+    duelSeries,
+    starting_life,
+    selectedPlayerCount,
+    activePlayerIndex,
+    roundStartPlayerIndex,
+    isPaused,
+    isGameOver,
+    winnerIndex,
+    turnNumber,
+    gameLog,
+    lastEliminationCause,
+    lastEliminationSelections,
+    endGameSelectedCauses,
+    matchStats,
+    matchEliminations,
+    players: players.map(p => ({
+      life: p.life,
+      name: p.name || "",
+      commander: p.commander || "",
+      commanderArtId: p.commanderArtId || "",
+      image: p.image || "",
+      totalTime: p.totalTime || 0,
+      turnTime: p.turnTime || 0,
+      poison: p.poison || 0,
+      commanderDamage: p.commanderDamage || {},
+      monarch: !!p.monarch
+    }))
+  };
+}
+
+function applyStateSnapshot(snapshot, { forcePaused = false, preserveUndoStack = false } = {}) {
   if (!snapshot) return;
 
   hasStartedGame = !!snapshot.hasStartedGame;
@@ -2121,6 +2153,10 @@ function applyStateSnapshot(snapshot, { forcePaused = false } = {}) {
   duelSeries = normalizeDuelSeriesState(snapshot.duelSeries);
   starting_life = Number.isFinite(snapshot.starting_life) ? snapshot.starting_life : starting_life;
   activePlayerIndex = Math.min(selectedPlayerCount - 1, Math.max(0, snapshot.activePlayerIndex || 0));
+  roundStartPlayerIndex = Math.min(
+    selectedPlayerCount - 1,
+    Math.max(0, Number.isFinite(snapshot.roundStartPlayerIndex) ? snapshot.roundStartPlayerIndex : activePlayerIndex)
+  );
   isPaused = !!snapshot.isPaused;
   isGameOver = !!snapshot.isGameOver;
   winnerIndex = snapshot.winnerIndex ?? null;
@@ -2132,7 +2168,9 @@ function applyStateSnapshot(snapshot, { forcePaused = false } = {}) {
   matchStats = Array.isArray(snapshot.matchStats)
     ? Array.from({ length: 6 }, (_, i) => normalizeMatchStat(snapshot.matchStats[i]))
     : createDefaultMatchStats();
-  undoStack = Array.isArray(snapshot.undoStack) ? snapshot.undoStack : [];
+  if (!preserveUndoStack) {
+    undoStack = Array.isArray(snapshot.undoStack) ? snapshot.undoStack : [];
+  }
   matchEliminations = Array.isArray(snapshot.matchEliminations)
     ? Array.from({ length: 6 }, (_, i) => ({
       turn: Number.isFinite(snapshot.matchEliminations[i]?.turn) ? snapshot.matchEliminations[i].turn : null,
@@ -2213,7 +2251,7 @@ function undoLastMove() {
   if (undoStack.length === 0) return;
 
   const snapshot = undoStack.pop();
-  applyStateSnapshot(snapshot, { forcePaused: true });
+  applyStateSnapshot(snapshot, { forcePaused: true, preserveUndoStack: true });
   updateUndoButtonState();
   saveState();
   triggerHaptic("minimal");
@@ -2233,6 +2271,7 @@ function initGame(playerCount) {
   hasStartedGame = true;
   selectedPlayerCount = playerCount;
   activePlayerIndex = 0;
+  roundStartPlayerIndex = 0;
   turnNumber = 1;
   gameLog = [];
   lastEliminationCause = null;
@@ -6028,6 +6067,7 @@ function quickStartGame(playerCount, options = {}) {
   isPaused = false;
   selectedPlayerCount = normalizedCount;
   activePlayerIndex = configuredStart;
+  roundStartPlayerIndex = configuredStart;
   turnNumber = 1;
   gameLog = options.preserveDuelSeries && Array.isArray(options.gameLog)
     ? options.gameLog
@@ -6115,8 +6155,13 @@ function nextTurn(recordHistory = true, reason = "Pass") {
     attempts < selectedPlayerCount
   );
 
-  const wrappedToNextRound = activePlayerIndex <= previousPlayerIndex;
-  if (wrappedToNextRound) {
+  const advancedToNextRound = didAdvancePastRoundStart(
+    previousPlayerIndex,
+    activePlayerIndex,
+    roundStartPlayerIndex,
+    selectedPlayerCount
+  );
+  if (advancedToNextRound) {
     turnNumber += 1;
   }
 
@@ -6178,7 +6223,7 @@ svg.innerHTML = "";
       div.classList.add("damage-source");
       }
 
-    const isActive = players[activePlayerIndex].id === player.id && player.life > 0;
+    const isActive = index === activePlayerIndex && player.life > 0;
     const allowSetupActiveHighlight = !setupGridPreviewActive || shouldShowSetupActiveSeat();
     const showActiveHighlight =
       isActive &&
@@ -9463,6 +9508,7 @@ function openRematchSetupFromEnd() {
 
   hasStartedGame = false;
   selectedPlayerCount = 0;
+  roundStartPlayerIndex = 0;
   gameMode = rematchState.mode;
   resetDuelSeriesState(rematchState.matchLength);
   starting_life = rematchState.startingLife;
@@ -9526,6 +9572,7 @@ function backToMenuFromEnd() {
 
   hasStartedGame = false;
   selectedPlayerCount = 0;
+  roundStartPlayerIndex = 0;
   gameMode = "commander";
   resetDuelSeriesState();
   starting_life = 40;
@@ -9607,6 +9654,7 @@ function resetGame() {
 
   // Reset turn system
   activePlayerIndex = 0;
+  roundStartPlayerIndex = 0;
 
   // Stop timer and restart cleanly
   if (turnInterval) clearInterval(turnInterval);
@@ -10101,6 +10149,10 @@ window.addEventListener("pagehide", saveState);
 
 
 window.addEventListener("contextmenu", (e) => e.preventDefault()); //PREVENT RIGHT CLICK
+
+window.debugResetToStartScreen = function debugResetToStartScreen() {
+  backToMenuFromEnd();
+};
 
 // Console helpers for quick troubleshooting:
 // start2(), start3(), start4(), start5(), start6(), startPlayers(n)
