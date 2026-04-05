@@ -3702,7 +3702,7 @@ function renderCommanderSeatOverlay(state, playerIndex) {
   const profileStatsMarkup = isSingleSeatEditor && hasProfile && !seat.isBorrowingDeck && !seat.isAddingDeck && !seat.isEditingDeckArt
     ? renderStatsSummaryGrid([
       { label: "Number of Matches", value: String(profileStats.numberOfMatches) },
-      { label: "Total Play Time", value: formatTime(profileStats.totalPlayTime) },
+      { label: "Total Play Time", value: formatHistoryPlayTime(profileStats.totalPlayTime) },
       { label: "Number of Wins", value: String(profileStats.numberOfWins) },
       { label: "Average Turn Time", value: formatAverageDuration(profileStats.averageTurnTime) },
       { label: "Average Turn Win", value: formatAverageTurnWin(profileStats.averageTurnWin) },
@@ -3773,8 +3773,8 @@ function renderCommanderSeatOverlay(state, playerIndex) {
           ` : `<div class="setup-seat-title">${seat.isDeletingProfile ? "Delete Profile" : seat.isEditingProfile ? "EDIT PLAYER" : "Select Profile"}</div>`}
           ${isSingleSeatEditor ? renderStatsSummaryGrid([
             { label: "Number of Matches", value: String(historySummaryStats.numberOfMatches) },
-            { label: "Total Play Time", value: formatTime(historySummaryStats.totalPlayTime) },
-            { label: "Average Game Time", value: formatAverageDuration(historySummaryStats.averageGameTime) },
+            { label: "Total Play Time", value: formatHistoryPlayTime(historySummaryStats.totalPlayTime) },
+            { label: "Average Game Time", value: formatAverageGameDuration(historySummaryStats.averageGameTime) },
             { label: "Average Turn Time", value: formatAverageDuration(historySummaryStats.averageTurnTime) },
             { label: "Average Turn Win", value: formatAverageTurnWin(historySummaryStats.averageTurnWin) }
           ], "setup-profile-picker-stats") : ""}
@@ -6987,6 +6987,14 @@ function formatTime(seconds) {
   return `${mins}:${secs}`;
 }
 
+function formatHistoryPlayTime(seconds) {
+  const safeSeconds = Math.max(0, Math.floor(Number(seconds) || 0));
+  const hours = String(Math.floor(safeSeconds / 3600)).padStart(2, "0");
+  const mins = String(Math.floor((safeSeconds % 3600) / 60)).padStart(2, "0");
+  const secs = String(safeSeconds % 60).padStart(2, "0");
+  return `${hours}:${mins}:${secs}`;
+}
+
 function escapeHtml(value) {
   return `${value || ""}`
     .replace(/&/g, "&amp;")
@@ -7173,6 +7181,11 @@ function formatAverageDuration(secondsValue) {
   return formatTime(Math.round(secondsValue));
 }
 
+function formatAverageGameDuration(secondsValue) {
+  if (!Number.isFinite(secondsValue) || secondsValue <= 0) return "-";
+  return formatHistoryPlayTime(Math.round(secondsValue));
+}
+
 function getMostUsedCommanderBackgroundForProfile(profileName, decks = []) {
   const normalizedProfileName = normalizeLibraryName(profileName);
   if (!normalizedProfileName) return "";
@@ -7337,7 +7350,7 @@ function renderHistoryDuelSeriesDetail(group) {
         <div class="history-final-line history-winreason-top">${escapeHtml(getDisplayLabel(entry?.finalMessage || ""))}</div>
         <div class="history-entry-body history-entry-body-static">
           <div class="history-overview-grid">
-            <div><span>Total Time</span><strong>${escapeHtml(formatTime(entry.totalMatchSeconds || 0))}</strong></div>
+            <div><span>Total Time</span><strong>${escapeHtml(formatHistoryPlayTime(entry.totalMatchSeconds || 0))}</strong></div>
             <div><span>Winner</span><strong>${escapeHtml(entry.winnerName || "No Winner")}</strong></div>
             <div><span>Won By</span><strong>${escapeHtml(getDisplayLabel(entry.winCause || "Unknown"))}</strong></div>
             <div><span>Turns</span><strong>${escapeHtml(String(entry.turnCount || 0))}</strong></div>
@@ -7357,7 +7370,7 @@ function renderHistoryDuelSeriesDetail(group) {
                   </div>
                 </div>
                 <div class="history-stat-grid">
-                  <div><span>Turn Time</span><strong>${escapeHtml(formatTime(player.totalTime || 0))}</strong></div>
+                  <div><span>Turn Time</span><strong>${escapeHtml(formatHistoryPlayTime(player.totalTime || 0))}</strong></div>
                   <div><span>Total Damage</span><strong>${escapeHtml(String(player.stats?.damageDealt || 0))}</strong></div>
                   <div><span>Commander</span><strong>${escapeHtml(String(player.stats?.commanderDamageDealt || 0))}</strong></div>
                   <div><span>Poison</span><strong>${escapeHtml(String(player.stats?.poisonDealt || 0))}</strong></div>
@@ -7426,7 +7439,7 @@ function renderHistoryEntryDetail(entry) {
         <div class="history-final-line history-winreason-top">${escapeHtml(getDisplayLabel(entry.finalMessage || ""))}</div>
         <div class="history-entry-body history-entry-body-static">
           <div class="history-overview-grid">
-            <div><span>Total Time</span><strong>${escapeHtml(formatTime(entry.totalMatchSeconds || 0))}</strong></div>
+            <div><span>Total Time</span><strong>${escapeHtml(formatHistoryPlayTime(entry.totalMatchSeconds || 0))}</strong></div>
             <div><span>Winner</span><strong>${escapeHtml(entry.winnerName || "No Winner")}</strong></div>
             <div><span>Won By</span><strong>${escapeHtml(getDisplayLabel(entry.winCause || "Unknown"))}</strong></div>
             <div><span>Turns</span><strong>${escapeHtml(String(entry.turnCount || 0))}</strong></div>
@@ -7446,7 +7459,7 @@ function renderHistoryEntryDetail(entry) {
                   </div>
                 </div>
                 <div class="history-stat-grid">
-                  <div><span>Turn Time</span><strong>${escapeHtml(formatTime(player.totalTime || 0))}</strong></div>
+                  <div><span>Turn Time</span><strong>${escapeHtml(formatHistoryPlayTime(player.totalTime || 0))}</strong></div>
                   <div><span>Total Damage</span><strong>${escapeHtml(String(player.stats?.damageDealt || 0))}</strong></div>
                   <div><span>Commander</span><strong>${escapeHtml(String(player.stats?.commanderDamageDealt || 0))}</strong></div>
                   <div><span>Poison</span><strong>${escapeHtml(String(player.stats?.poisonDealt || 0))}</strong></div>
@@ -7512,8 +7525,8 @@ function renderStartHistoryScreen() {
       </div>
       ${renderStatsSummaryGrid([
         { label: "Number of Matches", value: String(summaryStats.numberOfMatches) },
-        { label: "Total Play Time", value: formatTime(summaryStats.totalPlayTime) },
-        { label: "Average Game Time", value: formatAverageDuration(summaryStats.averageGameTime) },
+        { label: "Total Play Time", value: formatHistoryPlayTime(summaryStats.totalPlayTime) },
+        { label: "Average Game Time", value: formatAverageGameDuration(summaryStats.averageGameTime) },
         { label: "Average Turn Time", value: formatAverageDuration(summaryStats.averageTurnTime) },
         { label: "Average Turn Win", value: formatAverageTurnWin(summaryStats.averageTurnWin) }
       ], "history-top-stats")}
@@ -7547,7 +7560,7 @@ function renderStartHistoryStep() {
         </summary>
         <div class="history-entry-body">
           <div class="history-overview-grid">
-            <div><span>Total Time</span><strong>${escapeHtml(formatTime(entry.totalMatchSeconds || 0))}</strong></div>
+            <div><span>Total Time</span><strong>${escapeHtml(formatHistoryPlayTime(entry.totalMatchSeconds || 0))}</strong></div>
             <div><span>Winner</span><strong>${escapeHtml(entry.winnerName || "No Winner")}</strong></div>
             <div><span>Won By</span><strong>${escapeHtml(getDisplayLabel(entry.winCause || "Unknown"))}</strong></div>
             <div><span>Turns</span><strong>${escapeHtml(String(entry.turnCount || 0))}</strong></div>
@@ -7567,7 +7580,7 @@ function renderStartHistoryStep() {
                   </div>
                 </div>
                 <div class="history-stat-grid">
-                  <div><span>Turn Time</span><strong>${escapeHtml(formatTime(player.totalTime || 0))}</strong></div>
+                  <div><span>Turn Time</span><strong>${escapeHtml(formatHistoryPlayTime(player.totalTime || 0))}</strong></div>
                   <div><span>Total Damage</span><strong>${escapeHtml(String(player.stats?.damageDealt || 0))}</strong></div>
                   <div><span>Commander</span><strong>${escapeHtml(String(player.stats?.commanderDamageDealt || 0))}</strong></div>
                   <div><span>Poison</span><strong>${escapeHtml(String(player.stats?.poisonDealt || 0))}</strong></div>
@@ -9136,7 +9149,7 @@ function getCurrentGameLogHighlights() {
   }
 
   return [
-    { label: "Total Time", value: `${formatTime(totalGameTime)} (Turn ${turnNumber})` },
+    { label: "Total Time", value: `${formatHistoryPlayTime(totalGameTime)} (Turn ${turnNumber})` },
     { label: "Main Enemy", value: mainEnemyName === " - " ? " - " : `${mainEnemyName} (${mostDamage} damage)` },
     { label: "Most Commander Damage", value: mostCommanderDamageName === " - " ? " - " : `${mostCommanderDamageName} (Dealt ${mostCommanderDamage} damage)` },
     { label: "Most Heal", value: mostHealName === " - " ? " - " : `${mostHealName} (${mostHealValue} life gained)` }
