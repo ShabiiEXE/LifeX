@@ -1220,6 +1220,7 @@ function loadMatchHistory(roomId = `${cloudSyncSession?.activeRoomId || ""}`.tri
 function saveMatchHistory(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
   matchHistory = trimMatchHistoryByCommanderCap(matchHistory);
   localStorage.setItem(getWorkspaceStorageKey(MATCH_HISTORY_STORAGE_KEY, roomId), JSON.stringify(matchHistory));
+  syncPersistentStatsFromHistory(roomId);
 }
 
 function loadPersistentStats(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
@@ -1250,8 +1251,6 @@ function buildPersistentStatsSnapshotFromEntries(entries) {
   };
 
   (Array.isArray(entries) ? entries : []).forEach((entry) => {
-    if ((entry?.mode || "commander") !== "commander") return;
-
     applyPersistentGlobalDelta(snapshot.global, {
       numberOfMatches: 1,
       totalPlayTime: Number.isFinite(entry?.totalMatchSeconds) ? entry.totalMatchSeconds : 0,
@@ -1300,11 +1299,10 @@ function buildPersistentStatsSnapshotFromEntries(entries) {
 }
 
 function buildPersistentStatsSnapshot() {
-  const localCommanderEntries = matchHistory.filter((entry) =>
-    (entry?.mode || "commander") === "commander"
-    && `${entry?.createdByDeviceId || ""}`.trim() === deviceId
+  const localEntries = matchHistory.filter((entry) =>
+    `${entry?.createdByDeviceId || ""}`.trim() === deviceId
   );
-  return buildPersistentStatsSnapshotFromEntries(localCommanderEntries);
+  return buildPersistentStatsSnapshotFromEntries(localEntries);
 }
 
 function buildCloudPersistentStatsSnapshot() {
@@ -1313,7 +1311,7 @@ function buildCloudPersistentStatsSnapshot() {
   };
 }
 
-function recordPersistentStatsForEntry(entry) {
+function recordPersistentStatsForEntry(entry, { shouldSave = true } = {}) {
   const historyKey = getHistoryShareKey(entry);
   if (!historyKey) return false;
   if (persistentStats.processedEntryKeys.includes(historyKey)) return false;
@@ -1355,20 +1353,18 @@ function recordPersistentStatsForEntry(entry) {
     });
   });
 
-  savePersistentStats();
+  if (shouldSave) {
+    savePersistentStats();
+  }
   return true;
 }
 
-function syncPersistentStatsFromHistory() {
-  let changed = false;
+function syncPersistentStatsFromHistory(roomId = `${cloudSyncSession?.activeRoomId || ""}`.trim()) {
+  persistentStats = createEmptyPersistentStatsStore();
   matchHistory.forEach((entry) => {
-    if (recordPersistentStatsForEntry(entry)) {
-      changed = true;
-    }
+    recordPersistentStatsForEntry(entry, { shouldSave: false });
   });
-  if (changed) {
-    savePersistentStats();
-  }
+  savePersistentStats(roomId);
 }
 
 function mergeImportedPersistentStats(statsPayload) {
@@ -3427,17 +3423,6 @@ function mergeImportedTransferData(payload, { roomId = `${cloudSyncSession?.acti
   deckLibrary.sort((a, b) => (b.lastUsedAt || 0) - (a.lastUsedAt || 0));
   matchHistory.sort((a, b) => (b.endedAt || 0) - (a.endedAt || 0));
   matchHistory = trimMatchHistoryByCommanderCap(matchHistory);
-  const incomingStatsPayloads = Array.isArray(payload.stats)
-    ? payload.stats
-    : (payload.stats ? [payload.stats] : []);
-  if (incomingStatsPayloads.length) {
-    incomingStatsPayloads.forEach((statsSnapshot) => {
-      mergeImportedPersistentStats(statsSnapshot);
-    });
-  } else {
-    syncPersistentStatsFromHistory();
-  }
-
   saveProfileLibrary();
   saveDeckLibrary();
   saveMatchHistory();
@@ -7125,7 +7110,6 @@ function archiveCompletedGame(finalCauseLabel, finalMessage) {
   const entry = buildMatchHistoryEntry(finalCauseLabel, finalMessage);
   matchHistory.unshift(entry);
   matchHistory = trimMatchHistoryByCommanderCap(matchHistory);
-  recordPersistentStatsForEntry(entry);
   saveMatchHistory();
   if ((entry?.mode || "commander") === "commander") {
     syncActiveCloudRoom({ silent: true });
