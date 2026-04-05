@@ -866,6 +866,13 @@ body.history-open #game {
   --poison-side-inset: clamp(8px, 1.5vmin, 16px);
 }
 
+@media (min-width: 800px) {
+  #game[data-players="5"] #player3 .bg {
+    background-size: cover !important;
+    background-position: center !important;
+  }
+}
+
 #game[data-players="6"] .poison-corner,
 #game[data-players="6"] .setup-plus-btn {
   --poison-side-inset: clamp(8px, 1.5vmin, 16px);

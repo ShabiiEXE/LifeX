@@ -7839,7 +7839,7 @@ function openDamageMenu(targetIndex) {
     (selectedPlayerCount === 3 && targetIndex === 2);
   const shouldCompactDamageFooter =
     selectedPlayerCount === 6 ||
-    (selectedPlayerCount === 5 && targetIndex !== 4);
+    (selectedPlayerCount === 5 && targetIndex !== 3);
   const confirmButtonLabel = actionsBelowControls
     ? "Confirm"
     : getIconMarkup("Ok", "inline-icon");
