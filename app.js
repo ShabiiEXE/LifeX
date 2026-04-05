@@ -6524,6 +6524,7 @@ function togglePause() {
     saveState();
   }
 
+  render();
   triggerHaptic("minimal");
 }
 
